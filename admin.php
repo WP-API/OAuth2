@@ -5,7 +5,7 @@
 
 require dirname( __FILE__ ) . '/lib/class-wp-rest-oauth1-admin.php';
 
-add_action( 'admin_menu', array( 'WP_REST_OAuth1_Admin', 'register' ) );
+add_action( 'admin_menu', array( 'Admin', 'register' ) );
 
 add_action( 'personal_options', 'rest_oauth1_profile_section', 50 );
 
