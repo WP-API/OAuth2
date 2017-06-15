@@ -167,7 +167,22 @@ class Client {
 			}
 		}
 
+		$post = get_post( $post_id );
+
 		return new static( $post );
+	}
+
+	public function update( WP_Post $post ) {
+
+	}
+
+	/**
+	 * Delete the client.
+	 *
+	 * @return array|false|WP_Post
+	 */
+	public function delete() {
+		return wp_delete_post( $this->get_id() );
 	}
 
 	/**
