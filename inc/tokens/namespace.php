@@ -2,4 +2,6 @@
 
 namespace WP\OAuth2\Tokens;
 
-use WP\OAuth2\Client;
+function get_by_id( $id ) {
+	return Access_Token::get_by_id( $id );
+}
