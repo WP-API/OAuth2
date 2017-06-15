@@ -1,14 +1,13 @@
 <?php
 login_header(
-	__('Authorize', 'oauth'),
+	__( 'Authorize', 'oauth2' ),
 	'',
 	$errors
 );
 
 $current_user = wp_get_current_user();
 
-$url = site_url( 'wp-login.php?action=oauth1_authorize', 'login_post' );
-$url = add_query_arg( 'oauth_token', $token_key, $url );
+$url = $_SERVER['REQUEST_URI'];
 
 ?>
 
@@ -55,7 +54,7 @@ $url = add_query_arg( 'oauth_token', $token_key, $url );
 
 <form name="oauth1_authorize_form" id="oauth1_authorize_form" action="<?php echo esc_url( $url ); ?>" method="post">
 
-	<h2 class="login-title"><?php echo esc_html( sprintf( __('Connect %1$s'), $consumer->post_title ) ) ?></h2>
+	<h2 class="login-title"><?php echo esc_html( sprintf( __('Connect %1$s'), $client->get_name() ) ) ?></h2>
 
 	<div class="login-info">
 
@@ -63,9 +62,9 @@ $url = add_query_arg( 'oauth_token', $token_key, $url );
 
 		<p><?php
 			printf(
-				__( 'Howdy <strong>%1$s</strong>,<br/> "%2$s" would like to connect to %3$s.' ),
+				__( 'Howdy <strong>%1$s</strong>,<br/> "%2$s" would like to connect to %3$s.', 'oauth2' ),
 				$current_user->user_login,
-				$consumer->post_title,
+				$client->get_name(),
 				get_bloginfo( 'name' )
 			)
 		?></p>
@@ -74,14 +73,15 @@ $url = add_query_arg( 'oauth_token', $token_key, $url );
 
 	<?php
 	/**
-	 * Fires inside the lostpassword <form> tags, before the hidden fields.
-	 *
-	 * @since 2.1.0
+	 * Fires inside the lostpassword <form> tags.
 	 */
-	do_action( 'oauth1_authorize_form', $consumer ); ?>
+	do_action( 'oauth2_authorize_form', $client );
+	wp_nonce_field( sprintf( 'oauth2_authorize:%s', $client->get_key() ) );
+	?>
+
 	<p class="submit">
-		<button type="submit" name="wp-submit" value="authorize" class="button button-primary button-large"><?php _e('Authorize'); ?></button>
-		<button type="submit" name="wp-submit" value="cancel" class="button button-large"><?php _e('Cancel'); ?></button>
+		<button type="submit" name="wp-submit" value="authorize" class="button button-primary button-large"><?php _e( 'Authorize', 'oauth2' ); ?></button>
+		<button type="submit" name="wp-submit" value="cancel" class="button button-large"><?php _e( 'Cancel', 'oauth2' ); ?></button>
 	</p>
 
 </form>
