@@ -11,19 +11,26 @@ namespace WP\OAuth2;
 
 use WP_REST_Response;
 
+bootstrap();
+
 function bootstrap() {
 	load();
 
-	add_filter( 'determine_current_user', __NAMESPACE__ . '\\attempt_authentication' );
+	/** @todo Implement this :) */
+//	add_filter( 'determine_current_user', __NAMESPACE__ . '\\attempt_authentication' );
 	add_filter( 'oauth2.grant_types', __NAMESPACE__ . '\\register_grant_types', 0 );
+
+	add_action( 'admin_menu', array( __NAMESPACE__ . '\\admin\\Admin', 'register' ) );
 }
 
 function load() {
 	require __DIR__ . '/inc/class-client.php';
 	require __DIR__ . '/inc/class-scopes.php';
 	require __DIR__ . '/inc/types/class-type.php';
+	require __DIR__ . '/inc/types/class-base.php';
 	require __DIR__ . '/inc/types/class-authorization-code.php';
 	require __DIR__ . '/inc/types/class-implicit.php';
+	require __DIR__ . '/inc/admin/class-admin.php';
 }
 
 /**
