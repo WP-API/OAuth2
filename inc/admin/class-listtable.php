@@ -2,22 +2,27 @@
 
 namespace WP\OAuth2\Admin;
 
+use WP\OAuth2\Client;
 use WP_List_Table;
 use WP_Query;
 
 class ListTable extends WP_List_Table {
+
+	/**
+	 * @todo check if the meta_query is actually required.
+	 */
 	public function prepare_items() {
 		$paged = $this->get_pagenum();
 
 		$args = [
-			'post_type'   => 'json_consumer',
+			'post_type'   => Client::POST_TYPE,
 			'post_status' => 'any',
-			'meta_query'  => [
-				[
-					'key'   => 'type',
-					'value' => 'oauth2',
-				],
-			],
+//			'meta_query'  => [
+//				[
+//					'key'   => 'type',
+//					'value' => 'oauth2',
+//				],
+//			],
 			'paged'       => $paged,
 		];
 
