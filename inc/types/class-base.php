@@ -4,6 +4,7 @@ namespace WP\OAuth2\Types;
 
 use WP_Http;
 use WP_Error;
+use WP_Http;
 use WP\OAuth2\Client;
 
 abstract class Base implements Type {
