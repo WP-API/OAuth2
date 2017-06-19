@@ -445,7 +445,7 @@ class Admin {
 			return;
 		}
 
-		$id = $_GET['id'];
+		$id = absint( $_GET['id'] );
 		check_admin_referer( 'rest-oauth2-delete:' . $id );
 
 		if ( ! current_user_can( 'delete_post', $id ) ) {
