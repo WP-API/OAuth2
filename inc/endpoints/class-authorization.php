@@ -2,6 +2,7 @@
 
 namespace WP\OAuth2\Endpoints;
 
+use WP_Error;
 use WP\OAuth2\Client;
 use WP\OAuth2\Types;
 
@@ -29,13 +30,17 @@ class Authorization {
 				break;
 
 			default:
-				return new WP_Error(
+				$result = new WP_Error(
 					'oauth2.endpoints.authorization.handle_request.invalid_type',
 					__( 'Invalid response type specified.', 'oauth2' )
 				);
+				break;
 		}
 
-		$result = $handler->handle_authorisation();
+		if ( empty( $result ) ) {
+			$result = $handler->handle_authorisation();
+		}
+
 		if ( is_wp_error( $result ) ) {
 			// TODO: Handle it.
 			wp_die( $result->get_error_message() );
