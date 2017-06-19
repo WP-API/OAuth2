@@ -12,7 +12,11 @@ class AuthorizationCode extends Base {
 		switch ( $submit ) {
 			case 'authorize':
 				// Generate authorization code and redirect back.
-				$code = 'x';
+				$code = $client->generate_authorization_code();
+				if ( is_wp_error( $code ) ) {
+					return $code;
+				}
+
 				$redirect_args = array(
 					'code' => $code,
 				);
