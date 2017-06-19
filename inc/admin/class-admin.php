@@ -335,13 +335,47 @@ class Admin {
 					</tr>
 					<tr>
 						<th scope="row">
-							<label for="oauth-type"><?php echo esc_html_x( 'Type', 'field name', 'rest_oauth2' ) ?></label>
+							<?php echo esc_html_x( 'Type', 'field name', 'rest_oauth2' ) ?>
 						</th>
 						<td>
-							<select name="type" id="oauth-type">
-								<option <?php selected( 'public', $data['type'] ); ?> value="public"><?php echo esc_html_x( 'Public', 'Client type select option', 'rest_oauth2' ); ?></option>
-								<option <?php selected( 'private', $data['type'] ); ?> value="private"><?php echo esc_html_x( 'Private', 'Client type select option', 'rest_oauth2' ); ?></option>
-							</select>
+							<ul>
+								<li>
+									<input
+										type="radio"
+										name="type"
+										value="private"
+										id="oauth-type-private"
+										<?php checked( 'private', $data['type'] ); ?>
+									/>
+									<label for="oauth-type-private">
+										<?php echo esc_html_x( 'Private', 'Client type select option', 'rest_oauth2' ); ?>
+									</label>
+									<p class="description">
+										<?php esc_html_e(
+											'Clients capable of maintaining confidentiality of credentials, such as server-side applications',
+											'rest_oauth2'
+										) ?>
+									</p>
+								</li>
+								<li>
+									<input
+										type="radio"
+										name="type"
+										value="public"
+										id="oauth-type-public"
+										<?php checked( 'public', $data['type'] ); ?>
+									/>
+									<label for="oauth-type-public">
+										<?php echo esc_html_x( 'Public', 'Client type select option', 'rest_oauth2' ); ?>
+									</label>
+									<p class="description">
+										<?php esc_html_e(
+											'Clients incapable of keeping credentials secret, such as browser-based applications or desktop and mobile apps',
+											'rest_oauth2'
+										) ?>
+									</p>
+								</li>
+							</ul>
 						</td>
 					</tr>
 					<tr>
