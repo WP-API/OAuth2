@@ -5,6 +5,7 @@ namespace WP\OAuth2;
 use WP\OAuth2\Tokens\Access_Token;
 use WP_Error;
 use WP_Post;
+use WP_Query;
 use WP_User;
 
 class Client {
@@ -252,6 +253,33 @@ class Client {
 	 */
 	public function issue_token( WP_User $user ) {
 		return Tokens\Access_Token::create( $this, $user );
+	}
+
+	/**
+	 * Get a client by ID.
+	 *
+	 * @param string $id Client ID.
+	 * @return static|null Token if ID is found, null otherwise.
+	 */
+	public static function get_by_id( $id ) {
+		$args = array(
+			'post_type'      => static::POST_TYPE,
+			'post_status'    => 'publish',
+			'posts_per_page' => 1,
+			'no_found_rows'  => true,
+			'meta_query'     => array(
+				array(
+					'key'   => static::CLIENT_ID_KEY,
+					'value' => $id,
+				),
+			),
+		);
+		$query = new WP_Query( $args );
+		if ( empty( $query->posts ) ) {
+			return null;
+		}
+
+		return new static( $query->posts[0] );
 	}
 
 	/**
