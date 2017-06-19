@@ -26,12 +26,12 @@ function bootstrap() {
 function load() {
 	require __DIR__ . '/inc/class-client.php';
 	require __DIR__ . '/inc/class-scopes.php';
+	require __DIR__ . '/inc/endpoints/class-authorization.php';
 	require __DIR__ . '/inc/types/class-type.php';
 	require __DIR__ . '/inc/types/class-base.php';
 	require __DIR__ . '/inc/types/class-authorization-code.php';
 	require __DIR__ . '/inc/types/class-implicit.php';
 	require __DIR__ . '/inc/admin/class-admin.php';
-	require __DIR__ . '/lib/class-wp-rest-oauth2-ui.php';
 }
 
 /**
@@ -41,7 +41,7 @@ function load() {
  * sanitized before this.
  */
 function rest_oauth2_load_authorize_page() {
-	$authorizer = new \WP_REST_OAuth2_UI();
+	$authorizer = new Endpoints\Authorization();
 	$authorizer->register_hooks();
 }
 
