@@ -13,7 +13,6 @@ class Authorization {
 	 */
 	public function register_hooks() {
 		add_action( 'login_form_' . static::LOGIN_ACTION, array( $this, 'handle_request' ) );
-		add_action( 'oauth2_authorize_form', array( $this, 'render_page_fields' ) );
 	}
 
 	public function handle_request() {
@@ -22,7 +21,7 @@ class Authorization {
 
 		switch ( $type ) {
 			case 'code':
-				$handler = new Types\Authorization_Code();
+				$handler = new Types\AuthorizationCode();
 				break;
 
 			case 'token':

@@ -64,7 +64,7 @@ $url = $_SERVER['REQUEST_URI'];
 			printf(
 				__( 'Howdy <strong>%1$s</strong>,<br/> "%2$s" would like to connect to %3$s.', 'oauth2' ),
 				$current_user->user_login,
-				$client->get_name(),
+		    $client->get_name(),
 				get_bloginfo( 'name' )
 			)
 		?></p>
@@ -76,7 +76,7 @@ $url = $_SERVER['REQUEST_URI'];
 	 * Fires inside the lostpassword <form> tags.
 	 */
 	do_action( 'oauth2_authorize_form', $client );
-	wp_nonce_field( sprintf( 'oauth2_authorize:%s', $client->get_key() ) );
+	wp_nonce_field( 'json_oauth2_authorize' );
 	?>
 
 	<p class="submit">

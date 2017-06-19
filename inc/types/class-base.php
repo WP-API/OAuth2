@@ -10,6 +10,7 @@ abstract class Base implements Type {
 	 * Handle authorisation page.
 	 */
 	public function handle_authorisation() {
+
 		if ( empty( $_GET['client_id'] ) ) {
 			return new WP_Error(
 				'oauth2.types.authorization_code.handle_authorisation.missing_client_id',
@@ -99,10 +100,10 @@ abstract class Base implements Type {
 	 *
 	 * @param Client $client Client being authorised.
 	 */
-	protected function render_form( Client $client ) {
-		$file = locate_template( 'oauth1-authorize.php' );
+	public function render_form( Client $client ) {
+		$file = locate_template( 'oauth2-authorize.php' );
 		if ( empty( $file ) ) {
-			$file = dirname( dirname( __DIR__ ) ) . '/theme/oauth1-authorize.php';
+			$file = dirname( dirname( __DIR__ ) ) . '/theme/oauth2-authorize.php';
 		}
 
 		include $file;
@@ -114,6 +115,7 @@ abstract class Base implements Type {
 	 * @param Client $client Client to generate nonce for.
 	 */
 	protected function get_nonce_action( Client $client ) {
-		return sprintf( 'oauth2_authorize:%s', $client->get_key() );
+		// return sprintf( 'oauth2_authorize:%s', $client->get_post_id() );
+		return 'json_oauth2_authorize';
 	}
 }
