@@ -70,13 +70,21 @@ class Client {
 	/**
 	 * Get the client's description.
 	 *
+	 * @param boolean $raw True to get raw database value for editing, false to get rendered value for display.
 	 * @return string
 	 */
-	public function get_description() {
+	public function get_description( $raw = false ) {
 		// Replicate the_content()'s filters.
 		global $post;
 		$current_post = $post;
-		$post = get_post( $this->get_post_id() );
+		$the_post = get_post( $this->get_post_id() );
+		if ( $raw ) {
+			// Skip the filtering and globals.
+			return $the_post->post_content;
+		}
+
+		// Set up globals so the filters have context.
+		$post = $the_post;
 		setup_postdata( $post );
 		$content = get_the_content();
 

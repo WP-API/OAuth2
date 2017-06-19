@@ -285,7 +285,7 @@ class Admin {
 			}
 		} else {
 			$data['name']        = $consumer->get_name();
-			$data['description'] = $consumer->get_description();
+			$data['description'] = $consumer->get_description( true );
 			$data['type']        = $consumer->get_type();
 			$data['callback']    = $consumer->get_redirect_uris();
 
