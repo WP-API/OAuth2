@@ -49,5 +49,6 @@ class Authorization {
 			// TODO: Handle it.
 			wp_die( $result->get_error_message() );
 		}
+		exit;
 	}
 }
