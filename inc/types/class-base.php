@@ -101,7 +101,7 @@ abstract class Base implements Type {
 	 *
 	 * @param Client $client Client being authorised.
 	 */
-	public function render_form( Client $client ) {
+	protected function render_form( Client $client ) {
 		$file = locate_template( 'oauth2-authorize.php' );
 		if ( empty( $file ) ) {
 			$file = dirname( dirname( __DIR__ ) ) . '/theme/oauth2-authorize.php';
