@@ -72,7 +72,7 @@ function get_grant_types() {
  * @return array Grant types with additional types registered.
  */
 function register_grant_types( $types ) {
-	$types['authorization_code'] = new Types\Authorization_Code();
+	$types['authorization_code'] = new Types\AuthorizationCode();
 	$types['implicit'] = new Types\Implicit();
 
 	return $types;
