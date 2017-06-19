@@ -12,10 +12,16 @@ class Implicit extends Base {
 
 		switch ( $submit ) {
 			case 'authorize':
-				// Generate authorization code and redirect back.
-				$code = 'x';
+				// Generate token and redirect back.
+				$user = wp_get_current_user();
+				$token = $client->issue_token( $user );
+				if ( is_wp_error( $token ) ) {
+					return $token;
+				}
+
 				$redirect_args = array(
-					'code' => $code,
+					'access_token' => $token->get_key(),
+					'token_type'   => 'bearer',
 				);
 				break;
 
