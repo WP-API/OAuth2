@@ -71,10 +71,21 @@ abstract class Base implements Type {
 			);
 		}
 
-		$submit = wp_unslash( $_POST['wp-submit'] );
-		if ( empty( $submit ) ) {
-			return new WP_Error();
+		if ( empty( $_POST['wp-submit'] ) ) {
+			// Submitted, but button not selected...
+			$error = new WP_Error(
+				'oauth2.types.authorization_code.handle_authorisation.invalid_submit',
+				sprintf(
+					/** translators: %1$s is the translated "Authorize" button, %2$s is the translated "Cancel" button */
+					__( 'Select either %1$s or %2$s to continue.', 'oauth2' ),
+					__( 'Authorize', 'oauth2' ),
+					__( 'Cancel', 'oauth2' )
+				)
+			);
+			return $this->render_form( $client, $error );
 		}
+
+		$submit = wp_unslash( $_POST['wp-submit'] );
 
 		$data = compact( 'redirect_uri', 'scope', 'state' );
 		return $this->handle_authorization_submission( $submit, $client, $data );
@@ -115,8 +126,9 @@ abstract class Base implements Type {
 	 * Render the authorisation form.
 	 *
 	 * @param Client $client Client being authorised.
+	 * @param WP_Error $errors Errors to display, if any.
 	 */
-	protected function render_form( Client $client ) {
+	protected function render_form( Client $client, WP_Error $errors = null ) {
 		$file = locate_template( 'oauth2-authorize.php' );
 		if ( empty( $file ) ) {
 			$file = dirname( dirname( __DIR__ ) ) . '/theme/oauth2-authorize.php';
