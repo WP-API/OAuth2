@@ -140,12 +140,12 @@ class Admin {
 		$valid = [];
 
 		if ( empty( $params['name'] ) ) {
-			return new WP_Error( 'rest_oauth2_missing_name', __( 'Consumer name is required', 'rest_oauth2' ) );
+			return new WP_Error( 'rest_oauth2_missing_name', __( 'Client name is required', 'rest_oauth2' ) );
 		}
 		$valid['name'] = wp_filter_post_kses( $params['name'] );
 
 		if ( empty( $params['description'] ) ) {
-			return new WP_Error( 'rest_oauth2_missing_description', __( 'Consumer description is required', 'rest_oauth2' ) );
+			return new WP_Error( 'rest_oauth2_missing_description', __( 'Client description is required', 'rest_oauth2' ) );
 		}
 		$valid['description'] = wp_filter_post_kses( $params['description'] );
 
@@ -155,7 +155,7 @@ class Admin {
 		$valid['type'] = wp_filter_post_kses( $params['type'] );
 
 		if ( empty( $params['callback'] ) ) {
-			return new WP_Error( 'rest_oauth2_missing_callback', __( 'Consumer callback is required and must be a valid URL.', 'rest_oauth2' ) );
+			return new WP_Error( 'rest_oauth2_missing_callback', __( 'Client callback is required and must be a valid URL.', 'rest_oauth2' ) );
 		}
 		if ( ! empty( $params['callback'] ) ) {
 			$valid['callback'] = $params['callback'];
@@ -249,7 +249,7 @@ class Admin {
 			$id       = absint( $_REQUEST['id'] );
 			$consumer = Client::get_by_id( $id );
 			if ( is_wp_error( $consumer ) || empty( $consumer ) ) {
-				wp_die( __( 'Invalid consumer ID.', 'rest_oauth2' ) );
+				wp_die( __( 'Invalid client ID.', 'rest_oauth2' ) );
 			}
 
 			$form_action       = self::get_url( [ 'action' => 'edit', 'id' => $id ] );
@@ -318,7 +318,7 @@ class Admin {
 				<table class="form-table">
 					<tr>
 						<th scope="row">
-							<label for="oauth-name"><?php echo esc_html_x( 'Consumer Name', 'field name', 'rest_oauth2' ) ?></label>
+							<label for="oauth-name"><?php echo esc_html_x( 'Client Name', 'field name', 'rest_oauth2' ) ?></label>
 						</th>
 						<td>
 							<input type="text" class="regular-text" name="name" id="oauth-name" value="<?php echo esc_attr( $data['name'] ) ?>"/>
@@ -393,11 +393,11 @@ class Admin {
 
 				if ( empty( $consumer ) ) {
 					wp_nonce_field( 'rest-oauth2-add' );
-					submit_button( __( 'Add Consumer', 'rest_oauth2' ) );
+					submit_button( __( 'Create Client', 'rest_oauth2' ) );
 				} else {
 					echo '<input type="hidden" name="id" value="' . esc_attr( $consumer->get_post_id() ) . '" />';
 					wp_nonce_field( 'rest-oauth2-edit-' . $consumer->get_post_id() );
-					submit_button( __( 'Save Consumer', 'rest_oauth2' ) );
+					submit_button( __( 'Save Client', 'rest_oauth2' ) );
 				}
 
 				?>
@@ -464,7 +464,7 @@ class Admin {
 		}
 
 		if ( ! $client->delete() ) {
-			$message = 'Invalid consumer ID';
+			$message = 'Invalid client ID';
 			wp_die( $message );
 
 			return;
