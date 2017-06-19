@@ -247,7 +247,7 @@ class Admin {
 		$form_action = self::get_url( 'action=add' );
 		if ( ! empty( $_REQUEST['id'] ) ) {
 			$id       = absint( $_REQUEST['id'] );
-			$consumer = Client::get_by_id( $id );
+			$consumer = Client::get_by_post_id( $id );
 			if ( is_wp_error( $consumer ) || empty( $consumer ) ) {
 				wp_die( __( 'Invalid client ID.', 'rest_oauth2' ) );
 			}
@@ -456,7 +456,7 @@ class Admin {
 			);
 		}
 
-		$client = Client::get_by_id( $id );
+		$client = Client::get_by_post_id( $id );
 		if ( is_wp_error( $client ) ) {
 			wp_die( $client );
 
@@ -493,7 +493,7 @@ class Admin {
 			);
 		}
 
-		$client = Client::get_by_id( $id );
+		$client = Client::get_by_post_id( $id );
 		$result = $client->regenerate_secret();
 		if ( is_wp_error( $result ) ) {
 			wp_die( $result->get_error_message() );

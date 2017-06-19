@@ -255,12 +255,12 @@ class Client {
 	}
 
 	/**
-	 * Get a client by ID.
+	 * Get a client by post ID.
 	 *
 	 * @param int $id Client/post ID.
 	 * @return static|null Client instance on success, null if invalid/not found.
 	 */
-	public static function get_by_id( $id ) {
+	public static function get_by_post_id( $id ) {
 		$post = get_post( $id );
 		if ( ! $post ) {
 			return null;
