@@ -6,7 +6,7 @@ use WP_Error;
 use WP\OAuth2\Client;
 use WP_User;
 
-class Access_Token {
+class Access_Token extends Token {
 	const META_PREFIX = 'oauth2_access_';
 	const KEY_LENGTH = 12;
 
