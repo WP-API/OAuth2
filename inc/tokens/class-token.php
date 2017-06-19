@@ -3,6 +3,9 @@
 namespace WP\OAuth2\Tokens;
 
 abstract class Token {
+	protected $key;
+	protected $value;
+
 	protected function __construct( $key, $value ) {
 		$this->key = $key;
 		$this->value = $value;
@@ -10,6 +13,15 @@ abstract class Token {
 
 	public function get_key() {
 		return $this->key;
+	}
+
+	/**
+	 * Get the token's value.
+	 *
+	 * @return mixed $value Token value, specific to the token type.
+	 */
+	public function get_value() {
+		return $this->value;
 	}
 
 	/**
@@ -29,5 +41,4 @@ abstract class Token {
 	public function get_meta_key() {
 		return static::get_meta_prefix() . $this->get_key();
 	}
-	public abstract function to_meta_value();
 }
