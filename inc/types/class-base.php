@@ -8,6 +8,20 @@ use WP\OAuth2\Client;
 
 abstract class Base implements Type {
 	/**
+	 * Handle submission of authorisation page.
+	 *
+	 * @param string $submit Value of the selected button.
+	 * @param Client $client Client being authorised.
+	 * @param array $data Data gathered for the request. {
+	 *     @var string $redirect_uri Specified redirection URI.
+	 *     @var string $scope Requested scope.
+	 *     @var string $state State parameter from the client.
+	 * }
+	 * @return void Method should output form and exit.
+	 */
+	abstract protected function handle_authorization_submission( $submit, Client $client, $data );
+
+	/**
 	 * Handle authorisation page.
 	 */
 	public function handle_authorisation() {
