@@ -2,7 +2,6 @@
 
 namespace WP\OAuth2\Authentication;
 
-use WP_Http;
 use WP\OAuth2\Tokens;
 
 /**
@@ -23,7 +22,7 @@ function get_authorization_header() {
 	if ( function_exists( 'getallheaders' ) ) {
 		$headers = getallheaders();
 
-		// Check for the authoization header case-insensitively
+		// Check for the authorization header case-insensitively
 		foreach ( $headers as $key => $value ) {
 			if ( strtolower( $key ) === 'authorization' ) {
 				return $value;
@@ -36,30 +35,57 @@ function get_authorization_header() {
 
 function get_provided_token() {
 	$header = get_authorization_header();
-	if ( empty( $header ) || ! is_string( $header ) ) {
+	if ( $header ) {
+		return get_token_from_bearer_header( $header );
+	}
+
+	$token = get_token_from_request();
+	if ( $token ) {
+		return $token;
+	}
+
+	return null;
+}
+
+function get_token_from_bearer_header( $header ) {
+	if ( is_string( $header ) && preg_match( '/Bearer ([a-zA-Z0-9\-._~\+\/=]+)/', trim( $header ), $matches ) ) {
+		return $matches[1];
+	}
+
+	return null;
+}
+
+function get_token_from_request() {
+	if ( empty( $_GET['access_token'] ) ) {
 		return null;
 	}
 
-	// Attempt to parse as a Bearer header.
-	$is_valid = preg_match( '/Bearer ([a-zA-Z0-9=.~\-\+\/]+)/', trim( $header ), $matches );
-	if ( ! $is_valid ) {
-		return null;
+	$token = $_GET['access_token'];
+	if ( is_string( $token ) ) {
+		return $token;
 	}
 
-	return $matches[1];
+	// Please note that the following includes PHP 5.3+ code. Ryan said it would be fine, soon. ;)
+	add_filter( 'rest_authentication_errors', function ( $error ) use ( $token ) {
+		return null === $error ? create_invalid_token_error( $token ) : null;
+	} );
+
+	return null;
 }
 
 /**
  * Try to authenticate if possible.
  *
- * @param WP_User|null $user Existing authenticated user.
+ * @param \WP_User|null $user Existing authenticated user.
+ *
+ * @return \WP_User|int|\WP_Error
  */
 function attempt_authentication( $user = null ) {
 	if ( ! empty( $user ) ) {
 		return $user;
 	}
 
-	// Were we given an token?
+	// Were we given a token?
 	$token_value = get_provided_token();
 	if ( empty( $token_value ) ) {
 		// No data provided, pass.
@@ -69,16 +95,20 @@ function attempt_authentication( $user = null ) {
 	// Attempt to find the token.
 	$token = Tokens\get_by_id( $token_value );
 	if ( empty( $token ) ) {
-		return new WP_Error(
-			'oauth2.authentication.attempt_authentication.invalid_token',
-			__( 'Supplied token is invalid.', 'oauth2' ),
-			array(
-				'status' => WP_Http::FORBIDDEN,
-				'token' => $token_value,
-			)
-		);
+		return create_invalid_token_error( $token );
 	}
 
 	// Token found, authenticate as the user.
 	return $token->get_user_id();
+}
+
+function create_invalid_token_error( $token ) {
+	return new \WP_Error(
+		'oauth2.authentication.attempt_authentication.invalid_token',
+		__( 'Supplied token is invalid.', 'oauth2' ),
+		array(
+			'status' => \WP_Http::FORBIDDEN,
+			'token'  => $token,
+		)
+	);
 }

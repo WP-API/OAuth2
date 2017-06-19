@@ -149,8 +149,13 @@ class Admin {
 		}
 		$valid['description'] = wp_filter_post_kses( $params['description'] );
 
+		if ( empty( $params['type'] ) ) {
+			return new WP_Error( 'rest_oauth2_missing_type', __( 'Type is required.', 'rest_oauth2' ) );
+		}
+		$valid['type'] = wp_filter_post_kses( $params['type'] );
+
 		if ( empty( $params['callback'] ) ) {
-			return new WP_Error( 'rest_oauth2_missing_description', __( 'Consumer callback is required and must be a valid URL.', 'rest_oauth2' ) );
+			return new WP_Error( 'rest_oauth2_missing_callback', __( 'Consumer callback is required and must be a valid URL.', 'rest_oauth2' ) );
 		}
 		if ( ! empty( $params['callback'] ) ) {
 			$valid['callback'] = $params['callback'];
@@ -162,6 +167,8 @@ class Admin {
 	/**
 	 * Handle submission of the add page
 	 *
+	 * @param $consumer
+	 *
 	 * @return array|null List of errors. Issues a redirect and exits on success.
 	 */
 	protected static function handle_edit_submit( $consumer ) {
@@ -171,11 +178,12 @@ class Admin {
 			check_admin_referer( 'rest-oauth2-add' );
 		} else {
 			$did_action = 'edit';
-			check_admin_referer( 'rest-oauth2-edit-' . $consumer->ID );
+			check_admin_referer( 'rest-oauth2-edit-' . $consumer->get_post_id() );
 		}
 
 		// Check that the parameters are correct first
 		$params = self::validate_parameters( wp_unslash( $_POST ) );
+
 		if ( is_wp_error( $params ) ) {
 			$messages[] = $params->get_error_message();
 
@@ -183,17 +191,16 @@ class Admin {
 		}
 
 		if ( empty( $consumer ) ) {
-			/** @todo Implement this! */
-//			$authenticator = new WP_REST_OAuth1();
-
 			// Create the consumer
 			$data     = [
 				'name'        => $params['name'],
 				'description' => $params['description'],
 				'meta'        => [
+					'type'     => $params['type'],
 					'callback' => $params['callback'],
 				],
 			];
+
 			$consumer = $result = Client::create( $data );
 		} else {
 			// Update the existing consumer post
@@ -201,9 +208,11 @@ class Admin {
 				'name'        => $params['name'],
 				'description' => $params['description'],
 				'meta'        => [
+					'type'     => $params['type'],
 					'callback' => $params['callback'],
 				],
 			];
+
 			$result = $consumer->update( $data );
 		}
 
@@ -217,7 +226,7 @@ class Admin {
 		$location = self::get_url(
 			[
 				'action'     => 'edit',
-				'id'         => $consumer->ID,
+				'id'         => $consumer->get_post_id(),
 				'did_action' => $did_action,
 			]
 		);
@@ -238,7 +247,7 @@ class Admin {
 		$form_action = self::get_url( 'action=add' );
 		if ( ! empty( $_REQUEST['id'] ) ) {
 			$id       = absint( $_REQUEST['id'] );
-			$consumer = Client::get( $id );
+			$consumer = Client::get_by_id( $id );
 			if ( is_wp_error( $consumer ) || empty( $consumer ) ) {
 				wp_die( __( 'Invalid consumer ID.', 'rest_oauth2' ) );
 			}
@@ -271,13 +280,18 @@ class Admin {
 		$data = [];
 
 		if ( empty( $consumer ) || ! empty( $_POST['_wpnonce'] ) ) {
-			foreach ( [ 'name', 'description', 'callback' ] as $key ) {
+			foreach ( [ 'name', 'description', 'callback', 'type' ] as $key ) {
 				$data[ $key ] = empty( $_POST[ $key ] ) ? '' : wp_unslash( $_POST[ $key ] );
 			}
 		} else {
-			$data['name']        = $consumer->post_title;
-			$data['description'] = $consumer->post_content;
-			$data['callback']    = $consumer->callback;
+			$data['name']        = $consumer->get_name();
+			$data['description'] = $consumer->get_description();
+			$data['type']        = $consumer->get_type();
+			$data['callback']    = $consumer->get_redirect_uris();
+
+			if ( is_array( $data['callback'] ) ) {
+				$data['callback'] = implode( ',', $data['callback'] );
+			}
 		}
 
 		// Header time!
@@ -307,9 +321,7 @@ class Admin {
 							<label for="oauth-name"><?php echo esc_html_x( 'Consumer Name', 'field name', 'rest_oauth2' ) ?></label>
 						</th>
 						<td>
-							<input type="text" class="regular-text"
-							       name="name" id="oauth-name"
-							       value="<?php echo esc_attr( $data['name'] ) ?>"/>
+							<input type="text" class="regular-text" name="name" id="oauth-name" value="<?php echo esc_attr( $data['name'] ) ?>"/>
 							<p class="description"><?php esc_html_e( 'This is shown to users during authorization and in their profile.', 'rest_oauth2' ) ?></p>
 						</td>
 					</tr>
@@ -318,9 +330,18 @@ class Admin {
 							<label for="oauth-description"><?php echo esc_html_x( 'Description', 'field name', 'rest_oauth2' ) ?></label>
 						</th>
 						<td>
-						<textarea class="regular-text" name="description" id="oauth-description"
-						          cols="30" rows="5"
-						          style="width: 500px"><?php echo esc_textarea( $data['description'] ) ?></textarea>
+						<textarea class="regular-text" name="description" id="oauth-description" cols="30" rows="5" style="width: 500px"><?php echo esc_textarea( $data['description'] ) ?></textarea>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row">
+							<label for="oauth-type"><?php echo esc_html_x( 'Type', 'field name', 'rest_oauth2' ) ?></label>
+						</th>
+						<td>
+							<select name="type" id="oauth-type">
+								<option <?php selected( 'public', $data['type'] ); ?> value="public"><?php echo esc_html_x( 'Public', 'Client type select option', 'rest_oauth2' ); ?></option>
+								<option <?php selected( 'private', $data['type'] ); ?> value="private"><?php echo esc_html_x( 'Private', 'Client type select option', 'rest_oauth2' ); ?></option>
+							</select>
 						</td>
 					</tr>
 					<tr>
@@ -328,10 +349,8 @@ class Admin {
 							<label for="oauth-callback"><?php echo esc_html_x( 'Callback', 'field name', 'rest_oauth2' ) ?></label>
 						</th>
 						<td>
-							<input type="text" class="regular-text"
-							       name="callback" id="oauth-callback"
-							       value="<?php echo esc_attr( $data['callback'] ) ?>"/>
-							<p class="description"><?php esc_html_e( "Your application's callback URL. The callback passed with the request token must match the scheme, host, port, and path of this URL.", 'rest_oauth2' ) ?></p>
+							<input type="text" class="regular-text" name="callback" id="oauth-callback" value="<?php echo esc_attr( $data['callback'] ) ?>"/>
+							<p class="description"><?php esc_html_e( "Your application's callback URI or a list of comma separated URIs. The callback passed with the request token must match the scheme, host, port, and path of this URL.", 'rest_oauth2' ) ?></p>
 						</td>
 					</tr>
 				</table>
@@ -342,15 +361,15 @@ class Admin {
 					wp_nonce_field( 'rest-oauth2-add' );
 					submit_button( __( 'Add Consumer', 'rest_oauth2' ) );
 				} else {
-					echo '<input type="hidden" name="id" value="' . esc_attr( $consumer->ID ) . '" />';
-					wp_nonce_field( 'rest-oauth2-edit-' . $consumer->ID );
+					echo '<input type="hidden" name="id" value="' . esc_attr( $consumer->get_post_id() ) . '" />';
+					wp_nonce_field( 'rest-oauth2-edit-' . $consumer->get_post_id() );
 					submit_button( __( 'Save Consumer', 'rest_oauth2' ) );
 				}
 
 				?>
 			</form>
 
-			<?php if ( ! empty( $consumer ) ): ?>
+			<?php if ( ! empty( $consumer ) ) : ?>
 				<form method="post" action="<?php echo esc_url( $regenerate_action ) ?>">
 					<h3><?php esc_html_e( 'OAuth Credentials', 'rest_oauth2' ) ?></h3>
 
@@ -360,7 +379,7 @@ class Admin {
 								<?php esc_html_e( 'Client Key', 'rest_oauth2' ) ?>
 							</th>
 							<td>
-								<code><?php echo esc_html( $consumer->key ) ?></code>
+								<code><?php echo esc_html( $consumer->get_id() ) ?></code>
 							</td>
 						</tr>
 						<tr>
@@ -368,13 +387,13 @@ class Admin {
 								<?php esc_html_e( 'Client Secret', 'rest_oauth2' ) ?>
 							</th>
 							<td>
-								<code><?php echo esc_html( $consumer->secret ) ?></code>
+								<code><?php echo esc_html( $consumer->get_secret() ) ?></code>
 							</td>
 						</tr>
 					</table>
 
 					<?php
-					wp_nonce_field( 'rest-oauth2-regenerate:' . $consumer->ID );
+					wp_nonce_field( 'rest-oauth2-regenerate:' . $consumer->get_post_id() );
 					submit_button( __( 'Regenerate Secret', 'rest_oauth2' ), 'delete' );
 					?>
 				</form>
@@ -384,6 +403,9 @@ class Admin {
 		<?php
 	}
 
+	/**
+	 * Delete the client.
+	 */
 	public static function handle_delete() {
 		if ( empty( $_GET['id'] ) ) {
 			return;
@@ -418,12 +440,15 @@ class Admin {
 		exit;
 	}
 
+	/**
+	 * Regenerate the client secret.
+	 */
 	public static function handle_regenerate() {
 		if ( empty( $_GET['id'] ) ) {
 			return;
 		}
 
-		$id = $_GET['id'];
+		$id = absint( $_GET['id'] );
 		check_admin_referer( 'rest-oauth2-regenerate:' . $id );
 
 		if ( ! current_user_can( 'edit_post', $id ) ) {
@@ -435,7 +460,10 @@ class Admin {
 		}
 
 		$client = Client::get_by_id( $id );
-		$client->regenerate_secret();
+		$result = $client->regenerate_secret();
+		if ( is_wp_error( $result ) ) {
+			wp_die( $result->get_error_message() );
+		}
 
 		wp_safe_redirect( self::get_url( [ 'action' => 'edit', 'id' => $id, 'did_action' => 'regenerate' ] ) );
 		exit;
