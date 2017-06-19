@@ -27,6 +27,9 @@ function load() {
 	require __DIR__ . '/inc/class-client.php';
 	require __DIR__ . '/inc/class-scopes.php';
 	require __DIR__ . '/inc/endpoints/class-authorization.php';
+	require __DIR__ . '/inc/tokens/namespace.php';
+	require __DIR__ . '/inc/tokens/class-token.php';
+	require __DIR__ . '/inc/tokens/class-access-token.php';
 	require __DIR__ . '/inc/types/class-type.php';
 	require __DIR__ . '/inc/types/class-base.php';
 	require __DIR__ . '/inc/types/class-authorization-code.php';
