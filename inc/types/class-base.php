@@ -143,7 +143,6 @@ abstract class Base implements Type {
 	 * @param Client $client Client to generate nonce for.
 	 */
 	protected function get_nonce_action( Client $client ) {
-		// return sprintf( 'oauth2_authorize:%s', $client->get_post_id() );
-		return 'json_oauth2_authorize';
+		return sprintf( 'oauth2_authorize:%s', $client->get_id() );
 	}
 }

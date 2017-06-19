@@ -2,6 +2,7 @@
 
 namespace WP\OAuth2\Types;
 
+use WP_Error;
 use WP\OAuth2\Client;
 
 class Implicit extends Base {
