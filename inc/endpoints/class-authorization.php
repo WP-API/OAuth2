@@ -42,4 +42,8 @@ class Authorization {
 			wp_die( $result->get_error_message() );
 		}
 	}
+
+	public function render_page_fields() {
+		wp_nonce_field( 'json_oauth2_authorize' );
+	}
 }

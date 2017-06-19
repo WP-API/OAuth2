@@ -43,10 +43,9 @@ class WP_REST_OAuth2_UI {
 			exit;
 		}
 
-		$response = $this->render_page();
-		if ( is_wp_error( $response ) ) {
-			$this->display_error( $response );
-		}
+		$auth_code = new \WP\OAuth2\Types\AuthorizationCode();
+
+		$auth_code->handle_authorisation();
 		exit;
 	}
 
@@ -56,69 +55,8 @@ class WP_REST_OAuth2_UI {
 	 * @return null|WP_Error Null on success, error otherwise
 	 */
 	public function render_page() {
-		// Check required fields
-		/*if ( empty( $_REQUEST['response_type'] ) ) {
-			return new WP_Error( 'json_oauth2_missing_param', sprintf( __( 'Missing parameter %s', 'rest_oauth2' ), 'response_type' ), array( 'status' => 400 ) );
-		}
-
-		if ( empty( $_REQUEST['client_id'] ) ) {
-			return new WP_Error( 'json_oauth2_missing_param', sprintf( __( 'Missing parameter %s', 'rest_oauth2' ), 'client_id' ), array( 'status' => 400 ) );
-		}*/
-
-		/*// Set up fields
-		$token_key = wp_unslash( $_REQUEST['oauth_token'] );
-		$scope = '*';
-		if ( ! empty( $_REQUEST['wp_scope'] ) ) {
-			$scope = wp_unslash( $_REQUEST['wp_scope'] );
-		}*/
-
-		// $authenticator = new WP_REST_OAuth1();
-		// $errors = array();
-		// $this->token = $authenticator->get_request_token( $token_key );
-		/*if ( is_wp_error( $this->token ) ) {
-			return $this->token;
-		}
-
-		if ( ! empty( $_REQUEST['oauth_callback'] ) ) {
-			$resp = $authenticator->set_request_token_callback( $this->token['key'], $_REQUEST['oauth_callback'] );
-			if ( is_wp_error( $resp ) ) {
-				return $resp;
-			}
-		}
-
-		if ( $this->token['authorized'] === true ) {
-			return $this->handle_callback_redirect( $this->token['verifier'] );
-		}
-
-		// Fetch consumer
-		$this->consumer = $consumer = get_post( $this->token['consumer'] );*/
-
-		/*if ( ! empty( $_POST['wp-submit'] ) ) {
-			check_admin_referer( 'json_oauth2_authorize' );
-
-			switch ( $_POST['wp-submit'] ) {
-				case 'authorize':
-					$verifier = $authenticator->authorize_request_token( $this->token['key'] );
-					if ( is_wp_error( $verifier ) ) {
-						return $verifier;
-					}
-
-					return $this->handle_callback_redirect( $verifier );
-
-				case 'cancel':
-					exit;
-
-				default:
-					return new WP_Error( 'json_oauth1_invalid_action', __( 'Invalid authorization action', 'rest_oauth1' ), array( 'status' => 400 ) );
-			}
-		}*/
-
-		$file = locate_template( 'oauth2-authorize.php' );
-		if ( empty( $file ) ) {
-			$file = dirname( dirname( __FILE__ ) ) . '/theme/oauth2-authorize.php';
-		}
-
-		include $file;
+		$auth_code = new \WP\OAuth2\Types\AuthorizationCode();
+		$auth_code->handle_authorisation();
 	}
 
 	/**
@@ -128,9 +66,7 @@ class WP_REST_OAuth2_UI {
 	 * nonce field.
 	 */
 	public function page_fields() {
-		echo '<input type="hidden" name="consumer" value="' . absint( $this->consumer->ID ) . '" />';
-		echo '<input type="hidden" name="oauth_token" value="' . esc_attr( $this->token['key'] ) . '" />';
-		wp_nonce_field( 'json_oauth2_authorize' );
+		wp_nonce_field( sprintf( 'oauth2_authorize:%s', $this->client->get_post_id() ) );
 	}
 
 	/**

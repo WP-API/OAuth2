@@ -54,7 +54,7 @@ $url = $_SERVER['REQUEST_URI'];
 
 <form name="oauth1_authorize_form" id="oauth1_authorize_form" action="<?php echo esc_url( $url ); ?>" method="post">
 
-	<h2 class="login-title"><?php echo esc_html( sprintf( __('Connect %1$s'), "Awesome Client" ) ) ?></h2>
+	<h2 class="login-title"><?php echo esc_html( sprintf( __('Connect %1$s'), $client->get_name() ) ) ?></h2>
 
 	<div class="login-info">
 
@@ -64,7 +64,7 @@ $url = $_SERVER['REQUEST_URI'];
 			printf(
 				__( 'Howdy <strong>%1$s</strong>,<br/> "%2$s" would like to connect to %3$s.', 'oauth2' ),
 				$current_user->user_login,
-				"Awesome Client",
+		    $client->get_name(),
 				get_bloginfo( 'name' )
 			)
 		?></p>
@@ -76,7 +76,7 @@ $url = $_SERVER['REQUEST_URI'];
 	 * Fires inside the lostpassword <form> tags.
 	 */
 	do_action( 'oauth2_authorize_form', $client );
-	wp_nonce_field( sprintf( 'oauth2_authorize:%s', "Aajaskdjalskdjkl" ) );
+	wp_nonce_field( 'oauth2_authorize' );
 	?>
 
 	<p class="submit">
