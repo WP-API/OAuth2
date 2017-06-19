@@ -1,10 +1,10 @@
 <?php
 /**
- * Plugin Name: WP REST API - OAuth 2 Server
- * Description: Authenticate with your site via OAuth 2
+ * Plugin Name: OAuth 2 for WordPress
+ * Description: Connect apps to your site using OAuth 2.
  * Version: 0.1.0
- * Author: WP REST API Team
- * Author URI: http://wp-api.org/
+ * Author: WordPress Core Contributors (REST API Focus)
+ * Author URI: https://make.wordpress.org/core/
  */
 
 namespace WP\OAuth2;
