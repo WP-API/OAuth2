@@ -73,9 +73,24 @@ class Client {
 	 * @return string
 	 */
 	public function get_description() {
+		// Replicate the_content()'s filters.
+		global $post;
+		$current_post = $post;
 		$post = get_post( $this->get_post_id() );
+		setup_postdata( $post );
+		$content = get_the_content();
 
-		return $post->post_content;
+		/** This filter is documented in wp-includes/post-template.php */
+		$content = apply_filters( 'the_content', $content );
+		$content = str_replace( ']]>', ']]&gt;', $content );
+
+		// Restore previous post.
+		$post = $current_post;
+		if ( $post ) {
+			setup_postdata( $post );
+		}
+
+		return $content;
 	}
 
 	/**
