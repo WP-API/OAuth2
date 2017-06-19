@@ -75,7 +75,7 @@ function attempt_authentication( $user = null ) {
 			array(
 				'status' => WP_Http::FORBIDDEN,
 				'token' => $token_value,
-			),
+			)
 		);
 	}
 

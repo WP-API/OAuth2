@@ -76,7 +76,7 @@ $url = $_SERVER['REQUEST_URI'];
 	 * Fires inside the lostpassword <form> tags.
 	 */
 	do_action( 'oauth2_authorize_form', $client );
-	wp_nonce_field( 'oauth2_authorize' );
+	wp_nonce_field( 'json_oauth2_authorize' );
 	?>
 
 	<p class="submit">

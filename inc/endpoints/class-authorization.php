@@ -13,7 +13,6 @@ class Authorization {
 	 */
 	public function register_hooks() {
 		add_action( 'login_form_' . static::LOGIN_ACTION, array( $this, 'handle_request' ) );
-		add_action( 'oauth2_authorize_form', array( $this, 'render_page_fields' ) );
 	}
 
 	public function handle_request() {
@@ -22,7 +21,7 @@ class Authorization {
 
 		switch ( $type ) {
 			case 'code':
-				$handler = new Types\Authorization_Code();
+				$handler = new Types\AuthorizationCode();
 				break;
 
 			case 'token':
@@ -41,9 +40,5 @@ class Authorization {
 			// TODO: Handle it.
 			wp_die( $result->get_error_message() );
 		}
-	}
-
-	public function render_page_fields() {
-		wp_nonce_field( 'json_oauth2_authorize' );
 	}
 }

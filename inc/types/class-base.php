@@ -46,7 +46,6 @@ abstract class Base implements Type {
 			return $this->render_form( $client );
 		}
 
-
 		// Check nonce.
 		$nonce = wp_unslash( $_POST['_wpnonce'] );
 		if ( ! wp_verify_nonce( $nonce, $this->get_nonce_action( $client ) ) ) {
@@ -55,8 +54,6 @@ abstract class Base implements Type {
 				__( 'Invalid nonce.', 'oauth2' )
 			);
 		}
-
-
 
 		$submit = wp_unslash( $_POST['wp-submit'] );
 		if ( empty( $submit ) ) {
@@ -118,6 +115,7 @@ abstract class Base implements Type {
 	 * @param Client $client Client to generate nonce for.
 	 */
 	protected function get_nonce_action( Client $client ) {
-		return sprintf( 'oauth2_authorize:%s', $client->get_post_id() );
+		// return sprintf( 'oauth2_authorize:%s', $client->get_post_id() );
+		return 'json_oauth2_authorize';
 	}
 }
