@@ -3,6 +3,7 @@
 namespace WP\OAuth2\Endpoints;
 
 use WP_Error;
+use WP\OAuth2;
 use WP\OAuth2\Client;
 use WP\OAuth2\Types;
 
@@ -24,21 +25,18 @@ class Authorization {
 			$type = null;
 		}
 
-		switch ( $type ) {
-			case 'code':
-				$handler = new Types\AuthorizationCode();
-				break;
-
-			case 'token':
-				$handler = new Types\Implicit();
-				break;
-
-			default:
-				$result = new WP_Error(
-					'oauth2.endpoints.authorization.handle_request.invalid_type',
-					__( 'Invalid response type specified.', 'oauth2' )
-				);
-				break;
+		// Match type to a handler.
+		$grant_types = OAuth2\get_grant_types();
+		foreach ( $grant_types as $type_handler ) {
+			if ( $type_handler->get_response_type_code() === $type ) {
+				$handler = $type_handler;
+			}
+		}
+		if ( empty( $handler ) ) {
+			$result = new WP_Error(
+				'oauth2.endpoints.authorization.handle_request.invalid_type',
+				__( 'Invalid response type specified.', 'oauth2' )
+			);
 		}
 
 		if ( empty( $result ) ) {

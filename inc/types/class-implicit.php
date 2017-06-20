@@ -6,6 +6,16 @@ use WP_Error;
 use WP\OAuth2\Client;
 
 class Implicit extends Base {
+	/**
+	 * Get response_type code for authorisation page.
+	 *
+	 * This is used to determine which type to route requests to.
+	 *
+	 * @return string
+	 */
+	public function get_response_type_code() {
+		return 'token';
+	}
 
 	protected function handle_authorization_submission( $submit, Client $client, $data ) {
 		$redirect_uri = $data['redirect_uri'];
