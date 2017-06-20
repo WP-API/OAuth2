@@ -29,5 +29,5 @@ abstract class Token {
 	public function get_meta_key() {
 		return static::get_meta_prefix() . $this->get_key();
 	}
-	public function to_meta_value();
+	public abstract function to_meta_value();
 }

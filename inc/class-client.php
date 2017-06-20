@@ -247,6 +247,33 @@ class Client {
 	}
 
 	/**
+	 * Get a client by Client ID.
+	 *
+	 * @param int $id Client ID of the app.
+	 * @return static|null Client instance on success, null if invalid/not found.
+	 */
+	public static function get_by_client_id( $id ) {
+		$args = array(
+			'meta_query' => array(
+				array(
+					'key' => '_oauth2_client_id',
+					'value' => $id,
+					'compare' => '=',
+				)
+			),
+			'post_type' => 'oauth2_client',
+			'post_status' => 'any'
+		);
+
+		$client_ids = get_posts( $args );
+		if ( count( $client_ids ) !== 1 ) {
+			return null;
+		}
+
+		return new static( $client_ids[0] );
+	}
+
+	/**
 	 * Create a new client.
 	 *
 	 * @param array $data {

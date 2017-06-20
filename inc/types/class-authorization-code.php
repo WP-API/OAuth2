@@ -5,7 +5,7 @@ namespace WP\OAuth2\Types;
 use WP_Http;
 use WP\OAuth2\Client;
 
-class Authorization_Code extends Base {
+class AuthorizationCode extends Base {
 	protected function handle_authorization_submission( $submit, Client $client, $data ) {
 		$redirect_uri = $data['redirect_uri'];
 
