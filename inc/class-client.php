@@ -174,42 +174,58 @@ class Client {
 		}
 
 		$supplied = wp_parse_url( $uri );
+		$all_registered = $this->get_redirect_uris();
 
-		// Check all components except query and fragment
-		$parts = array( 'scheme', 'host', 'port', 'user', 'pass', 'path' );
-		$valid = true;
-		foreach ( $parts as $part ) {
-			if ( isset( $registered[ $part ] ) !== isset( $supplied[ $part ] ) ) {
-				$valid = false;
-				break;
-			}
+		foreach ( $all_registered as $registered_uri ) {
+			$registered = wp_parse_url( $registered_uri );
 
-			if ( ! isset( $registered[ $part ] ) ) {
+			// Double-check registered URI is valid.
+			if ( ! $registered ) {
 				continue;
 			}
 
-			if ( $registered[ $part ] !== $supplied[ $part ] ) {
-				$valid = false;
+			// Check all components except query and fragment
+			$parts = array( 'scheme', 'host', 'port', 'user', 'pass', 'path' );
+			$valid = true;
+			foreach ( $parts as $part ) {
+				if ( isset( $registered[ $part ] ) !== isset( $supplied[ $part ] ) ) {
+					$valid = false;
+					break;
+				}
+
+				if ( ! isset( $registered[ $part ] ) ) {
+					continue;
+				}
+
+				if ( $registered[ $part ] !== $supplied[ $part ] ) {
+					$valid = false;
+					break;
+				}
+			}
+
+			/**
+			 * Filter whether a callback is counted as valid.
+			 *
+			 * By default, the URLs must match scheme, host, port, user, pass, and
+			 * path. Query and fragment segments are allowed to be different.
+			 *
+			 * To change this behaviour, filter this value. Note that consumers must
+			 * have a callback registered, even if you relax this restruction. It is
+			 * highly recommended not to change this behaviour, as clients will
+			 * expect the same behaviour across all WP sites.
+			 *
+			 * @param boolean $valid True if the callback URL is valid, false otherwise.
+			 * @param string $url Supplied callback URL.
+			 * @param WP_Post $consumer Consumer post; stored callback saved as `consumer` meta value.
+			 */
+			$valid = apply_filters( 'rest_oauth.check_callback', $valid, $uri, $this );
+			if ( $valid ) {
+				// Stop checking, we have a match.
 				break;
 			}
 		}
 
-		/**
-		 * Filter whether a callback is counted as valid.
-		 *
-		 * By default, the URLs must match scheme, host, port, user, pass, and
-		 * path. Query and fragment segments are allowed to be different.
-		 *
-		 * To change this behaviour, filter this value. Note that consumers must
-		 * have a callback registered, even if you relax this restruction. It is
-		 * highly recommended not to change this behaviour, as clients will
-		 * expect the same behaviour across all WP sites.
-		 *
-		 * @param boolean $valid True if the callback URL is valid, false otherwise.
-		 * @param string $url Supplied callback URL.
-		 * @param WP_Post $consumer Consumer post; stored callback saved as `consumer` meta value.
-		 */
-		return apply_filters( 'rest_oauth.check_callback', $valid, $uri, $this );
+		return $valid;
 	}
 
 	/**
