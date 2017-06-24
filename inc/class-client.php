@@ -216,9 +216,10 @@ class Client {
 			 *
 			 * @param boolean $valid True if the callback URL is valid, false otherwise.
 			 * @param string $url Supplied callback URL.
-			 * @param WP_Post $consumer Consumer post; stored callback saved as `consumer` meta value.
+			 * @param string $registered_uri URI being checked.
+			 * @param Client $client OAuth 2 client object.
 			 */
-			$valid = apply_filters( 'rest_oauth.check_callback', $valid, $uri, $this );
+			$valid = apply_filters( 'rest_oauth.check_callback', $valid, $uri, $registered_uri, $this );
 			if ( $valid ) {
 				// Stop checking, we have a match.
 				break;
