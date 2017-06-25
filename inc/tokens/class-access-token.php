@@ -7,7 +7,7 @@ use WP\OAuth2\Client;
 use WP_User;
 
 class Access_Token extends Token {
-	const META_PREFIX = 'oauth2_access_';
+	const META_PREFIX = '_oauth2_access_';
 	const KEY_LENGTH = 12;
 
 	protected static function get_meta_prefix() {
