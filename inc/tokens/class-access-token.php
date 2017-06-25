@@ -67,6 +67,13 @@ class Access_Token extends Token {
 	}
 
 	public static function create( Client $client, WP_User $user ) {
+		if ( ! $user->exists() ) {
+			return new WP_Error(
+				'oauth2.tokens.access_token.create.no_user',
+				__( 'Invalid user to create token for.', 'oauth2' )
+			);
+		}
+
 		$data = array(
 			'user' => $user->ID,
 		);
