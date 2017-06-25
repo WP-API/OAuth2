@@ -81,7 +81,10 @@ function get_token_from_request() {
  * @return \WP_User|int|\WP_Error
  */
 function attempt_authentication( $user = null ) {
-	if ( ! empty( $user ) ) {
+	// Lock against infinite loops when querying the token itself.
+	static $is_querying_token = false;
+
+	if ( ! empty( $user ) || $is_querying_token ) {
 		return $user;
 	}
 
@@ -93,7 +96,10 @@ function attempt_authentication( $user = null ) {
 	}
 
 	// Attempt to find the token.
+	$is_querying_token = true;
 	$token = Tokens\get_by_id( $token_value );
+	$is_querying_token = false;
+
 	if ( empty( $token ) ) {
 		return create_invalid_token_error( $token );
 	}
