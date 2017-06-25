@@ -57,6 +57,13 @@ abstract class Base implements Type {
 			return $redirect_uri;
 		}
 
+		// Valid parameters, ensure the user is logged in.
+		if ( ! is_user_logged_in() ) {
+			$url = wp_login_url( $_SERVER['REQUEST_URI'] );
+			wp_safe_redirect( $url );
+			exit;
+		}
+
 		if ( empty( $_POST['_wpnonce'] ) ) {
 			return $this->render_form( $client );
 		}
