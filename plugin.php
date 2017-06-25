@@ -17,7 +17,7 @@ function bootstrap() {
 	load();
 
 	/** @todo Implement this :) */
-//	add_filter( 'determine_current_user', __NAMESPACE__ . '\\attempt_authentication' );
+	add_filter( 'determine_current_user', __NAMESPACE__ . '\\Authentication\\attempt_authentication', 11 );
 	add_filter( 'oauth2.grant_types', __NAMESPACE__ . '\\register_grant_types', 0 );
 	add_action( 'init', __NAMESPACE__ . '\\rest_oauth2_load_authorize_page' );
 	add_action( 'admin_menu', array( __NAMESPACE__ . '\\admin\\Admin', 'register' ) );
@@ -26,6 +26,7 @@ function bootstrap() {
 function load() {
 	require __DIR__ . '/inc/class-client.php';
 	require __DIR__ . '/inc/class-scopes.php';
+	require __DIR__ . '/inc/authentication/namespace.php';
 	require __DIR__ . '/inc/endpoints/class-authorization.php';
 	require __DIR__ . '/inc/tokens/namespace.php';
 	require __DIR__ . '/inc/tokens/class-token.php';

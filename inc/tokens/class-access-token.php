@@ -16,6 +16,24 @@ class Access_Token extends Token {
 	}
 
 	/**
+	 * Get the ID for the user that the token represents.
+	 *
+	 * @return int
+	 */
+	public function get_user_id() {
+		return (int) $this->value['user'];
+	}
+
+	/**
+	 * Get the user that the token represents.
+	 *
+	 * @return WP_User|null
+	 */
+	public function get_user() {
+		return get_user_by( 'id', $this->get_user_id() );
+	}
+
+	/**
 	 * Get a token by ID.
 	 *
 	 * @param string $id Token ID.
