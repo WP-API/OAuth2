@@ -4,6 +4,7 @@ namespace WP\OAuth2\Tokens;
 
 use WP_Error;
 use WP\OAuth2\Client;
+use WP_Query;
 use WP_User;
 
 class Access_Token extends Token {
@@ -21,6 +22,7 @@ class Access_Token extends Token {
 	 * @return static|null Token if ID is found, null otherwise.
 	 */
 	public static function get_by_id( $id ) {
+		$key = static::META_PREFIX . $id;
 		$args = array(
 			'post_type'      => Client::POST_TYPE,
 			'post_status'    => 'publish',
@@ -28,7 +30,7 @@ class Access_Token extends Token {
 			'no_found_rows'  => true,
 			'meta_query'     => array(
 				array(
-					'key'     => static::META_PREFIX . $id,
+					'key'     => $key,
 					'compare' => 'EXISTS',
 				),
 			),
@@ -38,7 +40,12 @@ class Access_Token extends Token {
 			return null;
 		}
 
-		return new static( $query->posts[0] );
+		$value = get_post_meta( $query->posts[0]->ID, wp_slash( $key ), false );
+		if ( empty( $value ) ) {
+			return null;
+		}
+
+		return new static( $key, $value[0] );
 	}
 
 	public static function create( Client $client, WP_User $user ) {
