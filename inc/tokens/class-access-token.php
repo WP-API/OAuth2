@@ -48,7 +48,7 @@ class Access_Token extends Token {
 		$key = wp_generate_password( static::KEY_LENGTH, false );
 		$meta_key = static::META_PREFIX . $key;
 
-		$result = add_post_meta( $client->get_id(), wp_slash( $meta_key ), wp_slash( $data ), true );
+		$result = add_post_meta( $client->get_post_id(), wp_slash( $meta_key ), wp_slash( $data ), true );
 		if ( ! $result ) {
 			return new WP_Error(
 				'oauth2.tokens.access_token.create.could_not_create',
