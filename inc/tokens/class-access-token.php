@@ -75,7 +75,7 @@ class Access_Token extends Token {
 		}
 
 		$data = array(
-			'user' => $user->ID,
+			'user' => (int) $user->ID,
 		);
 		$key = wp_generate_password( static::KEY_LENGTH, false );
 		$meta_key = static::META_PREFIX . $key;
