@@ -3,6 +3,7 @@
 namespace WP\OAuth2;
 
 use WP\OAuth2\Tokens\Access_Token;
+use WP\OAuth2\Tokens\Authorization_Code;
 use WP_Error;
 use WP_Post;
 use WP_Query;
@@ -235,18 +236,17 @@ class Client {
 	 * @return string|WP_Error
 	 */
 	public function generate_authorization_code( WP_User $user ) {
-		$code = wp_generate_password( static::AUTH_CODE_LENGTH, false );
-		$meta_key = static::AUTH_CODE_KEY_PREFIX . $code;
-		$data = array(
-			'user'       => $user->ID,
-			'expiration' => static::AUTH_CODE_AGE,
-		);
-		$result = add_post_meta( $this->get_post_id(), wp_slash( $meta_key ), wp_slash( $data ), true );
-		if ( ! $result ) {
-			return new WP_Error();
-		}
+		return Authorization_Code::create( $this, $user );
+	}
 
-		return $code;
+	/**
+	 * Get data stored for an authorization code.
+	 *
+	 * @param string $code Authorization code to fetch.
+	 * @return array|WP_Error Data if available, error if invalid code.
+	 */
+	public function get_authorization_code( $code ) {
+		return Authorization_Code::get_by_code( $this, $code );
 	}
 
 	/**
