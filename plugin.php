@@ -16,10 +16,14 @@ bootstrap();
 function bootstrap() {
 	load();
 
-	/** @todo Implement this :) */
+	// Core authentication hooks.
 	add_filter( 'determine_current_user', __NAMESPACE__ . '\\Authentication\\attempt_authentication', 11 );
 	add_filter( 'rest_authentication_errors', __NAMESPACE__ . '\\Authentication\\maybe_report_errors' );
+
+	// Internal default hooks.
 	add_filter( 'oauth2.grant_types', __NAMESPACE__ . '\\register_grant_types', 0 );
+
+	// Admin-related.
 	add_action( 'init', __NAMESPACE__ . '\\rest_oauth2_load_authorize_page' );
 	add_action( 'admin_menu', array( __NAMESPACE__ . '\\admin\\Admin', 'register' ) );
 }
