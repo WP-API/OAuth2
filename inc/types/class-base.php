@@ -2,11 +2,25 @@
 
 namespace WP\OAuth2\Types;
 
-use WP_Http;
 use WP_Error;
+use WP_Http;
 use WP\OAuth2\Client;
 
 abstract class Base implements Type {
+	/**
+	 * Handle submission of authorisation page.
+	 *
+	 * @param string $submit Value of the selected button.
+	 * @param Client $client Client being authorised.
+	 * @param array $data Data gathered for the request. {
+	 *     @var string $redirect_uri Specified redirection URI.
+	 *     @var string $scope Requested scope.
+	 *     @var string $state State parameter from the client.
+	 * }
+	 * @return void Method should output form and exit.
+	 */
+	abstract protected function handle_authorization_submission( $submit, Client $client, $data );
+
 	/**
 	 * Handle authorisation page.
 	 */
@@ -43,6 +57,13 @@ abstract class Base implements Type {
 			return $redirect_uri;
 		}
 
+		// Valid parameters, ensure the user is logged in.
+		if ( ! is_user_logged_in() ) {
+			$url = wp_login_url( $_SERVER['REQUEST_URI'] );
+			wp_safe_redirect( $url );
+			exit;
+		}
+
 		if ( empty( $_POST['_wpnonce'] ) ) {
 			return $this->render_form( $client );
 		}
@@ -56,10 +77,21 @@ abstract class Base implements Type {
 			);
 		}
 
-		$submit = wp_unslash( $_POST['wp-submit'] );
-		if ( empty( $submit ) ) {
-			return new WP_Error();
+		if ( empty( $_POST['wp-submit'] ) ) {
+			// Submitted, but button not selected...
+			$error = new WP_Error(
+				'oauth2.types.authorization_code.handle_authorisation.invalid_submit',
+				sprintf(
+					/** translators: %1$s is the translated "Authorize" button, %2$s is the translated "Cancel" button */
+					__( 'Select either %1$s or %2$s to continue.', 'oauth2' ),
+					__( 'Authorize', 'oauth2' ),
+					__( 'Cancel', 'oauth2' )
+				)
+			);
+			return $this->render_form( $client, $error );
 		}
+
+		$submit = wp_unslash( $_POST['wp-submit'] );
 
 		$data = compact( 'redirect_uri', 'scope', 'state' );
 		return $this->handle_authorization_submission( $submit, $client, $data );
@@ -100,8 +132,9 @@ abstract class Base implements Type {
 	 * Render the authorisation form.
 	 *
 	 * @param Client $client Client being authorised.
+	 * @param WP_Error $errors Errors to display, if any.
 	 */
-	public function render_form( Client $client ) {
+	protected function render_form( Client $client, WP_Error $errors = null ) {
 		$file = locate_template( 'oauth2-authorize.php' );
 		if ( empty( $file ) ) {
 			$file = dirname( dirname( __DIR__ ) ) . '/theme/oauth2-authorize.php';
@@ -116,7 +149,6 @@ abstract class Base implements Type {
 	 * @param Client $client Client to generate nonce for.
 	 */
 	protected function get_nonce_action( Client $client ) {
-		// return sprintf( 'oauth2_authorize:%s', $client->get_post_id() );
-		return 'json_oauth2_authorize';
+		return sprintf( 'oauth2_authorize:%s', $client->get_id() );
 	}
 }

@@ -5,6 +5,7 @@ namespace WP\OAuth2;
 use WP\OAuth2\Tokens\Access_Token;
 use WP_Error;
 use WP_Post;
+use WP_Query;
 use WP_User;
 
 class Client {
@@ -70,12 +71,35 @@ class Client {
 	/**
 	 * Get the client's description.
 	 *
+	 * @param boolean $raw True to get raw database value for editing, false to get rendered value for display.
 	 * @return string
 	 */
-	public function get_description() {
-		$post = get_post( $this->get_post_id() );
+	public function get_description( $raw = false ) {
+		// Replicate the_content()'s filters.
+		global $post;
+		$current_post = $post;
+		$the_post = get_post( $this->get_post_id() );
+		if ( $raw ) {
+			// Skip the filtering and globals.
+			return $the_post->post_content;
+		}
 
-		return $post->post_content;
+		// Set up globals so the filters have context.
+		$post = $the_post;
+		setup_postdata( $post );
+		$content = get_the_content();
+
+		/** This filter is documented in wp-includes/post-template.php */
+		$content = apply_filters( 'the_content', $content );
+		$content = str_replace( ']]>', ']]&gt;', $content );
+
+		// Restore previous post.
+		$post = $current_post;
+		if ( $post ) {
+			setup_postdata( $post );
+		}
+
+		return $content;
 	}
 
 	/**
@@ -150,42 +174,59 @@ class Client {
 		}
 
 		$supplied = wp_parse_url( $uri );
+		$all_registered = $this->get_redirect_uris();
 
-		// Check all components except query and fragment
-		$parts = array( 'scheme', 'host', 'port', 'user', 'pass', 'path' );
-		$valid = true;
-		foreach ( $parts as $part ) {
-			if ( isset( $registered[ $part ] ) !== isset( $supplied[ $part ] ) ) {
-				$valid = false;
-				break;
-			}
+		foreach ( $all_registered as $registered_uri ) {
+			$registered = wp_parse_url( $registered_uri );
 
-			if ( ! isset( $registered[ $part ] ) ) {
+			// Double-check registered URI is valid.
+			if ( ! $registered ) {
 				continue;
 			}
 
-			if ( $registered[ $part ] !== $supplied[ $part ] ) {
-				$valid = false;
+			// Check all components except query and fragment
+			$parts = array( 'scheme', 'host', 'port', 'user', 'pass', 'path' );
+			$valid = true;
+			foreach ( $parts as $part ) {
+				if ( isset( $registered[ $part ] ) !== isset( $supplied[ $part ] ) ) {
+					$valid = false;
+					break;
+				}
+
+				if ( ! isset( $registered[ $part ] ) ) {
+					continue;
+				}
+
+				if ( $registered[ $part ] !== $supplied[ $part ] ) {
+					$valid = false;
+					break;
+				}
+			}
+
+			/**
+			 * Filter whether a callback is counted as valid.
+			 *
+			 * By default, the URLs must match scheme, host, port, user, pass, and
+			 * path. Query and fragment segments are allowed to be different.
+			 *
+			 * To change this behaviour, filter this value. Note that consumers must
+			 * have a callback registered, even if you relax this restruction. It is
+			 * highly recommended not to change this behaviour, as clients will
+			 * expect the same behaviour across all WP sites.
+			 *
+			 * @param boolean $valid True if the callback URL is valid, false otherwise.
+			 * @param string $url Supplied callback URL.
+			 * @param string $registered_uri URI being checked.
+			 * @param Client $client OAuth 2 client object.
+			 */
+			$valid = apply_filters( 'rest_oauth.check_callback', $valid, $uri, $registered_uri, $this );
+			if ( $valid ) {
+				// Stop checking, we have a match.
 				break;
 			}
 		}
 
-		/**
-		 * Filter whether a callback is counted as valid.
-		 *
-		 * By default, the URLs must match scheme, host, port, user, pass, and
-		 * path. Query and fragment segments are allowed to be different.
-		 *
-		 * To change this behaviour, filter this value. Note that consumers must
-		 * have a callback registered, even if you relax this restruction. It is
-		 * highly recommended not to change this behaviour, as clients will
-		 * expect the same behaviour across all WP sites.
-		 *
-		 * @param boolean $valid True if the callback URL is valid, false otherwise.
-		 * @param string $url Supplied callback URL.
-		 * @param WP_Post $consumer Consumer post; stored callback saved as `consumer` meta value.
-		 */
-		return apply_filters( 'rest_oauth.check_callback', $valid, $uri, $this );
+		return $valid;
 	}
 
 	/**
@@ -234,10 +275,37 @@ class Client {
 	/**
 	 * Get a client by ID.
 	 *
+	 * @param string $id Client ID.
+	 * @return static|null Token if ID is found, null otherwise.
+	 */
+	public static function get_by_id( $id ) {
+		$args = array(
+			'post_type'      => static::POST_TYPE,
+			'post_status'    => 'publish',
+			'posts_per_page' => 1,
+			'no_found_rows'  => true,
+			'meta_query'     => array(
+				array(
+					'key'   => static::CLIENT_ID_KEY,
+					'value' => $id,
+				),
+			),
+		);
+		$query = new WP_Query( $args );
+		if ( empty( $query->posts ) ) {
+			return null;
+		}
+
+		return new static( $query->posts[0] );
+	}
+
+	/**
+	 * Get a client by post ID.
+	 *
 	 * @param int $id Client/post ID.
 	 * @return static|null Client instance on success, null if invalid/not found.
 	 */
-	public static function get_by_id( $id ) {
+	public static function get_by_post_id( $id ) {
 		$post = get_post( $id );
 		if ( ! $post ) {
 			return null;

@@ -1,10 +1,10 @@
 <?php
 /**
- * Plugin Name: WP REST API - OAuth 2 Server
- * Description: Authenticate with your site via OAuth 2
+ * Plugin Name: OAuth 2 for WordPress
+ * Description: Connect apps to your site using OAuth 2.
  * Version: 0.1.0
- * Author: WP REST API Team
- * Author URI: http://wp-api.org/
+ * Author: WordPress Core Contributors (REST API Focus)
+ * Author URI: https://make.wordpress.org/core/
  */
 
 namespace WP\OAuth2;
@@ -16,9 +16,14 @@ bootstrap();
 function bootstrap() {
 	load();
 
-	/** @todo Implement this :) */
-//	add_filter( 'determine_current_user', __NAMESPACE__ . '\\attempt_authentication' );
+	// Core authentication hooks.
+	add_filter( 'determine_current_user', __NAMESPACE__ . '\\Authentication\\attempt_authentication', 11 );
+	add_filter( 'rest_authentication_errors', __NAMESPACE__ . '\\Authentication\\maybe_report_errors' );
+
+	// Internal default hooks.
 	add_filter( 'oauth2.grant_types', __NAMESPACE__ . '\\register_grant_types', 0 );
+
+	// Admin-related.
 	add_action( 'init', __NAMESPACE__ . '\\rest_oauth2_load_authorize_page' );
 	add_action( 'admin_menu', array( __NAMESPACE__ . '\\admin\\Admin', 'register' ) );
 }
@@ -26,12 +31,16 @@ function bootstrap() {
 function load() {
 	require __DIR__ . '/inc/class-client.php';
 	require __DIR__ . '/inc/class-scopes.php';
+	require __DIR__ . '/inc/authentication/namespace.php';
+	require __DIR__ . '/inc/endpoints/class-authorization.php';
+	require __DIR__ . '/inc/tokens/namespace.php';
+	require __DIR__ . '/inc/tokens/class-token.php';
+	require __DIR__ . '/inc/tokens/class-access-token.php';
 	require __DIR__ . '/inc/types/class-type.php';
 	require __DIR__ . '/inc/types/class-base.php';
 	require __DIR__ . '/inc/types/class-authorization-code.php';
 	require __DIR__ . '/inc/types/class-implicit.php';
 	require __DIR__ . '/inc/admin/class-admin.php';
-	require __DIR__ . '/lib/class-wp-rest-oauth2-ui.php';
 }
 
 /**
@@ -41,7 +50,7 @@ function load() {
  * sanitized before this.
  */
 function rest_oauth2_load_authorize_page() {
-	$authorizer = new \WP_REST_OAuth2_UI();
+	$authorizer = new Endpoints\Authorization();
 	$authorizer->register_hooks();
 }
 

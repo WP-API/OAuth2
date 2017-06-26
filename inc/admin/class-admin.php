@@ -140,12 +140,12 @@ class Admin {
 		$valid = [];
 
 		if ( empty( $params['name'] ) ) {
-			return new WP_Error( 'rest_oauth2_missing_name', __( 'Consumer name is required', 'rest_oauth2' ) );
+			return new WP_Error( 'rest_oauth2_missing_name', __( 'Client name is required', 'rest_oauth2' ) );
 		}
 		$valid['name'] = wp_filter_post_kses( $params['name'] );
 
 		if ( empty( $params['description'] ) ) {
-			return new WP_Error( 'rest_oauth2_missing_description', __( 'Consumer description is required', 'rest_oauth2' ) );
+			return new WP_Error( 'rest_oauth2_missing_description', __( 'Client description is required', 'rest_oauth2' ) );
 		}
 		$valid['description'] = wp_filter_post_kses( $params['description'] );
 
@@ -155,7 +155,7 @@ class Admin {
 		$valid['type'] = wp_filter_post_kses( $params['type'] );
 
 		if ( empty( $params['callback'] ) ) {
-			return new WP_Error( 'rest_oauth2_missing_callback', __( 'Consumer callback is required and must be a valid URL.', 'rest_oauth2' ) );
+			return new WP_Error( 'rest_oauth2_missing_callback', __( 'Client callback is required and must be a valid URL.', 'rest_oauth2' ) );
 		}
 		if ( ! empty( $params['callback'] ) ) {
 			$valid['callback'] = $params['callback'];
@@ -247,9 +247,9 @@ class Admin {
 		$form_action = self::get_url( 'action=add' );
 		if ( ! empty( $_REQUEST['id'] ) ) {
 			$id       = absint( $_REQUEST['id'] );
-			$consumer = Client::get_by_id( $id );
+			$consumer = Client::get_by_post_id( $id );
 			if ( is_wp_error( $consumer ) || empty( $consumer ) ) {
-				wp_die( __( 'Invalid consumer ID.', 'rest_oauth2' ) );
+				wp_die( __( 'Invalid client ID.', 'rest_oauth2' ) );
 			}
 
 			$form_action       = self::get_url( [ 'action' => 'edit', 'id' => $id ] );
@@ -285,7 +285,7 @@ class Admin {
 			}
 		} else {
 			$data['name']        = $consumer->get_name();
-			$data['description'] = $consumer->get_description();
+			$data['description'] = $consumer->get_description( true );
 			$data['type']        = $consumer->get_type();
 			$data['callback']    = $consumer->get_redirect_uris();
 
@@ -318,7 +318,7 @@ class Admin {
 				<table class="form-table">
 					<tr>
 						<th scope="row">
-							<label for="oauth-name"><?php echo esc_html_x( 'Consumer Name', 'field name', 'rest_oauth2' ) ?></label>
+							<label for="oauth-name"><?php echo esc_html_x( 'Client Name', 'field name', 'rest_oauth2' ) ?></label>
 						</th>
 						<td>
 							<input type="text" class="regular-text" name="name" id="oauth-name" value="<?php echo esc_attr( $data['name'] ) ?>"/>
@@ -335,13 +335,47 @@ class Admin {
 					</tr>
 					<tr>
 						<th scope="row">
-							<label for="oauth-type"><?php echo esc_html_x( 'Type', 'field name', 'rest_oauth2' ) ?></label>
+							<?php echo esc_html_x( 'Type', 'field name', 'rest_oauth2' ) ?>
 						</th>
 						<td>
-							<select name="type" id="oauth-type">
-								<option <?php selected( 'public', $data['type'] ); ?> value="public"><?php echo esc_html_x( 'Public', 'Client type select option', 'rest_oauth2' ); ?></option>
-								<option <?php selected( 'private', $data['type'] ); ?> value="private"><?php echo esc_html_x( 'Private', 'Client type select option', 'rest_oauth2' ); ?></option>
-							</select>
+							<ul>
+								<li>
+									<input
+										type="radio"
+										name="type"
+										value="private"
+										id="oauth-type-private"
+										<?php checked( 'private', $data['type'] ); ?>
+									/>
+									<label for="oauth-type-private">
+										<?php echo esc_html_x( 'Private', 'Client type select option', 'rest_oauth2' ); ?>
+									</label>
+									<p class="description">
+										<?php esc_html_e(
+											'Clients capable of maintaining confidentiality of credentials, such as server-side applications',
+											'rest_oauth2'
+										) ?>
+									</p>
+								</li>
+								<li>
+									<input
+										type="radio"
+										name="type"
+										value="public"
+										id="oauth-type-public"
+										<?php checked( 'public', $data['type'] ); ?>
+									/>
+									<label for="oauth-type-public">
+										<?php echo esc_html_x( 'Public', 'Client type select option', 'rest_oauth2' ); ?>
+									</label>
+									<p class="description">
+										<?php esc_html_e(
+											'Clients incapable of keeping credentials secret, such as browser-based applications or desktop and mobile apps',
+											'rest_oauth2'
+										) ?>
+									</p>
+								</li>
+							</ul>
 						</td>
 					</tr>
 					<tr>
@@ -359,11 +393,11 @@ class Admin {
 
 				if ( empty( $consumer ) ) {
 					wp_nonce_field( 'rest-oauth2-add' );
-					submit_button( __( 'Add Consumer', 'rest_oauth2' ) );
+					submit_button( __( 'Create Client', 'rest_oauth2' ) );
 				} else {
 					echo '<input type="hidden" name="id" value="' . esc_attr( $consumer->get_post_id() ) . '" />';
 					wp_nonce_field( 'rest-oauth2-edit-' . $consumer->get_post_id() );
-					submit_button( __( 'Save Consumer', 'rest_oauth2' ) );
+					submit_button( __( 'Save Client', 'rest_oauth2' ) );
 				}
 
 				?>
@@ -411,7 +445,7 @@ class Admin {
 			return;
 		}
 
-		$id = $_GET['id'];
+		$id = absint( $_GET['id'] );
 		check_admin_referer( 'rest-oauth2-delete:' . $id );
 
 		if ( ! current_user_can( 'delete_post', $id ) ) {
@@ -422,7 +456,7 @@ class Admin {
 			);
 		}
 
-		$client = Client::get_by_id( $id );
+		$client = Client::get_by_post_id( $id );
 		if ( is_wp_error( $client ) ) {
 			wp_die( $client );
 
@@ -430,7 +464,7 @@ class Admin {
 		}
 
 		if ( ! $client->delete() ) {
-			$message = 'Invalid consumer ID';
+			$message = 'Invalid client ID';
 			wp_die( $message );
 
 			return;
@@ -459,7 +493,7 @@ class Admin {
 			);
 		}
 
-		$client = Client::get_by_id( $id );
+		$client = Client::get_by_post_id( $id );
 		$result = $client->regenerate_secret();
 		if ( is_wp_error( $result ) ) {
 			wp_die( $result->get_error_message() );

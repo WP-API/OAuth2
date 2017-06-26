@@ -65,11 +65,9 @@ function get_token_from_request() {
 		return $token;
 	}
 
-	// Please note that the following includes PHP 5.3+ code. Ryan said it would be fine, soon. ;)
-	add_filter( 'rest_authentication_errors', function ( $error ) use ( $token ) {
-		return null === $error ? create_invalid_token_error( $token ) : null;
-	} );
-
+	// Got a token, but it's not valid.
+	global $oauth2_error;
+	$oauth2_error = create_invalid_token_error( $token );
 	return null;
 }
 
@@ -81,7 +79,12 @@ function get_token_from_request() {
  * @return \WP_User|int|\WP_Error
  */
 function attempt_authentication( $user = null ) {
-	if ( ! empty( $user ) ) {
+	// Lock against infinite loops when querying the token itself.
+	static $is_querying_token = false;
+	global $oauth2_error;
+	$oauth2_error = null;
+
+	if ( ! empty( $user ) || $is_querying_token ) {
 		return $user;
 	}
 
@@ -93,13 +96,34 @@ function attempt_authentication( $user = null ) {
 	}
 
 	// Attempt to find the token.
+	$is_querying_token = true;
 	$token = Tokens\get_by_id( $token_value );
+	$is_querying_token = false;
+
 	if ( empty( $token ) ) {
-		return create_invalid_token_error( $token );
+		$oauth2_error = create_invalid_token_error( $token_value );
+		return $user;
 	}
 
 	// Token found, authenticate as the user.
 	return $token->get_user_id();
+}
+
+/**
+ * Report our errors, if we have any.
+ *
+ * Attached to the rest_authentication_errors filter. Passes through existing
+ * errors registered on the filter.
+ *
+ * @return WP_Error|null Error if one is set, otherwise null.
+ */
+function maybe_report_errors( $error = null ) {
+	if ( ! empty( $error ) ) {
+		return $error;
+	}
+
+	global $oauth2_error;
+	return $oauth2_error;
 }
 
 function create_invalid_token_error( $token ) {
