@@ -5,6 +5,7 @@ namespace WP\OAuth2;
 use WP\OAuth2\Tokens\Access_Token;
 use WP\OAuth2\Tokens\Authorization_Code;
 use WP_Error;
+use WP_Http;
 use WP_Post;
 use WP_Query;
 use WP_User;
