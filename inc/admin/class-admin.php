@@ -3,7 +3,6 @@
 namespace WP\OAuth2\Admin;
 
 use WP\OAuth2\Client;
-use WP\OAuth2\Types;
 use WP_Error;
 
 class Admin {
@@ -136,6 +135,12 @@ class Admin {
 		<?php
 	}
 
+	/**
+	 * Validates given parameters.
+	 *
+	 * @param array $params RAW parameters.
+	 * @return array|WP_Error Validated parameters, or error on failure.
+	 */
 	protected static function validate_parameters( $params ) {
 		$valid = [];
 
@@ -167,11 +172,11 @@ class Admin {
 	/**
 	 * Handle submission of the add page
 	 *
-	 * @param $consumer
+	 * @param Client $consumer
 	 *
 	 * @return array|null List of errors. Issues a redirect and exits on success.
 	 */
-	protected static function handle_edit_submit( $consumer ) {
+	protected static function handle_edit_submit( Client $consumer = null ) {
 		$messages = [];
 		if ( empty( $consumer ) ) {
 			$did_action = 'add';
@@ -243,8 +248,9 @@ class Admin {
 		}
 
 		// Are we editing?
-		$consumer    = null;
-		$form_action = self::get_url( 'action=add' );
+		$consumer          = null;
+		$form_action       = self::get_url( 'action=add' );
+		$regenerate_action = '';
 		if ( ! empty( $_REQUEST['id'] ) ) {
 			$id       = absint( $_REQUEST['id'] );
 			$consumer = Client::get_by_post_id( $id );

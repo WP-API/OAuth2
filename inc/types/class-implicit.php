@@ -17,6 +17,15 @@ class Implicit extends Base {
 		return 'token';
 	}
 
+	/**
+	 * Handles the authorization.
+	 *
+	 * @param string $submit
+	 * @param Client $client
+	 * @param array  $data
+	 *
+	 * @return WP_Error
+	 */
 	protected function handle_authorization_submission( $submit, Client $client, $data ) {
 		$redirect_uri = $data['redirect_uri'];
 

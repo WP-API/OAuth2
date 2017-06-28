@@ -2,7 +2,7 @@
 
 namespace WP\OAuth2\Types;
 
-use WP_Http;
+use WP_Error;
 use WP\OAuth2\Client;
 
 class AuthorizationCode extends Base {
@@ -17,6 +17,15 @@ class AuthorizationCode extends Base {
 		return 'code';
 	}
 
+	/**
+	 * Handles the authorization.
+	 *
+	 * @param string $submit
+	 * @param Client $client
+	 * @param array  $data
+	 *
+	 * @return WP_Error
+	 */
 	protected function handle_authorization_submission( $submit, Client $client, $data ) {
 		$redirect_uri = $data['redirect_uri'];
 

@@ -31,6 +31,10 @@ class Authorization_Code {
 	 */
 	protected $client;
 
+	/**
+	 * @param Client $client
+	 * @param string $code
+	 */
 	public function __construct( Client $client, $code ) {
 		$this->client = $client;
 		$this->code = $code;
@@ -87,16 +91,21 @@ class Authorization_Code {
 		return get_user_by( 'id', (int) $value['user'] );
 	}
 
+	/**
+	 * Get the expiration.
+	 *
+	 * @return int|WP_Error Expiration, or error on failure.
+	 */
 	public function get_expiration() {
 		$value = $this->get_value();
-		if ( empty( $value ) || empty( $value['expiration'] ) ) {
+		if ( empty( $value ) || empty( $value['expiration'] ) || ! is_numeric( $value['expiration'] ) ) {
 			return new WP_Error(
 				'oauth2.tokens.authorization_code.get_user.invalid_data',
 				__( 'Authorization code data is not valid.', 'oauth2' )
 			);
 		}
 
-		return $value['expiration'];
+		return (int) $value['expiration'];
 	}
 
 	/**
@@ -140,6 +149,14 @@ class Authorization_Code {
 		return true;
 	}
 
+	/**
+	 * Creates a new authorization code instance for the given client and code.
+	 *
+	 * @param Client $client
+	 * @param string $code
+	 *
+	 * @return Authorization_Code|WP_Error Authorization code instance, or error on failure.
+	 */
 	public static function get_by_code( Client $client, $code ) {
 		$key = static::KEY_PREFIX . $code;
 		$value = get_post_meta( $client->get_post_id(), wp_slash( $key ), false );
@@ -158,6 +175,14 @@ class Authorization_Code {
 		return new static( $client, $code );
 	}
 
+	/**
+	 * Creates a new authorization code instance for the given client and user.
+	 *
+	 * @param Client $client
+	 * @param WP_User $user
+	 *
+	 * @return Authorization_Code|WP_Error Authorization code instance, or error on failure.
+	 */
 	public static function create( Client $client, WP_User $user ) {
 		$code = wp_generate_password( static::KEY_LENGTH, false );
 		$meta_key = static::KEY_PREFIX . $code;
