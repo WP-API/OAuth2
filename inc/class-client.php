@@ -445,8 +445,13 @@ class Client {
 			'public'          => false,
 			'hierarchical'    => true,
 			'capability_type' => array(
-				'client',
-				'clients',
+				'oauth2_client',
+				'oauth2_clients',
+			),
+			'capabilities'    => array(
+				'edit_posts'        => 'edit_users',
+				'edit_others_posts' => 'edit_users',
+				'publish_posts'     => 'edit_users',
 			),
 			'supports'        => array(
 				'title',
