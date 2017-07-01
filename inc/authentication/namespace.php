@@ -2,6 +2,8 @@
 
 namespace WP\OAuth2\Authentication;
 
+use WP_Error;
+use WP_User;
 use WP\OAuth2\Tokens;
 
 /**
@@ -33,6 +35,11 @@ function get_authorization_header() {
 	return null;
 }
 
+/**
+ * Extracts the token from the authorization header or the current request.
+ *
+ * @return string|null Token on success, null on failure.
+ */
 function get_provided_token() {
 	$header = get_authorization_header();
 	if ( $header ) {
@@ -47,6 +54,13 @@ function get_provided_token() {
 	return null;
 }
 
+/**
+ * Extracts the token from the given authorization header.
+ *
+ * @param string $header Authorization header.
+ *
+ * @return string|null Token on succes, null on failure.
+ */
 function get_token_from_bearer_header( $header ) {
 	if ( is_string( $header ) && preg_match( '/Bearer ([a-zA-Z0-9\-._~\+\/=]+)/', trim( $header ), $matches ) ) {
 		return $matches[1];
@@ -55,6 +69,11 @@ function get_token_from_bearer_header( $header ) {
 	return null;
 }
 
+/**
+ * Extracts the token from the current request.
+ *
+ * @return string|null Token on succes, null on failure.
+ */
 function get_token_from_request() {
 	if ( empty( $_GET['access_token'] ) ) {
 		return null;
@@ -74,9 +93,9 @@ function get_token_from_request() {
 /**
  * Try to authenticate if possible.
  *
- * @param \WP_User|null $user Existing authenticated user.
+ * @param WP_User|null $user Existing authenticated user.
  *
- * @return \WP_User|int|\WP_Error
+ * @return WP_User|int|WP_Error
  */
 function attempt_authentication( $user = null ) {
 	// Lock against infinite loops when querying the token itself.
@@ -115,6 +134,8 @@ function attempt_authentication( $user = null ) {
  * Attached to the rest_authentication_errors filter. Passes through existing
  * errors registered on the filter.
  *
+ * @param WP_Error|null Current error, or null.
+ *
  * @return WP_Error|null Error if one is set, otherwise null.
  */
 function maybe_report_errors( $error = null ) {
@@ -126,8 +147,15 @@ function maybe_report_errors( $error = null ) {
 	return $oauth2_error;
 }
 
+/**
+ * Creates an error object for the given invalid token.
+ *
+ * @param mixed $token Invalid token.
+ *
+ * @return WP_Error
+ */
 function create_invalid_token_error( $token ) {
-	return new \WP_Error(
+	return new WP_Error(
 		'oauth2.authentication.attempt_authentication.invalid_token',
 		__( 'Supplied token is invalid.', 'oauth2' ),
 		array(

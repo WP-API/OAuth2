@@ -5,7 +5,6 @@ namespace WP\OAuth2;
 use WP\OAuth2\Tokens\Access_Token;
 use WP\OAuth2\Tokens\Authorization_Code;
 use WP_Error;
-use WP_Http;
 use WP_Post;
 use WP_Query;
 use WP_User;
@@ -224,17 +223,17 @@ class Client {
 			$valid = apply_filters( 'rest_oauth.check_callback', $valid, $uri, $registered_uri, $this );
 			if ( $valid ) {
 				// Stop checking, we have a match.
-				break;
+				return true;
 			}
 		}
 
-		return $valid;
+		return false;
 	}
 
 	/**
 	 * @param WP_User $user
 	 *
-	 * @return string|WP_Error
+	 * @return Authorization_Code|WP_Error
 	 */
 	public function generate_authorization_code( WP_User $user ) {
 		return Authorization_Code::create( $this, $user );
@@ -244,7 +243,7 @@ class Client {
 	 * Get data stored for an authorization code.
 	 *
 	 * @param string $code Authorization code to fetch.
-	 * @return array|WP_Error Data if available, error if invalid code.
+	 * @return Authorization_Code|WP_Error Data if available, error if invalid code.
 	 */
 	public function get_authorization_code( $code ) {
 		return Authorization_Code::get_by_code( $this, $code );
@@ -266,7 +265,7 @@ class Client {
 	 * Issue token for a user.
 	 *
 	 * @param \WP_User $user
-	 * 
+	 *
 	 * @return Access_Token
 	 */
 	public function issue_token( WP_User $user ) {

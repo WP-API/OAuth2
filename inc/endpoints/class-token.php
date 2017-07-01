@@ -35,10 +35,24 @@ class Token {
 		));
 	}
 
+	/**
+	 * Validates the given grant type.
+	 *
+	 * @param string $type Grant type.
+	 *
+	 * @return bool Whether or not the grant type is valid.
+	 */
 	public function validate_grant_type( $type ) {
 		return $type === 'authorization_code';
 	}
 
+	/**
+	 * Validates the token given in the request, and issues a new token for the user.
+	 *
+	 * @param WP_REST_Request $request Request object.
+	 *
+	 * @return array|WP_Error Token data on success, or error on failure.
+	 */
 	public function exchange_token( WP_REST_Request $request ) {
 		$client = Client::get_by_id( $request['client_id'] );
 		if ( empty( $client ) ) {

@@ -83,7 +83,7 @@ function get_grant_types() {
  *
  * Callback for the oauth2.grant_types hook.
  *
- * @param array Existing grant types.
+ * @param array $types Existing grant types.
  * @return array Grant types with additional types registered.
  */
 function register_grant_types( $types ) {

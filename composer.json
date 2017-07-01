@@ -1,13 +1,12 @@
 {
-    "name": "wp-api/oauth1",
-    "description": "OAuth 1.0a Server for WordPress",
-    "type": "wordpress-plugin",
-    "license": "GPL2+",
-    "authors": [
-        {
-            "name": "WP-API Team",
-            "homepage": "http://wp-api.org/"
-        }
-    ],
-    "require": {}
+  "name": "wp-api/oauth2",
+  "description": "OAuth 2 Server for WordPress",
+  "type": "wordpress-plugin",
+  "license": "GPL2+",
+  "authors": [
+    {
+      "name": "WP-API Team",
+      "homepage": "http://wp-api.org/"
+    }
+  ]
 }

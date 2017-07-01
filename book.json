@@ -6,11 +6,11 @@
   "plugins": ["edit-link", "github"],
   "pluginsConfig": {
     "edit-link": {
-      "base": "https://github.com/WP-API/OAuth1/tree/master",
+      "base": "https://github.com/WP-API/OAuth2/tree/master",
       "label": "Edit This Page"
     },
     "github": {
-      "url": "https://github.com/WP-API/OAuth1/"
+      "url": "https://github.com/WP-API/OAuth2/"
     }
   }
 }

@@ -16,7 +16,7 @@ This is in extremely early beta, and does not work yet. Please help us out and c
 
 This plugin is licensed under the GNU General Public License v2 or later:
 
-> Copyright 2016 by the contributors.
+> Copyright 2017 by the contributors.
 >
 > This program is free software; you can redistribute it and/or modify
 > it under the terms of the GNU General Public License as published by

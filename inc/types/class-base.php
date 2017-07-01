@@ -17,7 +17,7 @@ abstract class Base implements Type {
 	 *     @var string $scope Requested scope.
 	 *     @var string $state State parameter from the client.
 	 * }
-	 * @return void Method should output form and exit.
+	 * @return WP_Error|void Method should output form and exit, or return encountered error.
 	 */
 	abstract protected function handle_authorization_submission( $submit, Client $client, $data );
 
@@ -147,6 +147,7 @@ abstract class Base implements Type {
 	 * Get the nonce action for a client.
 	 *
 	 * @param Client $client Client to generate nonce for.
+	 * @return string Nonce action for given client.
 	 */
 	protected function get_nonce_action( Client $client ) {
 		return sprintf( 'oauth2_authorize:%s', $client->get_id() );

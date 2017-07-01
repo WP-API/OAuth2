@@ -4,8 +4,6 @@ namespace WP\OAuth2\Endpoints;
 
 use WP_Error;
 use WP\OAuth2;
-use WP\OAuth2\Client;
-use WP\OAuth2\Types;
 
 class Authorization {
 	const LOGIN_ACTION = 'oauth2_authorize';
@@ -27,19 +25,21 @@ class Authorization {
 
 		// Match type to a handler.
 		$grant_types = OAuth2\get_grant_types();
-		foreach ( $grant_types as $type_handler ) {
-			if ( $type_handler->get_response_type_code() === $type ) {
-				$handler = $type_handler;
+		if ( $grant_types ) {
+			foreach ( array_reverse( $grant_types ) as $type_handler ) {
+				if ( $type_handler->get_response_type_code() === $type ) {
+					$handler = $type_handler;
+					break;
+				}
 			}
 		}
+
 		if ( empty( $handler ) ) {
 			$result = new WP_Error(
 				'oauth2.endpoints.authorization.handle_request.invalid_type',
 				__( 'Invalid response type specified.', 'oauth2' )
 			);
-		}
-
-		if ( empty( $result ) ) {
+		} else {
 			$result = $handler->handle_authorisation();
 		}
 
