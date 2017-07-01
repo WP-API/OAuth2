@@ -28,6 +28,25 @@ class Access_Token extends Token {
 	}
 
 	/**
+	 * Revoke the token.
+	 *
+	 * @internal This may return other error codes in the future, as we may
+	 *           need to also revoke refresh tokens.
+	 * @return bool|WP_Error True if succeeded, error otherwise.
+	 */
+	public function revoke() {
+		$success = delete_user_meta( $this->get_user_id(), $this->get_meta_key() );
+		if ( ! $success ) {
+			return new WP_Error(
+				'oauth2.tokens.access_token.revoke.could_not_revoke',
+				__( 'Could not revoke the token.', 'oauth2' )
+			);
+		}
+
+		return true;
+	}
+
+	/**
 	 * Get a token by ID.
 	 *
 	 * @param string $id Token ID.
@@ -57,7 +76,27 @@ class Access_Token extends Token {
 			return null;
 		}
 
-		return new static( $user, $key, $value[0] );
+		return new static( $user, $id, $value[0] );
+	}
+
+	/**
+	 * Get all tokens for the specified user.
+	 *
+	 * @return static[] List of tokens.
+	 */
+	public static function get_for_user( WP_User $user ) {
+		$meta = get_user_meta( $user->ID );
+		$tokens = [];
+		foreach ( $meta as $key => $values ) {
+			if ( strpos( $key, static::META_PREFIX ) !== 0 ) {
+				continue;
+			}
+
+			$real_key = substr( $key, strlen( static::META_PREFIX ) );
+			$value = maybe_unserialize( $values[0] );
+			$tokens[] = new static( $user, $real_key, $value );
+		}
+		return $tokens;
 	}
 
 	/**
