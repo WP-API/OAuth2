@@ -424,6 +424,20 @@ class Client {
 	}
 
 	/**
+	 * Approve a client.
+	 *
+	 * @return bool|WP_Error True if client was updated, error otherwise.
+	 */
+	public function approve() {
+		$data = array(
+			'ID' => $this->get_post_id(),
+			'post_status' => 'publish',
+		);
+		$result = wp_update_post( wp_slash( $data ), true );
+		return is_wp_error( $result ) ? $result : true;
+	}
+
+	/**
 	 * Register the underlying post type.
 	 */
 	public static function register_type() {
