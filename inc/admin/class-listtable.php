@@ -102,7 +102,36 @@ class ListTable extends WP_List_Table {
 			'edit'   => sprintf( '<a href="%s">%s</a>', esc_url( $edit_link ), esc_html__( 'Edit', 'rest_oauth2' ) ),
 			'delete' => sprintf( '<a href="%s">%s</a>', esc_url( $delete_link ), esc_html__( 'Delete', 'rest_oauth2' ) ),
 		];
+
+		$post_type_object = get_post_type_object( $item->post_type );
+		if ( current_user_can( $post_type_object->cap->publish_posts ) && $item->post_status !== 'publish' ) {
+			$publish_link = add_query_arg(
+				[
+					'page' => 'rest-oauth2-apps',
+					'action' => 'approve',
+					'id' => $item->ID,
+				],
+				admin_url( 'users.php' )
+			);
+			$publish_link = wp_nonce_url( $publish_link, 'rest-oauth2-approve:' . $item->ID );
+			$actions['app-approve'] = sprintf(
+				'<a href="%s">%s</a>',
+				esc_url( $publish_link ),
+				esc_html__( 'Approve', 'rest_oauth2' )
+			);
+		}
+
 		$action_html = $this->row_actions( $actions );
+
+		// Get suffixes for draft, etc
+		ob_start();
+		_post_states( $item );
+		$title = sprintf(
+			'<strong><a href="%s">%s</a>%s</strong>',
+			$edit_link,
+			$title,
+			ob_get_clean()
+		);
 
 		return $title . ' ' . $action_html;
 	}

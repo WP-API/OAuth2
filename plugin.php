@@ -17,6 +17,7 @@ function bootstrap() {
 	load();
 
 	// Core authentication hooks.
+	add_action( 'init', __NAMESPACE__ . '\\Client::register_type' );
 	add_filter( 'determine_current_user', __NAMESPACE__ . '\\Authentication\\attempt_authentication', 11 );
 
 	// REST API integration.

@@ -69,6 +69,10 @@ class Admin {
 				self::handle_regenerate();
 				break;
 
+			case 'approve':
+				self::handle_approve();
+				break;
+
 			default:
 				global $wp_list_table;
 
@@ -86,6 +90,7 @@ class Admin {
 			case 'add':
 			case 'edit':
 			case 'delete':
+			case 'approve':
 				break;
 
 			default:
@@ -116,6 +121,8 @@ class Admin {
 			<?php
 			if ( ! empty( $_GET['deleted'] ) ) {
 				echo '<div id="message" class="updated"><p>' . esc_html__( 'Deleted application.', 'rest_oauth2' ) . '</p></div>';
+			} elseif ( ! empty( $_GET['approved'] ) ) {
+				echo '<div id="message" class="updated"><p>' . esc_html__( 'Approved application.', 'rest_oauth2' ) . '</p></div>';
 			}
 			?>
 
@@ -477,6 +484,39 @@ class Admin {
 		}
 
 		wp_safe_redirect( self::get_url( 'deleted=1' ) );
+		exit;
+	}
+
+	/**
+	 * Approve the client.
+	 */
+	public static function handle_approve() {
+		if ( empty( $_GET['id'] ) ) {
+			return;
+		}
+
+		$id = absint( $_GET['id'] );
+		check_admin_referer( 'rest-oauth2-approve:' . $id );
+
+		if ( ! current_user_can( 'publish_post', $id ) ) {
+			wp_die(
+				'<h1>' . __( 'Cheatin&#8217; uh?', 'rest_oauth2' ) . '</h1>' .
+				'<p>' . __( 'You are not allowed to approve this application.', 'rest_oauth2' ) . '</p>',
+				403
+			);
+		}
+
+		$client = Client::get_by_post_id( $id );
+		if ( is_wp_error( $client ) ) {
+			wp_die( $client );
+		}
+
+		$did_approve = $client->approve();
+		if ( is_wp_error( $did_approve ) ) {
+			wp_die( $did_approve );
+		}
+
+		wp_safe_redirect( self::get_urL( 'approved=1' ) );
 		exit;
 	}
 
