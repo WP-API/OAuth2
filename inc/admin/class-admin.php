@@ -516,7 +516,7 @@ class Admin {
 			wp_die( $did_approve );
 		}
 
-		wp_safe_redirect( self::get_urL( 'approved=1' ) );
+		wp_safe_redirect( self::get_url( 'approved=1' ) );
 		exit;
 	}
 
