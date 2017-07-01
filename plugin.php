@@ -18,6 +18,7 @@ function bootstrap() {
 	load();
 
 	// Core authentication hooks.
+	add_action( 'init', __NAMESPACE__ . '\\Client::register_type' );
 	add_filter( 'determine_current_user', __NAMESPACE__ . '\\Authentication\\attempt_authentication', 11 );
 
 	// REST API integration.
@@ -31,6 +32,7 @@ function bootstrap() {
 	// Admin-related.
 	add_action( 'init', __NAMESPACE__ . '\\rest_oauth2_load_authorize_page' );
 	add_action( 'admin_menu', array( __NAMESPACE__ . '\\admin\\Admin', 'register' ) );
+	Admin\Profile\bootstrap();
 }
 
 function load() {
@@ -48,6 +50,7 @@ function load() {
 	require __DIR__ . '/inc/types/class-authorization-code.php';
 	require __DIR__ . '/inc/types/class-implicit.php';
 	require __DIR__ . '/inc/admin/class-admin.php';
+	require __DIR__ . '/inc/admin/profile/namespace.php';
 }
 
 /**

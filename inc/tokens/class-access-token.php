@@ -4,8 +4,8 @@ namespace WP\OAuth2\Tokens;
 
 use WP_Error;
 use WP\OAuth2\Client;
-use WP_Query;
 use WP_User;
+use WP_User_Query;
 
 class Access_Token extends Token {
 	const META_PREFIX = '_oauth2_access_';
@@ -19,21 +19,31 @@ class Access_Token extends Token {
 	}
 
 	/**
-	 * Get the ID for the user that the token represents.
+	 * Get client for the token.
 	 *
-	 * @return int
+	 * @return Client|null
 	 */
-	public function get_user_id() {
-		return (int) $this->value['user'];
+	public function get_client() {
+		return Client::get_by_id( $this->value['client'] );
 	}
 
 	/**
-	 * Get the user that the token represents.
+	 * Revoke the token.
 	 *
-	 * @return WP_User|null
+	 * @internal This may return other error codes in the future, as we may
+	 *           need to also revoke refresh tokens.
+	 * @return bool|WP_Error True if succeeded, error otherwise.
 	 */
-	public function get_user() {
-		return get_user_by( 'id', $this->get_user_id() );
+	public function revoke() {
+		$success = delete_user_meta( $this->get_user_id(), $this->get_meta_key() );
+		if ( ! $success ) {
+			return new WP_Error(
+				'oauth2.tokens.access_token.revoke.could_not_revoke',
+				__( 'Could not revoke the token.', 'oauth2' )
+			);
+		}
+
+		return true;
 	}
 
 	/**
@@ -45,28 +55,48 @@ class Access_Token extends Token {
 	public static function get_by_id( $id ) {
 		$key = static::META_PREFIX . $id;
 		$args = array(
-			'post_type'      => Client::POST_TYPE,
-			'post_status'    => 'publish',
-			'posts_per_page' => 1,
-			'no_found_rows'  => true,
-			'meta_query'     => array(
+			'number'      => 1,
+			'count_total' => false,
+			'meta_query'  => array(
 				array(
 					'key'     => $key,
 					'compare' => 'EXISTS',
 				),
 			),
 		);
-		$query = new WP_Query( $args );
-		if ( empty( $query->posts ) ) {
+		$query = new WP_User_Query( $args );
+		$results = $query->get_results();
+		if ( empty( $results ) ) {
 			return null;
 		}
 
-		$value = get_post_meta( $query->posts[0]->ID, wp_slash( $key ), false );
+		$user = $results[0];
+		$value = get_user_meta( $user->ID, wp_slash( $key ), false );
 		if ( empty( $value ) ) {
 			return null;
 		}
 
-		return new static( $key, $value[0] );
+		return new static( $user, $id, $value[0] );
+	}
+
+	/**
+	 * Get all tokens for the specified user.
+	 *
+	 * @return static[] List of tokens.
+	 */
+	public static function get_for_user( WP_User $user ) {
+		$meta = get_user_meta( $user->ID );
+		$tokens = [];
+		foreach ( $meta as $key => $values ) {
+			if ( strpos( $key, static::META_PREFIX ) !== 0 ) {
+				continue;
+			}
+
+			$real_key = substr( $key, strlen( static::META_PREFIX ) );
+			$value = maybe_unserialize( $values[0] );
+			$tokens[] = new static( $user, $real_key, $value );
+		}
+		return $tokens;
 	}
 
 	/**
@@ -86,12 +116,12 @@ class Access_Token extends Token {
 		}
 
 		$data = array(
-			'user' => (int) $user->ID,
+			'client' => $client->get_id(),
 		);
 		$key = wp_generate_password( static::KEY_LENGTH, false );
 		$meta_key = static::META_PREFIX . $key;
 
-		$result = add_post_meta( $client->get_post_id(), wp_slash( $meta_key ), wp_slash( $data ), true );
+		$result = add_user_meta( $user->ID, wp_slash( $meta_key ), wp_slash( $data ), true );
 		if ( ! $result ) {
 			return new WP_Error(
 				'oauth2.tokens.access_token.create.could_not_create',
@@ -99,7 +129,7 @@ class Access_Token extends Token {
 			);
 		}
 
-		return new static( $key, $data );
+		return new static( $user, $key, $data );
 	}
 
 	/**
