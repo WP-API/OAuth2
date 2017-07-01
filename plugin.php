@@ -79,7 +79,6 @@ function get_grant_types() {
 	$grant_types = apply_filters( 'oauth2.grant_types', array() );
 
 	return array_filter( $grant_types, function ( $type ) {
-
 		return $type instanceof Type;
 	} );
 }
