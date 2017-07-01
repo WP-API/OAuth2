@@ -4,6 +4,7 @@ namespace WP\OAuth2\Endpoints;
 
 use WP_Error;
 use WP\OAuth2;
+use WP\OAuth2\Types\Type;
 
 class Authorization {
 	const LOGIN_ACTION = 'oauth2_authorize';
@@ -26,6 +27,7 @@ class Authorization {
 		// Match type to a handler.
 		$grant_types = OAuth2\get_grant_types();
 		if ( $grant_types ) {
+			/** @var Type $type_handler */
 			foreach ( array_reverse( $grant_types ) as $type_handler ) {
 				if ( $type_handler->get_response_type_code() === $type ) {
 					$handler = $type_handler;
