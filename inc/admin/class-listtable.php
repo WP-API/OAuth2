@@ -49,8 +49,8 @@ class ListTable extends WP_List_Table {
 	public function get_columns() {
 		$c = [
 			'cb'          => '<input type="checkbox" />',
-			'name'        => __( 'Name', 'rest_oauth2' ),
-			'description' => __( 'Description', 'rest_oauth2' ),
+			'name'        => __( 'Name', 'oauth2' ),
+			'description' => __( 'Description', 'oauth2' ),
 		];
 
 		return $c;
@@ -62,7 +62,7 @@ class ListTable extends WP_List_Table {
 	public function column_cb( $item ) {
 		?>
 		<label class="screen-reader-text"
-		       for="cb-select-<?php echo esc_attr( $item->ID ) ?>"><?php esc_html_e( 'Select consumer', 'rest_oauth2' ); ?></label>
+		       for="cb-select-<?php echo esc_attr( $item->ID ) ?>"><?php esc_html_e( 'Select consumer', 'oauth2' ); ?></label>
 
 		<input id="cb-select-<?php echo esc_attr( $item->ID ) ?>" type="checkbox"
 		       name="consumers[]" value="<?php echo esc_attr( $item->ID ) ?>"/>
@@ -77,7 +77,7 @@ class ListTable extends WP_List_Table {
 	protected function column_name( $item ) {
 		$title = get_the_title( $item->ID );
 		if ( empty( $title ) ) {
-			$title = '<em>' . esc_html__( 'Untitled', 'rest_oauth2' ) . '</em>';
+			$title = '<em>' . esc_html__( 'Untitled', 'oauth2' ) . '</em>';
 		}
 
 		$edit_link   = add_query_arg(
@@ -99,8 +99,8 @@ class ListTable extends WP_List_Table {
 		$delete_link = wp_nonce_url( $delete_link, 'rest-oauth2-delete:' . $item->ID );
 
 		$actions     = [
-			'edit'   => sprintf( '<a href="%s">%s</a>', esc_url( $edit_link ), esc_html__( 'Edit', 'rest_oauth2' ) ),
-			'delete' => sprintf( '<a href="%s">%s</a>', esc_url( $delete_link ), esc_html__( 'Delete', 'rest_oauth2' ) ),
+			'edit'   => sprintf( '<a href="%s">%s</a>', esc_url( $edit_link ), esc_html__( 'Edit', 'oauth2' ) ),
+			'delete' => sprintf( '<a href="%s">%s</a>', esc_url( $delete_link ), esc_html__( 'Delete', 'oauth2' ) ),
 		];
 
 		$post_type_object = get_post_type_object( $item->post_type );
@@ -117,7 +117,7 @@ class ListTable extends WP_List_Table {
 			$actions['app-approve'] = sprintf(
 				'<a href="%s">%s</a>',
 				esc_url( $publish_link ),
-				esc_html__( 'Approve', 'rest_oauth2' )
+				esc_html__( 'Approve', 'oauth2' )
 			);
 		}
 

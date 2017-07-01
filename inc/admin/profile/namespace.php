@@ -29,13 +29,13 @@ function render_profile_section( WP_User $user ) {
 		<table class="form-table">
 			<tbody>
 			<tr>
-				<th scope="row"><?php _e( 'Authorized Applications', 'rest_oauth1' ) ?></th>
+				<th scope="row"><?php _e( 'Authorized Applications', 'oauth2' ) ?></th>
 				<td>
 					<?php if ( ! empty( $tokens ) ): ?>
 						<table class="widefat">
 							<thead>
 							<tr>
-								<th style="padding-left:10px;"><?php esc_html_e( 'Application Name', 'rest_oauth1' ); ?></th>
+								<th style="padding-left:10px;"><?php esc_html_e( 'Application Name', 'oauth2' ); ?></th>
 								<th></th>
 							</tr>
 							</thead>
@@ -47,14 +47,14 @@ function render_profile_section( WP_User $user ) {
 								?>
 								<tr>
 									<td><?php echo $client->get_name() ?></td>
-									<td><button class="button" name="oauth2_revoke" value="<?php echo esc_attr( $token->get_key() ) ?>"><?php esc_html_e( 'Revoke', 'rest_oauth1' ) ?></button>
+									<td><button class="button" name="oauth2_revoke" value="<?php echo esc_attr( $token->get_key() ) ?>"><?php esc_html_e( 'Revoke', 'oauth2' ) ?></button>
 								</tr>
 
 							<?php endforeach ?>
 							</tbody>
 						</table>
 					<?php else: ?>
-						<p class="description"><?php esc_html_e( 'No applications authorized.', 'rest_oauth1' ) ?></p>
+						<p class="description"><?php esc_html_e( 'No applications authorized.', 'oauth2' ) ?></p>
 					<?php endif ?>
 				</td>
 			</tr>
