@@ -2,7 +2,15 @@
 
 namespace WP\OAuth2\Tokens;
 
+use WP_User;
+
 abstract class Token {
+	/**
+	 * User the token belongs to.
+	 *
+	 * @var WP_User
+	 */
+	protected $user;
 
 	/**
 	 * @var string
@@ -18,9 +26,28 @@ abstract class Token {
 	 * @param string $key
 	 * @param mixed $value
 	 */
-	protected function __construct( $key, $value ) {
+	protected function __construct( WP_User $user, $key, $value ) {
+		$this->user = $user;
 		$this->key = $key;
 		$this->value = $value;
+	}
+
+	/**
+	 * Get the ID for the user that the token represents.
+	 *
+	 * @return int
+	 */
+	public function get_user_id() {
+		return $this->user->ID;
+	}
+
+	/**
+	 * Get the user that the token represents.
+	 *
+	 * @return WP_User
+	 */
+	public function get_user() {
+		return $this->user;
 	}
 
 	/**
