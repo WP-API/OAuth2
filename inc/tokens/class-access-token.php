@@ -57,7 +57,7 @@ class Access_Token extends Token {
 			return null;
 		}
 
-		return new static( $user, $key, $value[0] );
+		return new static( $user, $id, $value[0] );
 	}
 
 	/**
