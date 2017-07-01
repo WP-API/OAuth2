@@ -61,6 +61,26 @@ class Access_Token extends Token {
 	}
 
 	/**
+	 * Get all tokens for the specified user.
+	 *
+	 * @return static[] List of tokens.
+	 */
+	public static function get_for_user( WP_User $user ) {
+		$meta = get_user_meta( $user->ID );
+		$tokens = [];
+		foreach ( $meta as $key => $values ) {
+			if ( strpos( $key, static::META_PREFIX ) !== 0 ) {
+				continue;
+			}
+
+			$real_key = substr( $key, strlen( static::META_PREFIX ) );
+			$value = maybe_unserialize( $values[0] );
+			$tokens[] = new static( $user, $real_key, $value );
+		}
+		return $tokens;
+	}
+
+	/**
 	 * Creates a new token for the given client and user.
 	 *
 	 * @param Client  $client
