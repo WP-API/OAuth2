@@ -56,6 +56,9 @@ class ListTable extends WP_List_Table {
 		return $c;
 	}
 
+	/**
+	 * @param \WP_Post $item Post object.
+	 */
 	public function column_cb( $item ) {
 		?>
 		<label class="screen-reader-text"
@@ -67,6 +70,10 @@ class ListTable extends WP_List_Table {
 		<?php
 	}
 
+	/**
+	 * @param \WP_Post $item Post object.
+	 * @return string Name of the column.
+	 */
 	protected function column_name( $item ) {
 		$title = get_the_title( $item->ID );
 		if ( empty( $title ) ) {
@@ -100,6 +107,10 @@ class ListTable extends WP_List_Table {
 		return $title . ' ' . $action_html;
 	}
 
+	/**
+	 * @param \WP_Post $item Post object.
+	 * @return string Content of the column.
+	 */
 	protected function column_description( $item ) {
 		return $item->post_content;
 	}

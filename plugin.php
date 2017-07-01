@@ -18,8 +18,11 @@ function bootstrap() {
 
 	// Core authentication hooks.
 	add_filter( 'determine_current_user', __NAMESPACE__ . '\\Authentication\\attempt_authentication', 11 );
+
+	// REST API integration.
 	add_filter( 'rest_authentication_errors', __NAMESPACE__ . '\\Authentication\\maybe_report_errors' );
 	add_filter( 'rest_index', __NAMESPACE__ . '\\register_in_index' );
+	add_action( 'rest_api_init', __NAMESPACE__ . '\\register_routes' );
 
 	// Internal default hooks.
 	add_filter( 'oauth2.grant_types', __NAMESPACE__ . '\\register_grant_types', 0 );
@@ -34,9 +37,11 @@ function load() {
 	require __DIR__ . '/inc/class-scopes.php';
 	require __DIR__ . '/inc/authentication/namespace.php';
 	require __DIR__ . '/inc/endpoints/class-authorization.php';
+	require __DIR__ . '/inc/endpoints/class-token.php';
 	require __DIR__ . '/inc/tokens/namespace.php';
 	require __DIR__ . '/inc/tokens/class-token.php';
 	require __DIR__ . '/inc/tokens/class-access-token.php';
+	require __DIR__ . '/inc/tokens/class-authorization-code.php';
 	require __DIR__ . '/inc/types/class-type.php';
 	require __DIR__ . '/inc/types/class-base.php';
 	require __DIR__ . '/inc/types/class-authorization-code.php';
@@ -78,7 +83,7 @@ function get_grant_types() {
  *
  * Callback for the oauth2.grant_types hook.
  *
- * @param array Existing grant types.
+ * @param array $types Existing grant types.
  * @return array Grant types with additional types registered.
  */
 function register_grant_types( $types ) {
@@ -109,6 +114,11 @@ function register_in_index( WP_REST_Response $response ) {
 	return $response;
 }
 
+function register_routes() {
+	$token_endpoint = new Endpoints\Token();
+	$token_endpoint->register_routes();
+}
+
 /**
  * Get the authorization endpoint URL.
  *
@@ -132,7 +142,7 @@ function get_authorization_url() {
  * @return string URL for the OAuth 2 token endpoint.
  */
 function get_token_url() {
-	$url = rest_url( 'oauth2/token' );
+	$url = rest_url( 'oauth2/access_token' );
 
 	/**
 	 * Filter the token URL.

@@ -11,7 +11,10 @@ class Access_Token extends Token {
 	const META_PREFIX = '_oauth2_access_';
 	const KEY_LENGTH = 12;
 
-	protected static function get_meta_prefix() {
+	/**
+	 * @return string Meta prefix.
+	 */
+	protected function get_meta_prefix() {
 		return static::META_PREFIX;
 	}
 
@@ -66,6 +69,14 @@ class Access_Token extends Token {
 		return new static( $key, $value[0] );
 	}
 
+	/**
+	 * Creates a new token for the given client and user.
+	 *
+	 * @param Client  $client
+	 * @param WP_User $user
+	 *
+	 * @return Access_Token|WP_Error Token instance, or error on failure.
+	 */
 	public static function create( Client $client, WP_User $user ) {
 		if ( ! $user->exists() ) {
 			return new WP_Error(
@@ -75,7 +86,7 @@ class Access_Token extends Token {
 		}
 
 		$data = array(
-			'user' => $user->ID,
+			'user' => (int) $user->ID,
 		);
 		$key = wp_generate_password( static::KEY_LENGTH, false );
 		$meta_key = static::META_PREFIX . $key;
@@ -89,5 +100,14 @@ class Access_Token extends Token {
 		}
 
 		return new static( $key, $data );
+	}
+
+	/**
+	 * Check if the token is valid.
+	 *
+	 * @return bool True if the token is valid, false otherwise.
+	 */
+	public function is_valid() {
+		return true;
 	}
 }

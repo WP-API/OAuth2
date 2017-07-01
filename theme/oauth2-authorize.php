@@ -1,4 +1,7 @@
 <?php
+
+/** @var \WP\OAuth2\Client $client */
+
 login_header(
 	__( 'Authorize', 'oauth2' ),
 	'',

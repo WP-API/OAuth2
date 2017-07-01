@@ -4,8 +4,8 @@
 
 TAG=$1
 
-PLUGIN="rest-api-oauth1"
-TMPDIR=/tmp/rest-api-oauth1-release-svn
+PLUGIN="rest-api-oauth2"
+TMPDIR=/tmp/rest-api-oauth2-release-svn
 PLUGINDIR="$PWD"
 PLUGINSVN="https://plugins.svn.wordpress.org/$PLUGIN"
 
