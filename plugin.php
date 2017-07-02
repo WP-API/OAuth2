@@ -80,10 +80,16 @@ function get_grant_types() {
 	 * @param Type[] $grant_types Map of grant type to handler object.
 	 */
 	$grant_types = apply_filters( 'oauth2.grant_types', array() );
+	foreach ( $grant_types as $type => $handler ) {
+		if ( ! $handler instanceof Type ) {
+			/* translators: 1: Grant type name, 2: Grant type interface */
+			$message = __( 'Skipping invalid grant type "%s". Required interface "%s" not implemented.', 'oauth2' );
+			_doing_it_wrong( __FUNCTION__, sprintf( $message, $type, 'WP\\OAuth2\\Types\\Type' ), '0.1.0' );
+			unset( $grant_types[ $type ] );
+		}
+	}
 
-	return array_filter( $grant_types, function ( $type ) {
-		return $type instanceof Type;
-	} );
+	return $grant_types;
 }
 
 /**
