@@ -55,9 +55,9 @@ $url = $_SERVER['REQUEST_URI'];
 
 </style>
 
-<form name="oauth1_authorize_form" id="oauth1_authorize_form" action="<?php echo esc_url( $url ); ?>" method="post">
+<form name="oauth2_authorize_form" id="oauth2_authorize_form" action="<?php echo esc_url( $url ); ?>" method="post">
 
-	<h2 class="login-title"><?php echo esc_html( sprintf( __('Connect %1$s'), $client->get_name() ) ) ?></h2>
+	<h2 class="login-title"><?php echo esc_html( sprintf( __( 'Connect %1$s', 'oauth2' ), $client->get_name() ) ) ?></h2>
 
 	<div class="login-info">
 
@@ -90,10 +90,10 @@ $url = $_SERVER['REQUEST_URI'];
 </form>
 
 <p id="nav">
-<a href="<?php echo esc_url( wp_login_url( $url, true ) ); ?>"><?php _e( 'Switch user' ) ?></a>
+<a href="<?php echo esc_url( wp_login_url( $url, true ) ); ?>"><?php _e( 'Switch user', 'oauth2' ) ?></a>
 <?php
 if ( get_option( 'users_can_register' ) ) :
-	$registration_url = sprintf( '<a href="%s">%s</a>', esc_url( wp_registration_url() ), __( 'Register' ) );
+	$registration_url = sprintf( '<a href="%s">%s</a>', esc_url( wp_registration_url() ), __( 'Register', 'oauth2' ) );
 	/**
 	 * Filter the registration URL below the login form.
 	 *

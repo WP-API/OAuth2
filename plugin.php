@@ -5,6 +5,7 @@
  * Version: 0.1.0
  * Author: WordPress Core Contributors (REST API Focus)
  * Author URI: https://make.wordpress.org/core/
+ * Text Domain: oauth2
  */
 
 namespace WP\OAuth2;

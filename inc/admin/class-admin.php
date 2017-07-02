@@ -18,8 +18,8 @@ class Admin {
 		include_once dirname( __FILE__ ) . '/class-listtable.php';
 
 		$hook = add_users_page(
-			__( 'Registered OAuth Applications', 'rest_oauth2' ),
-			_x( 'Applications', 'menu title', 'rest_oauth2' ),
+			__( 'Registered OAuth Applications', 'oauth2' ),
+			_x( 'Applications', 'menu title', 'oauth2' ),
 			'list_users',
 			self::BASE_SLUG,
 			[ get_class(), 'dispatch' ]
@@ -109,20 +109,20 @@ class Admin {
 		<div class="wrap">
 			<h2>
 				<?php
-				esc_html_e( 'Registered Applications', 'rest_oauth2' );
+				esc_html_e( 'Registered Applications', 'oauth2' );
 
 				if ( current_user_can( 'create_users' ) ): ?>
 					<a href="<?php echo esc_url( self::get_url( 'action=add' ) ) ?>"
-					   class="add-new-h2"><?php echo esc_html_x( 'Add New', 'application', 'rest_oauth2' ); ?></a>
+					   class="add-new-h2"><?php echo esc_html_x( 'Add New', 'application', 'oauth2' ); ?></a>
 					<?php
 				endif;
 				?>
 			</h2>
 			<?php
 			if ( ! empty( $_GET['deleted'] ) ) {
-				echo '<div id="message" class="updated"><p>' . esc_html__( 'Deleted application.', 'rest_oauth2' ) . '</p></div>';
+				echo '<div id="message" class="updated"><p>' . esc_html__( 'Deleted application.', 'oauth2' ) . '</p></div>';
 			} elseif ( ! empty( $_GET['approved'] ) ) {
-				echo '<div id="message" class="updated"><p>' . esc_html__( 'Approved application.', 'rest_oauth2' ) . '</p></div>';
+				echo '<div id="message" class="updated"><p>' . esc_html__( 'Approved application.', 'oauth2' ) . '</p></div>';
 			}
 			?>
 
@@ -130,7 +130,7 @@ class Admin {
 
 			<form action="" method="get">
 
-				<?php $wp_list_table->search_box( __( 'Search Applications', 'rest_oauth2' ), 'rest_oauth2' ); ?>
+				<?php $wp_list_table->search_box( __( 'Search Applications', 'oauth2' ), 'oauth2' ); ?>
 
 				<?php $wp_list_table->display(); ?>
 
@@ -152,22 +152,22 @@ class Admin {
 		$valid = [];
 
 		if ( empty( $params['name'] ) ) {
-			return new WP_Error( 'rest_oauth2_missing_name', __( 'Client name is required', 'rest_oauth2' ) );
+			return new WP_Error( 'rest_oauth2_missing_name', __( 'Client name is required', 'oauth2' ) );
 		}
 		$valid['name'] = wp_filter_post_kses( $params['name'] );
 
 		if ( empty( $params['description'] ) ) {
-			return new WP_Error( 'rest_oauth2_missing_description', __( 'Client description is required', 'rest_oauth2' ) );
+			return new WP_Error( 'rest_oauth2_missing_description', __( 'Client description is required', 'oauth2' ) );
 		}
 		$valid['description'] = wp_filter_post_kses( $params['description'] );
 
 		if ( empty( $params['type'] ) ) {
-			return new WP_Error( 'rest_oauth2_missing_type', __( 'Type is required.', 'rest_oauth2' ) );
+			return new WP_Error( 'rest_oauth2_missing_type', __( 'Type is required.', 'oauth2' ) );
 		}
 		$valid['type'] = wp_filter_post_kses( $params['type'] );
 
 		if ( empty( $params['callback'] ) ) {
-			return new WP_Error( 'rest_oauth2_missing_callback', __( 'Client callback is required and must be a valid URL.', 'rest_oauth2' ) );
+			return new WP_Error( 'rest_oauth2_missing_callback', __( 'Client callback is required and must be a valid URL.', 'oauth2' ) );
 		}
 		if ( ! empty( $params['callback'] ) ) {
 			$valid['callback'] = $params['callback'];
@@ -251,7 +251,7 @@ class Admin {
 	 */
 	public static function render_edit_page() {
 		if ( ! current_user_can( 'edit_users' ) ) {
-			wp_die( __( 'You do not have permission to access this page.', 'rest_oauth2' ) );
+			wp_die( __( 'You do not have permission to access this page.', 'oauth2' ) );
 		}
 
 		// Are we editing?
@@ -262,7 +262,7 @@ class Admin {
 			$id       = absint( $_REQUEST['id'] );
 			$consumer = Client::get_by_post_id( $id );
 			if ( is_wp_error( $consumer ) || empty( $consumer ) ) {
-				wp_die( __( 'Invalid client ID.', 'rest_oauth2' ) );
+				wp_die( __( 'Invalid client ID.', 'oauth2' ) );
 			}
 
 			$form_action       = self::get_url( [ 'action' => 'edit', 'id' => $id ] );
@@ -277,15 +277,15 @@ class Admin {
 		if ( ! empty( $_GET['did_action'] ) ) {
 			switch ( $_GET['did_action'] ) {
 				case 'edit':
-					$messages[] = __( 'Updated application.', 'rest_oauth2' );
+					$messages[] = __( 'Updated application.', 'oauth2' );
 					break;
 
 				case 'regenerate':
-					$messages[] = __( 'Regenerated secret.', 'rest_oauth2' );
+					$messages[] = __( 'Regenerated secret.', 'oauth2' );
 					break;
 
 				default:
-					$messages[] = __( 'Successfully created application.', 'rest_oauth2' );
+					$messages[] = __( 'Successfully created application.', 'oauth2' );
 					break;
 			}
 		}
@@ -309,7 +309,7 @@ class Admin {
 
 		// Header time!
 		global $title, $parent_file, $submenu_file;
-		$title        = $consumer ? __( 'Edit Application', 'rest_oauth2' ) : __( 'Add Application', 'rest_oauth2' );
+		$title        = $consumer ? __( 'Edit Application', 'oauth2' ) : __( 'Add Application', 'oauth2' );
 		$parent_file  = 'users.php';
 		$submenu_file = self::BASE_SLUG;
 
@@ -331,16 +331,16 @@ class Admin {
 				<table class="form-table">
 					<tr>
 						<th scope="row">
-							<label for="oauth-name"><?php echo esc_html_x( 'Client Name', 'field name', 'rest_oauth2' ) ?></label>
+							<label for="oauth-name"><?php echo esc_html_x( 'Client Name', 'field name', 'oauth2' ) ?></label>
 						</th>
 						<td>
 							<input type="text" class="regular-text" name="name" id="oauth-name" value="<?php echo esc_attr( $data['name'] ) ?>"/>
-							<p class="description"><?php esc_html_e( 'This is shown to users during authorization and in their profile.', 'rest_oauth2' ) ?></p>
+							<p class="description"><?php esc_html_e( 'This is shown to users during authorization and in their profile.', 'oauth2' ) ?></p>
 						</td>
 					</tr>
 					<tr>
 						<th scope="row">
-							<label for="oauth-description"><?php echo esc_html_x( 'Description', 'field name', 'rest_oauth2' ) ?></label>
+							<label for="oauth-description"><?php echo esc_html_x( 'Description', 'field name', 'oauth2' ) ?></label>
 						</th>
 						<td>
 						<textarea class="regular-text" name="description" id="oauth-description" cols="30" rows="5" style="width: 500px"><?php echo esc_textarea( $data['description'] ) ?></textarea>
@@ -348,7 +348,7 @@ class Admin {
 					</tr>
 					<tr>
 						<th scope="row">
-							<?php echo esc_html_x( 'Type', 'field name', 'rest_oauth2' ) ?>
+							<?php echo esc_html_x( 'Type', 'field name', 'oauth2' ) ?>
 						</th>
 						<td>
 							<ul>
@@ -361,12 +361,12 @@ class Admin {
 										<?php checked( 'private', $data['type'] ); ?>
 									/>
 									<label for="oauth-type-private">
-										<?php echo esc_html_x( 'Private', 'Client type select option', 'rest_oauth2' ); ?>
+										<?php echo esc_html_x( 'Private', 'Client type select option', 'oauth2' ); ?>
 									</label>
 									<p class="description">
 										<?php esc_html_e(
 											'Clients capable of maintaining confidentiality of credentials, such as server-side applications',
-											'rest_oauth2'
+											'oauth2'
 										) ?>
 									</p>
 								</li>
@@ -379,12 +379,12 @@ class Admin {
 										<?php checked( 'public', $data['type'] ); ?>
 									/>
 									<label for="oauth-type-public">
-										<?php echo esc_html_x( 'Public', 'Client type select option', 'rest_oauth2' ); ?>
+										<?php echo esc_html_x( 'Public', 'Client type select option', 'oauth2' ); ?>
 									</label>
 									<p class="description">
 										<?php esc_html_e(
 											'Clients incapable of keeping credentials secret, such as browser-based applications or desktop and mobile apps',
-											'rest_oauth2'
+											'oauth2'
 										) ?>
 									</p>
 								</li>
@@ -393,11 +393,11 @@ class Admin {
 					</tr>
 					<tr>
 						<th scope="row">
-							<label for="oauth-callback"><?php echo esc_html_x( 'Callback', 'field name', 'rest_oauth2' ) ?></label>
+							<label for="oauth-callback"><?php echo esc_html_x( 'Callback', 'field name', 'oauth2' ) ?></label>
 						</th>
 						<td>
 							<input type="text" class="regular-text" name="callback" id="oauth-callback" value="<?php echo esc_attr( $data['callback'] ) ?>"/>
-							<p class="description"><?php esc_html_e( "Your application's callback URI or a list of comma separated URIs. The callback passed with the request token must match the scheme, host, port, and path of this URL.", 'rest_oauth2' ) ?></p>
+							<p class="description"><?php esc_html_e( "Your application's callback URI or a list of comma separated URIs. The callback passed with the request token must match the scheme, host, port, and path of this URL.", 'oauth2' ) ?></p>
 						</td>
 					</tr>
 				</table>
@@ -406,11 +406,11 @@ class Admin {
 
 				if ( empty( $consumer ) ) {
 					wp_nonce_field( 'rest-oauth2-add' );
-					submit_button( __( 'Create Client', 'rest_oauth2' ) );
+					submit_button( __( 'Create Client', 'oauth2' ) );
 				} else {
 					echo '<input type="hidden" name="id" value="' . esc_attr( $consumer->get_post_id() ) . '" />';
 					wp_nonce_field( 'rest-oauth2-edit-' . $consumer->get_post_id() );
-					submit_button( __( 'Save Client', 'rest_oauth2' ) );
+					submit_button( __( 'Save Client', 'oauth2' ) );
 				}
 
 				?>
@@ -418,12 +418,12 @@ class Admin {
 
 			<?php if ( ! empty( $consumer ) ) : ?>
 				<form method="post" action="<?php echo esc_url( $regenerate_action ) ?>">
-					<h3><?php esc_html_e( 'OAuth Credentials', 'rest_oauth2' ) ?></h3>
+					<h3><?php esc_html_e( 'OAuth Credentials', 'oauth2' ) ?></h3>
 
 					<table class="form-table">
 						<tr>
 							<th scope="row">
-								<?php esc_html_e( 'Client Key', 'rest_oauth2' ) ?>
+								<?php esc_html_e( 'Client Key', 'oauth2' ) ?>
 							</th>
 							<td>
 								<code><?php echo esc_html( $consumer->get_id() ) ?></code>
@@ -431,7 +431,7 @@ class Admin {
 						</tr>
 						<tr>
 							<th scope="row">
-								<?php esc_html_e( 'Client Secret', 'rest_oauth2' ) ?>
+								<?php esc_html_e( 'Client Secret', 'oauth2' ) ?>
 							</th>
 							<td>
 								<code><?php echo esc_html( $consumer->get_secret() ) ?></code>
@@ -441,7 +441,7 @@ class Admin {
 
 					<?php
 					wp_nonce_field( 'rest-oauth2-regenerate:' . $consumer->get_post_id() );
-					submit_button( __( 'Regenerate Secret', 'rest_oauth2' ), 'delete' );
+					submit_button( __( 'Regenerate Secret', 'oauth2' ), 'delete' );
 					?>
 				</form>
 			<?php endif ?>
@@ -463,8 +463,8 @@ class Admin {
 
 		if ( ! current_user_can( 'delete_post', $id ) ) {
 			wp_die(
-				'<h1>' . __( 'Cheatin&#8217; uh?', 'rest_oauth2' ) . '</h1>' .
-				'<p>' . __( 'You are not allowed to delete this application.', 'rest_oauth2' ) . '</p>',
+				'<h1>' . __( 'Cheatin&#8217; uh?', 'oauth2' ) . '</h1>' .
+				'<p>' . __( 'You are not allowed to delete this application.', 'oauth2' ) . '</p>',
 				403
 			);
 		}
@@ -500,8 +500,8 @@ class Admin {
 
 		if ( ! current_user_can( 'publish_post', $id ) ) {
 			wp_die(
-				'<h1>' . __( 'Cheatin&#8217; uh?', 'rest_oauth2' ) . '</h1>' .
-				'<p>' . __( 'You are not allowed to approve this application.', 'rest_oauth2' ) . '</p>',
+				'<h1>' . __( 'Cheatin&#8217; uh?', 'oauth2' ) . '</h1>' .
+				'<p>' . __( 'You are not allowed to approve this application.', 'oauth2' ) . '</p>',
 				403
 			);
 		}
@@ -533,8 +533,8 @@ class Admin {
 
 		if ( ! current_user_can( 'edit_post', $id ) ) {
 			wp_die(
-				'<h1>' . __( 'Cheatin&#8217; uh?', 'rest_oauth2' ) . '</h1>' .
-				'<p>' . __( 'You are not allowed to edit this application.', 'rest_oauth2' ) . '</p>',
+				'<h1>' . __( 'Cheatin&#8217; uh?', 'oauth2' ) . '</h1>' .
+				'<p>' . __( 'You are not allowed to edit this application.', 'oauth2' ) . '</p>',
 				403
 			);
 		}
