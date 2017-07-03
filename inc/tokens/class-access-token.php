@@ -28,6 +28,15 @@ class Access_Token extends Token {
 	}
 
 	/**
+	 * Get creation time for the token.
+	 *
+	 * @return int Creation timestamp.
+	 */
+	public function get_creation_time() {
+		return $this->value['created'];
+	}
+
+	/**
 	 * Revoke the token.
 	 *
 	 * @internal This may return other error codes in the future, as we may
@@ -116,7 +125,8 @@ class Access_Token extends Token {
 		}
 
 		$data = array(
-			'client' => $client->get_id(),
+			'client'  => $client->get_id(),
+			'created' => time(),
 		);
 		$key = wp_generate_password( static::KEY_LENGTH, false );
 		$meta_key = static::META_PREFIX . $key;
