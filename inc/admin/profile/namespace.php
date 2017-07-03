@@ -12,7 +12,8 @@ use WP_User;
  * Bootstrap actions for the profile screen.
  */
 function bootstrap() {
-	add_action( 'personal_options', __NAMESPACE__ . '\\render_profile_section', 50 );
+	add_action( 'show_user_profile', __NAMESPACE__ . '\\render_profile_section' );
+	add_action( 'edit_user_profile', __NAMESPACE__ . '\\render_profile_section' );
 	add_action( 'all_admin_notices', __NAMESPACE__ . '\\output_profile_messages' );
 	add_action( 'personal_options_update',  __NAMESPACE__ . '\\handle_revocation', 10, 1 );
 	add_action( 'edit_user_profile_update', __NAMESPACE__ . '\\handle_revocation', 10, 1 );
@@ -26,34 +27,26 @@ function bootstrap() {
 function render_profile_section( WP_User $user ) {
 	$tokens = Access_Token::get_for_user( $user );
 	?>
-		<table class="form-table">
-			<tbody>
+	<h2><?php _e( 'Authorized Applications', 'oauth2' ) ?></h2>
+	<?php if ( ! empty( $tokens ) ): ?>
+		<table class="widefat">
+			<thead>
 			<tr>
-				<th scope="row"><?php _e( 'Authorized Applications', 'oauth2' ) ?></th>
-				<td>
-					<?php if ( ! empty( $tokens ) ): ?>
-						<table class="widefat">
-							<thead>
-							<tr>
-								<th style="padding-left:10px;"><?php esc_html_e( 'Application Name', 'oauth2' ); ?></th>
-								<th></th>
-							</tr>
-							</thead>
-							<tbody>
-							<?php
-							foreach ( $tokens as $token ) {
-								render_token_row( $token );
-							}
-							?>
-							</tbody>
-						</table>
-					<?php else: ?>
-						<p class="description"><?php esc_html_e( 'No applications authorized.', 'oauth2' ) ?></p>
-					<?php endif ?>
-				</td>
+				<th style="padding-left:10px;"><?php esc_html_e( 'Application Name', 'oauth2' ); ?></th>
+				<th></th>
 			</tr>
+			</thead>
+			<tbody>
+			<?php
+			foreach ( $tokens as $token ) {
+				render_token_row( $token );
+			}
+			?>
 			</tbody>
 		</table>
+	<?php else: ?>
+		<p class="description"><?php esc_html_e( 'No applications authorized.', 'oauth2' ) ?></p>
+	<?php endif ?>
 	<?php
 }
 
