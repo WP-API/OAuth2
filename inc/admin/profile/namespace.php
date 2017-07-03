@@ -73,11 +73,29 @@ function render_token_row( WP_User $user, Access_Token $token ) {
 	 */
 	$details = apply_filters( 'oauth2.admin.profile.render_token_row.details', $details, $token, $user );
 
+	// Build actions.
 	$button_title = sprintf(
 		/* translators: %s: app name */
 		__( 'Revoke access for "%s"', 'oauth2' ),
 		$client->get_name()
 	);
+	$actions = [
+		sprintf(
+			'<button class="button" name="oauth2_revoke" title="%s" value="%s">%s</button>',
+			$button_title,
+			esc_attr( $token->get_key() ),
+			esc_html__( 'Revoke', 'oauth2' )
+		),
+	];
+
+	/**
+	 * Filter actions shown for an access token on the profile screen.
+	 *
+	 * @param string[] $actions List of HTML snippets to render in table.
+	 * @param Access_Token $token Token being displayed.
+	 * @param WP_User $user User whose profile is being rendered.
+	 */
+	$actions = apply_filters( 'oauth2.admin.profile.render_token_row.actions', $actions, $token, $user );
 	?>
 	<tr>
 		<td>
@@ -85,14 +103,7 @@ function render_token_row( WP_User $user, Access_Token $token ) {
 			<p><?php echo implode( ' | ', $details ) ?></p>
 		</td>
 		<td style="vertical-align: middle">
-			<button
-				class="button"
-				name="oauth2_revoke"
-				value="<?php echo esc_attr( $token->get_key() ) ?>"
-				title="<?php echo esc_attr( $button_title ) ?>"
-			>
-				<?php esc_html_e( 'Revoke', 'oauth2' ) ?>
-			</button>
+			<?php echo implode( '', $actions ) ?>
 		</td>
 	</tr>
 	<?php
