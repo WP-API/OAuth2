@@ -56,11 +56,13 @@ function render_profile_section( WP_User $user ) {
 function render_token_row( WP_User $user, Access_Token $token ) {
 	$client = $token->get_client();
 
+	$creation_time = $token->get_creation_time();
 	$details = [
 		sprintf(
-			/* translators: %s: formatted date */
-			esc_html__( 'Authorized %s', 'oauth2' ),
-			date( get_option( 'date_format' ), $token->get_creation_time() )
+			/* translators: %1$s: formatted date, %2$s: formatted time */
+			esc_html__( 'Authorized %1$s at %2$s', 'oauth2' ),
+			date( get_option( 'date_format' ), $creation_time ),
+			date( get_option( 'time_format' ), $creation_time )
 		),
 	];
 
