@@ -32,7 +32,7 @@ function bootstrap() {
 
 	// Admin-related.
 	add_action( 'init', __NAMESPACE__ . '\\rest_oauth2_load_authorize_page' );
-	add_action( 'admin_menu', array( __NAMESPACE__ . '\\admin\\Admin', 'register' ) );
+	add_action( 'admin_menu', __NAMESPACE__ . '\\Admin\\register' );
 	Admin\Profile\bootstrap();
 }
 
@@ -50,7 +50,7 @@ function load() {
 	require __DIR__ . '/inc/types/class-base.php';
 	require __DIR__ . '/inc/types/class-authorization-code.php';
 	require __DIR__ . '/inc/types/class-implicit.php';
-	require __DIR__ . '/inc/admin/class-admin.php';
+	require __DIR__ . '/inc/admin/namespace.php';
 	require __DIR__ . '/inc/admin/profile/namespace.php';
 }
 
