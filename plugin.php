@@ -10,6 +10,7 @@
 
 namespace WP\OAuth2;
 
+use WP\OAuth2\Types\Type;
 use WP_REST_Response;
 
 bootstrap();
@@ -67,7 +68,7 @@ function rest_oauth2_load_authorize_page() {
 /**
  * Get valid grant types.
  *
- * @return array Map of grant type to handler object.
+ * @return Type[] Map of grant type to handler object.
  */
 function get_grant_types() {
 	/**
@@ -77,9 +78,19 @@ function get_grant_types() {
 	 * Note that additional grant types must follow the extension policy in the
 	 * OAuth 2 specification.
 	 *
-	 * @param array $grant_types Map of grant type to handler object.
+	 * @param Type[] $grant_types Map of grant type to handler object.
 	 */
-	return apply_filters( 'oauth2.grant_types', array() );
+	$grant_types = apply_filters( 'oauth2.grant_types', array() );
+	foreach ( $grant_types as $type => $handler ) {
+		if ( ! $handler instanceof Type ) {
+			/* translators: 1: Grant type name, 2: Grant type interface */
+			$message = __( 'Skipping invalid grant type "%s". Required interface "%s" not implemented.', 'oauth2' );
+			_doing_it_wrong( __FUNCTION__, sprintf( $message, $type, 'WP\\OAuth2\\Types\\Type' ), '0.1.0' );
+			unset( $grant_types[ $type ] );
+		}
+	}
+
+	return $grant_types;
 }
 
 /**
