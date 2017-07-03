@@ -39,7 +39,7 @@ function render_profile_section( WP_User $user ) {
 			<tbody>
 			<?php
 			foreach ( $tokens as $token ) {
-				render_token_row( $token );
+				render_token_row( $user, $token );
 			}
 			?>
 			</tbody>
@@ -53,7 +53,7 @@ function render_profile_section( WP_User $user ) {
 /**
  * Render a single row.
  */
-function render_token_row( Access_Token $token ) {
+function render_token_row( WP_User $user, Access_Token $token ) {
 	$client = $token->get_client();
 
 	$details = [
@@ -63,6 +63,16 @@ function render_token_row( Access_Token $token ) {
 			date( get_option( 'date_format' ), $token->get_creation_time() )
 		),
 	];
+
+	/**
+	 * Filter details shown for an access token on the profile screen.
+	 *
+	 * @param string[] $details List of HTML snippets to render in table.
+	 * @param Access_Token $token Token being displayed.
+	 * @param WP_User $user User whose profile is being rendered.
+	 */
+	$details = apply_filters( 'oauth2.admin.profile.render_token_row.details', $details, $token, $user );
+
 	$button_title = sprintf(
 		/* translators: %s: app name */
 		__( 'Revoke access for "%s"', 'oauth2' ),
