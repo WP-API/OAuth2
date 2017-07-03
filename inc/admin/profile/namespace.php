@@ -40,17 +40,11 @@ function render_profile_section( WP_User $user ) {
 							</tr>
 							</thead>
 							<tbody>
-							<?php foreach ( $tokens as $token ): ?>
-								<?php
-								/** @var Access_Token $token */
-								$client = $token->get_client();
-								?>
-								<tr>
-									<td><?php echo $client->get_name() ?></td>
-									<td><button class="button" name="oauth2_revoke" value="<?php echo esc_attr( $token->get_key() ) ?>"><?php esc_html_e( 'Revoke', 'oauth2' ) ?></button>
-								</tr>
-
-							<?php endforeach ?>
+							<?php
+							foreach ( $tokens as $token ) {
+								render_token_row( $token );
+							}
+							?>
 							</tbody>
 						</table>
 					<?php else: ?>
@@ -60,6 +54,44 @@ function render_profile_section( WP_User $user ) {
 			</tr>
 			</tbody>
 		</table>
+	<?php
+}
+
+/**
+ * Render a single row.
+ */
+function render_token_row( Access_Token $token ) {
+	$client = $token->get_client();
+
+	$details = [
+		sprintf(
+			/* translators: %s: formatted date */
+			esc_html__( 'Authorized %s', 'oauth2' ),
+			date( get_option( 'date_format' ), $token->get_creation_time() )
+		),
+	];
+	$button_title = sprintf(
+		/* translators: %s: app name */
+		__( 'Revoke access for "%s"', 'oauth2' ),
+		$client->get_name()
+	);
+	?>
+	<tr>
+		<td>
+			<p><strong><?php echo $client->get_name() ?></strong></p>
+			<p><?php echo implode( ' | ', $details ) ?></p>
+		</td>
+		<td style="vertical-align: middle">
+			<button
+				class="button"
+				name="oauth2_revoke"
+				value="<?php echo esc_attr( $token->get_key() ) ?>"
+				title="<?php echo esc_attr( $button_title ) ?>"
+			>
+				<?php esc_html_e( 'Revoke', 'oauth2' ) ?>
+			</button>
+		</td>
+	</tr>
 	<?php
 }
 
