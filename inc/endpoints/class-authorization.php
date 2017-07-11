@@ -47,7 +47,7 @@ class Authorization {
 
 		if ( is_wp_error( $result ) ) {
 			// TODO: Handle it.
-			wp_die( $result->get_error_message() );
+			wp_die( esc_html( $result->get_error_message() ) );
 		}
 		exit;
 	}
