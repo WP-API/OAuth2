@@ -131,6 +131,35 @@ class Client {
 	}
 
 	/**
+	 * Does the client require secrets to be validated?
+	 *
+	 * Clients marked as confidential are required to have their client
+	 * credentials (i.e. secret) checked.
+	 *
+	 * @link https://tools.ietf.org/html/rfc6749#section-3.2.1
+	 *
+	 * @return bool True if secret must be verified, false otherwise.
+	 */
+	public function requires_secret() {
+		$type = $this->get_type();
+		return $type === 'private';
+	}
+
+	/**
+	 * Check if a secret is valid.
+	 *
+	 * This method ensures that the secret is correctly checked using
+	 * constant-time comparison.
+	 *
+	 * @param string $supplied Supplied secret to check.
+	 * @return boolean True if valid secret, false otherwise.
+	 */
+	public function check_secret( $supplied ) {
+		$stored = $this->get_secret();
+		return hash_equals( $supplied, $stored );
+	}
+
+	/**
 	 * Validate a callback URL.
 	 *
 	 * Based on {@see wp_http_validate_url}, but less restrictive around ports
