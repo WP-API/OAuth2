@@ -27,5 +27,6 @@ install:
   - composer install --no-interaction
 
 script:
-  - find src tests \( -name '*.php' \) -exec php -l {} \;
+  - find inc tests theme \( -name '*.php' \) -exec php -l {} \;
+  - php -l plugin.php
   - vendor/bin/phpunit
