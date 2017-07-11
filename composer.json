@@ -8,5 +8,18 @@
       "name": "WP-API Team",
       "homepage": "http://wp-api.org/"
     }
-  ]
+  ],
+  "require": {
+    "php": ">=5.4"
+  },
+  "require-dev": {
+    "brain/monkey": "^1.5",
+    "mockery/mockery": "~0.9",
+    "phpunit/phpunit": "^4.8|^5.0"
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "WP\\OAuth2\\Tests\\": "tests"
+    }
+  }
 }
