@@ -54,16 +54,60 @@ class Token {
 	 * @return array|WP_Error Token data on success, or error on failure.
 	 */
 	public function exchange_token( WP_REST_Request $request ) {
-		$client = Client::get_by_id( $request['client_id'] );
+		// Check headers for client authentication.
+		// https://tools.ietf.org/html/rfc6749#section-2.3.1
+		if ( isset( $_SERVER['PHP_AUTH_USER'] ) ) {
+			$client_id = $_SERVER['PHP_AUTH_USER'];
+			$client_secret = $_SERVER['PHP_AUTH_PW'];
+		} else {
+			$client_id = $request['client_id'];
+			$client_secret = $request['client_secret'];
+		}
+
+		if ( empty( $client_id ) ) {
+			// invalid_client
+			return new WP_Error(
+				'oauth2.endpoints.token.exchange_token.no_client_id',
+				__( 'Missing client ID.'),
+				array(
+					'status' => WP_Http::UNAUTHORIZED,
+				)
+			);
+		}
+
+		$client = Client::get_by_id( $client_id );
 		if ( empty( $client ) ) {
 			return new WP_Error(
 				'oauth2.endpoints.token.exchange_token.invalid_client',
-				sprintf( __( 'Client ID %s is invalid.', 'oauth2' ), $request['client_id'] ),
+				sprintf( __( 'Client ID %s is invalid.', 'oauth2' ), $client_id ),
 				array(
 					'status' => WP_Http::BAD_REQUEST,
-					'client_id' => $request['client_id'],
+					'client_id' => $client_id,
 				)
 			);
+		}
+
+		if ( $client->requires_secret() ) {
+			// Confidential client, secret must be verified.
+			if ( empty( $client_secret ) ) {
+				// invalid_request
+				return new WP_Error(
+					'oauth2.endpoints.token.exchange_token.secret_required',
+					__( 'Secret is required for confidential clients.', 'oauth2' ),
+					array(
+						'status' => WP_Http::UNAUTHORIZED
+					)
+				);
+			}
+			if ( ! $client->check_secret( $client_secret ) ) {
+				return new WP_Error(
+					'oauth2.endpoints.token.exchange_token.invalid_secret',
+					__( 'Supplied secret is not valid for the client.', 'oauth2' ),
+					array(
+						'status' => WP_Http::UNAUTHORIZED
+					)
+				);
+			}
 		}
 
 		$auth_code = $client->get_authorization_code( $request['code'] );
