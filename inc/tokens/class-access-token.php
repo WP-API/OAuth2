@@ -63,16 +63,16 @@ class Access_Token extends Token {
 	 */
 	public static function get_by_id( $id ) {
 		$key = static::META_PREFIX . $id;
-		$args = array(
+		$args = [
 			'number'      => 1,
 			'count_total' => false,
-			'meta_query'  => array(
-				array(
+			'meta_query'  => [
+				[
 					'key'     => $key,
 					'compare' => 'EXISTS',
-				),
-			),
-		);
+				],
+			],
+		];
 		$query = new WP_User_Query( $args );
 		$results = $query->get_results();
 		if ( empty( $results ) ) {
@@ -124,10 +124,10 @@ class Access_Token extends Token {
 			);
 		}
 
-		$data = array(
+		$data = [
 			'client'  => $client->get_id(),
 			'created' => time(),
-		);
+		];
 		$key = wp_generate_password( static::KEY_LENGTH, false );
 		$meta_key = static::META_PREFIX . $key;
 

@@ -44,10 +44,10 @@ abstract class Base implements Type {
 			return new WP_Error(
 				'oauth2.types.authorization_code.handle_authorisation.invalid_client_id',
 				sprintf( __( 'Client ID %s is invalid.', 'oauth2' ), $client_id ),
-				array(
+				[
 					'status' => WP_Http::BAD_REQUEST,
 					'client_id' => $client_id,
-				)
+				]
 			);
 		}
 

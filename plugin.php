@@ -80,7 +80,7 @@ function get_grant_types() {
 	 *
 	 * @param Type[] $grant_types Map of grant type to handler object.
 	 */
-	$grant_types = apply_filters( 'oauth2.grant_types', array() );
+	$grant_types = apply_filters( 'oauth2.grant_types', [] );
 	foreach ( $grant_types as $type => $handler ) {
 		if ( ! $handler instanceof Type ) {
 			/* translators: 1: Grant type name, 2: Grant type interface */
@@ -117,13 +117,13 @@ function register_grant_types( $types ) {
 function register_in_index( WP_REST_Response $response ) {
 	$data = $response->get_data();
 
-	$data['authentication']['oauth2'] = array(
-		'endpoints' => array(
+	$data['authentication']['oauth2'] = [
+		'endpoints' => [
 			'authorization' => get_authorization_url(),
 			'token' => get_token_url(),
-		),
+		],
 		'grant_types' => array_keys( get_grant_types() ),
-	);
+	];
 
 	$response->set_data( $data );
 	return $response;

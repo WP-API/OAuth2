@@ -186,7 +186,7 @@ class Client {
 			}
 
 			// Check all components except query and fragment
-			$parts = array( 'scheme', 'host', 'port', 'user', 'pass', 'path' );
+			$parts = [ 'scheme', 'host', 'port', 'user', 'pass', 'path' ];
 			$valid = true;
 			foreach ( $parts as $part ) {
 				if ( isset( $registered[ $part ] ) !== isset( $supplied[ $part ] ) ) {
@@ -279,18 +279,18 @@ class Client {
 	 * @return static|null Token if ID is found, null otherwise.
 	 */
 	public static function get_by_id( $id ) {
-		$args = array(
+		$args = [
 			'post_type'      => static::POST_TYPE,
 			'post_status'    => 'publish',
 			'posts_per_page' => 1,
 			'no_found_rows'  => true,
-			'meta_query'     => array(
-				array(
+			'meta_query'     => [
+				[
 					'key'   => static::CLIENT_ID_KEY,
 					'value' => $id,
-				),
-			),
-		);
+				],
+			],
+		];
 		$query = new WP_Query( $args );
 		if ( empty( $query->posts ) ) {
 			return null;
@@ -322,12 +322,12 @@ class Client {
 	 * @return WP_Error|Client Client instance on success, error otherwise.
 	 */
 	public static function create( $data ) {
-		$post_data = array(
+		$post_data = [
 			'post_type'    => static::POST_TYPE,
 			'post_title'   => $data['name'],
 			'post_content' => $data['description'],
 			'post_status'  => 'draft',
-		);
+		];
 
 		$post_id = wp_insert_post( wp_slash( $post_data ), true );
 		if ( is_wp_error( $post_id ) ) {
@@ -335,12 +335,12 @@ class Client {
 		}
 
 		// Generate ID and secret.
-		$meta = array(
+		$meta = [
 			static::REDIRECT_URI_KEY  => $data['meta']['callback'],
 			static::TYPE_KEY          => $data['meta']['type'],
 			static::CLIENT_ID_KEY     => wp_generate_password( static::CLIENT_ID_LENGTH, false ),
 			static::CLIENT_SECRET_KEY => wp_generate_password( static::CLIENT_SECRET_LENGTH, false ),
-		);
+		];
 
 		foreach ( $meta as $key => $value ) {
 			$result = update_post_meta( $post_id, wp_slash( $key ), wp_slash( $value ) );
@@ -361,22 +361,22 @@ class Client {
 	 * @return WP_Error|Client Client instance on success, error otherwise.
 	 */
 	public function update( $data ) {
-		$post_data = array(
+		$post_data = [
 			'ID'           => $this->get_post_id(),
 			'post_type'    => static::POST_TYPE,
 			'post_title'   => $data['name'],
 			'post_content' => $data['description'],
-		);
+		];
 
 		$post_id = wp_update_post( wp_slash( $post_data ), true );
 		if ( is_wp_error( $post_id ) ) {
 			return $post_id;
 		}
 
-		$meta = array(
+		$meta = [
 			static::REDIRECT_URI_KEY  => $data['meta']['callback'],
 			static::TYPE_KEY          => $data['meta']['type'],
-		);
+		];
 
 		foreach ( $meta as $key => $value ) {
 			update_post_meta( $post_id, wp_slash( $key ), wp_slash( $value ) );
@@ -402,10 +402,10 @@ class Client {
 	 * @return bool|WP_Error True if client was updated, error otherwise.
 	 */
 	public function approve() {
-		$data = array(
+		$data = [
 			'ID' => $this->get_post_id(),
 			'post_status' => 'publish',
-		);
+		];
 		$result = wp_update_post( wp_slash( $data ), true );
 		return is_wp_error( $result ) ? $result : true;
 	}
@@ -414,25 +414,25 @@ class Client {
 	 * Register the underlying post type.
 	 */
 	public static function register_type() {
-		register_post_type( static::POST_TYPE, array(
+		register_post_type( static::POST_TYPE, [
 			'public'          => false,
 			'hierarchical'    => true,
-			'capability_type' => array(
+			'capability_type' => [
 				'oauth2_client',
 				'oauth2_clients',
-			),
-			'capabilities'    => array(
+			],
+			'capabilities'    => [
 				'edit_posts'        => 'edit_users',
 				'edit_others_posts' => 'edit_users',
 				'publish_posts'     => 'edit_users',
-			),
-			'supports'        => array(
+			],
+			'supports'        => [
 				'title',
 				'editor',
 				'revisions',
 				'author',
 				'thumbnail',
-			),
-		));
+			],
+		] );
 	}
 }

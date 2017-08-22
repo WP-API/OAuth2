@@ -12,27 +12,27 @@ use WP_REST_Request;
  */
 class Token {
 	public function register_routes() {
-		register_rest_route( 'oauth2', '/access_token', array(
+		register_rest_route( 'oauth2', '/access_token', [
 			'methods' => 'POST',
-			'callback' => array( $this, 'exchange_token' ),
-			'args' => array(
-				'grant_type' => array(
+			'callback' => [ $this, 'exchange_token' ],
+			'args' => [
+				'grant_type' => [
 					'required' => true,
 					'type' => 'string',
-					'validate_callback' => array( $this, 'validate_grant_type' ),
-				),
-				'client_id' => array(
-					'required' => true,
-					'type' => 'string',
-					'validate_callback' => 'rest_validate_request_arg',
-				),
-				'code' => array(
+					'validate_callback' => [ $this, 'validate_grant_type' ],
+				],
+				'client_id' => [
 					'required' => true,
 					'type' => 'string',
 					'validate_callback' => 'rest_validate_request_arg',
-				),
-			),
-		));
+				],
+				'code' => [
+					'required' => true,
+					'type' => 'string',
+					'validate_callback' => 'rest_validate_request_arg',
+				],
+			],
+		] );
 	}
 
 	/**
@@ -59,10 +59,10 @@ class Token {
 			return new WP_Error(
 				'oauth2.endpoints.token.exchange_token.invalid_client',
 				sprintf( __( 'Client ID %s is invalid.', 'oauth2' ), $request['client_id'] ),
-				array(
+				[
 					'status' => WP_Http::BAD_REQUEST,
 					'client_id' => $request['client_id'],
-				)
+				]
 			);
 		}
 
@@ -96,10 +96,10 @@ class Token {
 			return $token;
 		}
 
-		$data = array(
+		$data = [
 			'access_token' => $token->get_key(),
 			'token_type'   => 'bearer',
-		);
+		];
 		return $data;
 	}
 }
