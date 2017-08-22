@@ -153,17 +153,17 @@ function validate_parameters( $params ) {
 	if ( empty( $params['name'] ) ) {
 		return new WP_Error( 'rest_oauth2_missing_name', __( 'Client name is required', 'oauth2' ) );
 	}
-	$valid['name'] = wp_filter_post_kses( $params['name'] );
+	$valid['name'] = wp_kses_post( $params['name'] );
 
 	if ( empty( $params['description'] ) ) {
 		return new WP_Error( 'rest_oauth2_missing_description', __( 'Client description is required', 'oauth2' ) );
 	}
-	$valid['description'] = wp_filter_post_kses( $params['description'] );
+	$valid['description'] = wp_kses_post( $params['description'] );
 
 	if ( empty( $params['type'] ) ) {
 		return new WP_Error( 'rest_oauth2_missing_type', __( 'Type is required.', 'oauth2' ) );
 	}
-	$valid['type'] = wp_filter_post_kses( $params['type'] );
+	$valid['type'] = wp_kses_post( $params['type'] );
 
 	if ( empty( $params['callback'] ) ) {
 		return new WP_Error( 'rest_oauth2_missing_callback', __( 'Client callback is required and must be a valid URL.', 'oauth2' ) );
