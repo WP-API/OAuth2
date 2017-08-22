@@ -13,7 +13,7 @@ class Authorization {
 	 * Register required actions and filters
 	 */
 	public function register_hooks() {
-		add_action( 'login_form_' . static::LOGIN_ACTION, array( $this, 'handle_request' ) );
+		add_action( 'login_form_' . static::LOGIN_ACTION, [ $this, 'handle_request' ] );
 	}
 
 	public function handle_request() {

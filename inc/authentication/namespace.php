@@ -158,9 +158,9 @@ function create_invalid_token_error( $token ) {
 	return new WP_Error(
 		'oauth2.authentication.attempt_authentication.invalid_token',
 		__( 'Supplied token is invalid.', 'oauth2' ),
-		array(
+		[
 			'status' => \WP_Http::FORBIDDEN,
 			'token'  => $token,
-		)
+		]
 	);
 }

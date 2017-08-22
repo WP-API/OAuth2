@@ -114,18 +114,18 @@ class Authorization_Code {
 	 * @param array $args Other request arguments to validate.
 	 * @return bool|WP_Error True if valid, error describing problem otherwise.
 	 */
-	public function validate( $args = array() ) {
+	public function validate( $args = [] ) {
 		$expiration = $this->get_expiration();
 		$now = time();
 		if ( $expiration <= $now ) {
 			return new WP_Error(
 				'oauth2.tokens.authorization_code.validate.expired',
 				__( 'Authorization code has expired.', 'oauth2' ),
-				array(
+				[
 					'status' => WP_Http::BAD_REQUEST,
 					'expiration' => $expiration,
 					'time' => $now,
-				)
+				]
 			);
 		}
 
@@ -164,11 +164,11 @@ class Authorization_Code {
 			return new WP_Error(
 				'oauth2.client.check_authorization_code.invalid_code',
 				__( 'Authorization code is not valid for the specified client.', 'oauth2' ),
-				array(
+				[
 					'status' => WP_Http::NOT_FOUND,
 					'client' => $client->get_id(),
 					'code'   => $code,
-				)
+				]
 			);
 		}
 
@@ -186,10 +186,10 @@ class Authorization_Code {
 	public static function create( Client $client, WP_User $user ) {
 		$code = wp_generate_password( static::KEY_LENGTH, false );
 		$meta_key = static::KEY_PREFIX . $code;
-		$data = array(
+		$data = [
 			'user'       => (int) $user->ID,
 			'expiration' => time() + static::MAX_AGE,
-		);
+		];
 		$result = add_post_meta( $client->get_post_id(), wp_slash( $meta_key ), wp_slash( $data ), true );
 		if ( ! $result ) {
 			return new WP_Error(
