@@ -10,6 +10,10 @@ node_modules
 # Book build output
 _book
 
+# Composer
+composer.lock
+vendor
+
 # eBook build output
 *.epub
 *.mobi

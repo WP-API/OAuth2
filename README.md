@@ -1,5 +1,9 @@
 # OAuth 2.0 for WordPress
 
+[![Status](https://img.shields.io/badge/status-active-brightgreen.svg)](https://github.com/WP-API/OAuth2)
+[![Build](https://img.shields.io/travis/WP-API/OAuth2.svg)](https://travis-ci.org/WP-API/OAuth2)
+[![License](https://img.shields.io/github/release/WP-API/OAuth2.svg)](https://github.com/WP-API/OAuth2)
+
 Connect applications to your WordPress site without ever giving away your password.
 
 This plugin uses the OAuth 2 protocol to allow delegated authorization; that is, to allow applications to access a site using a set of secondary credentials. This allows server administrators to control which applications can access the site, as well as allowing users to control which applications have access to their data.
