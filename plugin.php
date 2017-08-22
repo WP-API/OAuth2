@@ -25,7 +25,7 @@ function bootstrap() {
 	// REST API integration.
 	add_filter( 'rest_authentication_errors', __NAMESPACE__ . '\\Authentication\\maybe_report_errors' );
 	add_filter( 'rest_index', __NAMESPACE__ . '\\register_in_index' );
-	add_action( 'rest_api_init', __NAMESPACE__ . '\\register_routes' );
+	add_action( 'rest_api_init', __NAMESPACE__ . '\\Endpoints\\register' );
 
 	// Internal default hooks.
 	add_filter( 'oauth2.grant_types', __NAMESPACE__ . '\\register_grant_types', 0 );
@@ -40,6 +40,7 @@ function load() {
 	require __DIR__ . '/inc/class-client.php';
 	require __DIR__ . '/inc/class-scopes.php';
 	require __DIR__ . '/inc/authentication/namespace.php';
+	require __DIR__ . '/inc/endpoints/namespace.php';
 	require __DIR__ . '/inc/endpoints/class-authorization.php';
 	require __DIR__ . '/inc/endpoints/class-token.php';
 	require __DIR__ . '/inc/tokens/namespace.php';
@@ -127,11 +128,6 @@ function register_in_index( WP_REST_Response $response ) {
 
 	$response->set_data( $data );
 	return $response;
-}
-
-function register_routes() {
-	$token_endpoint = new Endpoints\Token();
-	$token_endpoint->register_routes();
 }
 
 /**
