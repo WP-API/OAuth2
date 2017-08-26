@@ -66,7 +66,10 @@ class Access_Token extends Token {
 		$args = [
 			'number'      => 1,
 			'count_total' => false,
-			'meta_query'  => [
+
+			// We use an EXISTS query here, limited by 1, so we can ignore
+			// the performance warning.
+			'meta_query'  => [ // WPCS: tax_query OK
 				[
 					'key'     => $key,
 					'compare' => 'EXISTS',

@@ -26,6 +26,10 @@ function bootstrap() {
  */
 function render_profile_section( WP_User $user ) {
 	$tokens = Access_Token::get_for_user( $user );
+	$tokens = array_filter( $tokens, function ( Access_Token $token ) {
+		return (bool) $token->get_client();
+	});
+
 	?>
 	<h2><?php _e( 'Authorized Applications', 'oauth2' ) ?></h2>
 	<?php if ( ! empty( $tokens ) ) : ?>
