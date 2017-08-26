@@ -28,7 +28,7 @@ function render_profile_section( WP_User $user ) {
 	$tokens = Access_Token::get_for_user( $user );
 	?>
 	<h2><?php _e( 'Authorized Applications', 'oauth2' ) ?></h2>
-	<?php if ( ! empty( $tokens ) ): ?>
+	<?php if ( ! empty( $tokens ) ) : ?>
 		<table class="widefat">
 			<thead>
 			<tr>
@@ -44,7 +44,7 @@ function render_profile_section( WP_User $user ) {
 			?>
 			</tbody>
 		</table>
-	<?php else: ?>
+	<?php else : ?>
 		<p class="description"><?php esc_html_e( 'No applications authorized.', 'oauth2' ) ?></p>
 	<?php endif ?>
 	<?php
