@@ -11,7 +11,6 @@ use WP_User;
 
 class Client {
 	const POST_TYPE            = 'oauth2_client';
-	const CLIENT_ID_KEY        = '_oauth2_client_id';
 	const CLIENT_SECRET_KEY    = '_oauth2_client_secret';
 	const TYPE_KEY             = '_oauth2_client_type';
 	const REDIRECT_URI_KEY     = '_oauth2_redirect_uri';
@@ -41,12 +40,7 @@ class Client {
 	 * @return string Client ID.
 	 */
 	public function get_id() {
-		$result = get_post_meta( $this->get_post_id(), static::CLIENT_ID_KEY, false );
-		if ( empty( $result ) ) {
-			return null;
-		}
-
-		return $result[0];
+		return $this->post->post_name;
 	}
 
 	/**
@@ -284,12 +278,9 @@ class Client {
 			'post_status'    => 'publish',
 			'posts_per_page' => 1,
 			'no_found_rows'  => true,
-			'meta_query'     => [
-				[
-					'key'   => static::CLIENT_ID_KEY,
-					'value' => $id,
-				],
-			],
+
+			// Query by slug.
+			'name'           => $id,
 		];
 		$query = new WP_Query( $args );
 		if ( empty( $query->posts ) ) {
@@ -322,10 +313,12 @@ class Client {
 	 * @return WP_Error|Client Client instance on success, error otherwise.
 	 */
 	public static function create( $data ) {
+		$client_id = wp_generate_password( static::CLIENT_ID_LENGTH, false );
 		$post_data = [
 			'post_type'    => static::POST_TYPE,
 			'post_title'   => $data['name'],
 			'post_content' => $data['description'],
+			'post_name'    => $client_id,
 			'post_status'  => 'draft',
 		];
 
@@ -338,7 +331,6 @@ class Client {
 		$meta = [
 			static::REDIRECT_URI_KEY  => $data['meta']['callback'],
 			static::TYPE_KEY          => $data['meta']['type'],
-			static::CLIENT_ID_KEY     => wp_generate_password( static::CLIENT_ID_LENGTH, false ),
 			static::CLIENT_SECRET_KEY => wp_generate_password( static::CLIENT_SECRET_LENGTH, false ),
 		];
 
