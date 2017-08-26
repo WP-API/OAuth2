@@ -69,8 +69,8 @@ abstract class Base implements Type {
 		}
 
 		// Check nonce.
-		$nonce = wp_unslash( $_POST['_wpnonce'] );
-		if ( ! wp_verify_nonce( $nonce, $this->get_nonce_action( $client ) ) ) {
+		$nonce_action = $this->get_nonce_action( $client );
+		if ( ! wp_verify_nonce( wp_unslash( $_POST['_wpnonce'] ), $none_action ) ) {
 			return new WP_Error(
 				'oauth2.types.authorization_code.handle_authorisation.invalid_nonce',
 				__( 'Invalid nonce.', 'oauth2' )
