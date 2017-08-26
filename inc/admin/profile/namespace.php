@@ -85,7 +85,7 @@ function render_token_row( WP_User $user, Access_Token $token ) {
 		sprintf(
 			'<button class="button" name="oauth2_revoke" title="%s" value="%s">%s</button>',
 			$button_title,
-			esc_attr( $token->get_key() ),
+			wp_create_nonce( 'oauth2_revoke:' . $token->get_key() ) . ':' . esc_attr( $token->get_key() ),
 			esc_html__( 'Revoke', 'oauth2' )
 		),
 	];
@@ -138,7 +138,18 @@ function handle_revocation( $user_id ) {
 		return;
 	}
 
-	$key = wp_unslash( $_POST['oauth2_revoke'] );
+	$data = wp_unslash( $_POST['oauth2_revoke'] ); // WPCS: CSRF OK
+	if ( strpos( $data, ':' ) === null ) {
+		return;
+	}
+
+	// Split out nonce and check it.
+	list( $nonce, $key ) = explode( ':', $data, 2 );
+	if ( ! wp_verify_nonce( $nonce, 'oauth2_revoke:' . $key ) ) {
+		wp_nonce_ays( 'oauth2_revoke' );
+		die();
+	}
+
 	$token = Access_Token::get_by_id( $key );
 	if ( empty( $token ) ) {
 		var_dump( $key, $token );
