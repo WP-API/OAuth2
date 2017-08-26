@@ -270,8 +270,16 @@ function render_edit_page() {
 
 	// Handle form submission
 	$messages = [];
-	if ( ! empty( $_POST['submit'] ) ) {
+	$form_data = [];
+	if ( ! empty( $_POST['_wpnonce'] ) ) {
+		if ( empty( $consumer ) ) {
+			check_admin_referer( 'rest-oauth2-add' );
+		} else {
+			check_admin_referer( 'rest-oauth2-edit-' . $consumer->get_post_id() );
+		}
+
 		$messages = handle_edit_submit( $consumer );
+		$form_data = wp_unslash( $_POST );
 	}
 	if ( ! empty( $_GET['did_action'] ) ) {
 		switch ( $_GET['did_action'] ) {
@@ -291,9 +299,9 @@ function render_edit_page() {
 
 	$data = [];
 
-	if ( empty( $consumer ) || ! empty( $_POST['_wpnonce'] ) ) {
+	if ( empty( $consumer ) || ! empty( $form_data ) ) {
 		foreach ( [ 'name', 'description', 'callback', 'type' ] as $key ) {
-			$data[ $key ] = empty( $_POST[ $key ] ) ? '' : wp_unslash( $_POST[ $key ] );
+			$data[ $key ] = empty( $form_data[ $key ] ) ? '' : $form_data[ $key ];
 		}
 	} else {
 		$data['name']        = $consumer->get_name();
