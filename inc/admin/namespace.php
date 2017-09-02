@@ -273,8 +273,6 @@ function generate_test_access_token() {
 	
 
 	$client = Client::get_by_post_id( get_application_id() );
-	// $auth_code = $client->get_authorization_code( $request['code'] );
-	// $user = $auth_code->get_user();
 	$token = $client->issue_token( wp_get_current_user() );
 
 	if ( is_wp_error( $token ) ) {
@@ -283,13 +281,12 @@ function generate_test_access_token() {
 
 	$data = array(
 		'access_token' => $token->get_key(),
-		'token_type'   => 'bearer',
-		'success'	   => 1
+		'token_type'   => 'bearer'
 	);
 
 	echo \json_encode($data);
 
-	wp_die(); // this is required to terminate immediately and return a proper response
+	wp_die();
 }
 
 /**
