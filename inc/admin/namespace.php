@@ -284,6 +284,7 @@ function generate_test_access_token() {
 	$data = array(
 		'access_token' => $token->get_key(),
 		'token_type'   => 'bearer',
+		'success'	   => 1
 	);
 
 	echo \json_encode($data);
@@ -496,10 +497,10 @@ function render_edit_page() {
 		<table class="form-table">
 				<tr>
 					<th scope="row">
-						<button type="button" class="button-primary" id="generate-access-token">Generate Access Token</button>
+						<button <?php echo empty( $consumer ) ? 'disabled' : '' ?>  type="button" class="button-primary" id="generate-access-token">Generate Access Token</button>
 					</th>
 					<td>
-						<input type="text" class="regular-text" name="name" id="test-access-token" value="<?php echo isset($data['test-access-token']) ? esc_attr( $data['test-access-token'] ) : '' ?>"/>
+						<input <?php echo empty( $consumer ) ? 'disabled' : '' ?> type="text" class="regular-text" name="name" id="test-access-token" value="<?php echo isset($data['test-access-token']) ? esc_attr( $data['test-access-token'] ) : '' ?>"/>
 						<p class="description"><?php esc_html_e( 'Generate a self-issued access token for testing purposes', 'oauth2' ) ?></p>
 					</td>
 				</tr>

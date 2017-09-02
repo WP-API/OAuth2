@@ -20,7 +20,12 @@
     let generateTokenButton = document.getElementById('generate-access-token');
     generateTokenButton.addEventListener('click', function() {
       let token = admin.getAccessToken(function(token) {
-        document.getElementById('test-access-token').value = token.access_token
+        if (token.success) {
+          document.getElementById('test-access-token').value = token.access_token
+        } else {
+          alert("");
+        }
+        
       });
     });
 
