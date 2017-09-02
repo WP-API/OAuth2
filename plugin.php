@@ -34,6 +34,13 @@ function bootstrap() {
 	add_action( 'init', __NAMESPACE__ . '\\rest_oauth2_load_authorize_page' );
 	add_action( 'admin_menu', __NAMESPACE__ . '\\Admin\\register' );
 	Admin\Profile\bootstrap();
+
+	add_action( 'admin_enqueue_scripts', __NAMESPACE__ . '\\register_scripts' );
+}
+
+function register_scripts() {
+	wp_register_script( 'oauth2-edit-application', plugins_url( '/assets/js/oauth-admin.js', __FILE__) );
+
 }
 
 function load() {

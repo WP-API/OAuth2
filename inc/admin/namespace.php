@@ -6,7 +6,7 @@ use WP\OAuth2\Client;
 use WP_Error;
 
 const BASE_SLUG = 'rest-oauth2-apps';
-
+const AJAX_GENERATE_ACCESS_TOKEN = 'oauth2_generate_test_access_token';
 /**
  * Register the admin page
  */
@@ -245,6 +245,52 @@ function handle_edit_submit( Client $consumer = null ) {
 	exit;
 }
 
+function enqueue_javascript() {
+	wp_localize_script( 'oauth2-edit-application', 'oauth2_ajax', [
+      'action' => AJAX_GENERATE_ACCESS_TOKEN,
+      'url' => admin_url( 'admin-ajax.php' )
+  ]);
+	wp_enqueue_script( 'oauth2-edit-application' );
+}
+
+function get_application_id() {
+	if (!empty($_SERVER['HTTP_REFERER'])) {
+		$id = \parse_url($_SERVER['HTTP_REFERER'], PHP_URL_QUERY);
+		$params = [];
+		parse_str($id, $params);
+		if (!isset($params['id'])) {
+			throw "Not on admin page of the Application";
+		} else {
+			return $params['id'];
+		}
+	}
+
+	throw "No server referer";
+}
+
+add_action( 'wp_ajax_' . AJAX_GENERATE_ACCESS_TOKEN , __NAMESPACE__ . '\\generate_test_access_token' );
+function generate_test_access_token() {
+	
+
+	$client = Client::get_by_post_id( get_application_id() );
+	// $auth_code = $client->get_authorization_code( $request['code'] );
+	// $user = $auth_code->get_user();
+	$token = $client->issue_token( wp_get_current_user() );
+
+	if ( is_wp_error( $token ) ) {
+		throw $token->getMessage();
+	}
+
+	$data = array(
+		'access_token' => $token->get_key(),
+		'token_type'   => 'bearer',
+	);
+
+	echo \json_encode($data);
+
+	wp_die(); // this is required to terminate immediately and return a proper response
+}
+
 /**
  * Output alias editing page
  */
@@ -252,6 +298,8 @@ function render_edit_page() {
 	if ( ! current_user_can( 'edit_users' ) ) {
 		wp_die( __( 'You do not have permission to access this page.', 'oauth2' ) );
 	}
+
+	add_action( 'admin_enqueue_scripts', __NAMESPACE__ . '\\enqueue_javascript' );
 
 	// Are we editing?
 	$consumer          = null;
@@ -444,6 +492,18 @@ function render_edit_page() {
 				?>
 			</form>
 		<?php endif ?>
+
+		<table class="form-table">
+				<tr>
+					<th scope="row">
+						<button type="button" class="button-primary" id="generate-access-token">Generate Access Token</button>
+					</th>
+					<td>
+						<input type="text" class="regular-text" name="name" id="test-access-token" value="<?php echo isset($data['test-access-token']) ? esc_attr( $data['test-access-token'] ) : '' ?>"/>
+						<p class="description"><?php esc_html_e( 'Generate a self-issued access token for testing purposes', 'oauth2' ) ?></p>
+					</td>
+				</tr>
+		</table>
 	</div>
 
 	<?php
