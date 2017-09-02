@@ -5,7 +5,7 @@ namespace WP\OAuth2\Types;
 use WP_Error;
 use WP\OAuth2\Client;
 
-class AuthorizationCode extends Base {
+class Authorization_Code extends Base {
 	/**
 	 * Get response_type code for authorisation page.
 	 *
@@ -38,15 +38,15 @@ class AuthorizationCode extends Base {
 					return $code;
 				}
 
-				$redirect_args = array(
+				$redirect_args = [
 					'code' => $code->get_code(),
-				);
+				];
 				break;
 
 			case 'cancel':
-				$redirect_args = array(
+				$redirect_args = [
 					'error' => 'access_denied',
-				);
+				];
 				break;
 
 			default:

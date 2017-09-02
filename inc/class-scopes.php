@@ -6,7 +6,7 @@ class Scopes {
 	protected $capabilities;
 
 	public function __construct() {
-		$this->capabilities = array();
+		$this->capabilities = [];
 	}
 
 	public function register( $id, $capabilities ) {

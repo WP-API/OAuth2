@@ -17,12 +17,6 @@ class ListTable extends WP_List_Table {
 		$args = [
 			'post_type'   => Client::POST_TYPE,
 			'post_status' => 'any',
-//			'meta_query'  => [
-//				[
-//					'key'   => 'type',
-//					'value' => 'oauth2',
-//				],
-//			],
 			'paged'       => $paged,
 		];
 
@@ -32,7 +26,7 @@ class ListTable extends WP_List_Table {
 		$pagination_args = [
 			'total_items' => $query->found_posts,
 			'total_pages' => $query->max_num_pages,
-			'per_page'    => $query->get( 'posts_per_page' )
+			'per_page'    => $query->get( 'posts_per_page' ),
 		];
 		$this->set_pagination_args( $pagination_args );
 	}
@@ -62,10 +56,10 @@ class ListTable extends WP_List_Table {
 	public function column_cb( $item ) {
 		?>
 		<label class="screen-reader-text"
-		       for="cb-select-<?php echo esc_attr( $item->ID ) ?>"><?php esc_html_e( 'Select consumer', 'oauth2' ); ?></label>
+			   for="cb-select-<?php echo esc_attr( $item->ID ) ?>"><?php esc_html_e( 'Select consumer', 'oauth2' ); ?></label>
 
 		<input id="cb-select-<?php echo esc_attr( $item->ID ) ?>" type="checkbox"
-		       name="consumers[]" value="<?php echo esc_attr( $item->ID ) ?>"/>
+			   name="consumers[]" value="<?php echo esc_attr( $item->ID ) ?>"/>
 
 		<?php
 	}

@@ -110,7 +110,7 @@ function render() {
 			<?php
 			esc_html_e( 'Registered Applications', 'oauth2' );
 
-			if ( current_user_can( 'create_users' ) ): ?>
+			if ( current_user_can( 'create_users' ) ) : ?>
 				<a href="<?php echo esc_url( get_url( 'action=add' ) ) ?>"
 				   class="add-new-h2"><?php echo esc_html_x( 'Add New', 'application', 'oauth2' ); ?></a>
 				<?php
@@ -153,17 +153,17 @@ function validate_parameters( $params ) {
 	if ( empty( $params['name'] ) ) {
 		return new WP_Error( 'rest_oauth2_missing_name', __( 'Client name is required', 'oauth2' ) );
 	}
-	$valid['name'] = wp_filter_post_kses( $params['name'] );
+	$valid['name'] = wp_kses_post( $params['name'] );
 
 	if ( empty( $params['description'] ) ) {
 		return new WP_Error( 'rest_oauth2_missing_description', __( 'Client description is required', 'oauth2' ) );
 	}
-	$valid['description'] = wp_filter_post_kses( $params['description'] );
+	$valid['description'] = wp_kses_post( $params['description'] );
 
 	if ( empty( $params['type'] ) ) {
 		return new WP_Error( 'rest_oauth2_missing_type', __( 'Type is required.', 'oauth2' ) );
 	}
-	$valid['type'] = wp_filter_post_kses( $params['type'] );
+	$valid['type'] = wp_kses_post( $params['type'] );
 
 	if ( empty( $params['callback'] ) ) {
 		return new WP_Error( 'rest_oauth2_missing_callback', __( 'Client callback is required and must be a valid URL.', 'oauth2' ) );
@@ -319,8 +319,16 @@ function render_edit_page() {
 
 	// Handle form submission
 	$messages = [];
-	if ( ! empty( $_POST['submit'] ) ) {
+	$form_data = [];
+	if ( ! empty( $_POST['_wpnonce'] ) ) {
+		if ( empty( $consumer ) ) {
+			check_admin_referer( 'rest-oauth2-add' );
+		} else {
+			check_admin_referer( 'rest-oauth2-edit-' . $consumer->get_post_id() );
+		}
+
 		$messages = handle_edit_submit( $consumer );
+		$form_data = wp_unslash( $_POST );
 	}
 	if ( ! empty( $_GET['did_action'] ) ) {
 		switch ( $_GET['did_action'] ) {
@@ -340,9 +348,9 @@ function render_edit_page() {
 
 	$data = [];
 
-	if ( empty( $consumer ) || ! empty( $_POST['_wpnonce'] ) ) {
+	if ( empty( $consumer ) || ! empty( $form_data ) ) {
 		foreach ( [ 'name', 'description', 'callback', 'type' ] as $key ) {
-			$data[ $key ] = empty( $_POST[ $key ] ) ? '' : wp_unslash( $_POST[ $key ] );
+			$data[ $key ] = empty( $form_data[ $key ] ) ? '' : $form_data[ $key ];
 		}
 	} else {
 		$data['name']        = $consumer->get_name();

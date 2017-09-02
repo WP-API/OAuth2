@@ -38,16 +38,16 @@ class Implicit extends Base {
 					return $token;
 				}
 
-				$redirect_args = array(
+				$redirect_args = [
 					'access_token' => $token->get_key(),
 					'token_type'   => 'bearer',
-				);
+				];
 				break;
 
 			case 'cancel':
-				$redirect_args = array(
+				$redirect_args = [
 					'error' => 'access_denied',
-				);
+				];
 				break;
 
 			default:

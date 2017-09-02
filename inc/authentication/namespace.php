@@ -117,9 +117,10 @@ function attempt_authentication( $user = null ) {
 	// Attempt to find the token.
 	$is_querying_token = true;
 	$token = Tokens\get_by_id( $token_value );
+	$client = $token->get_client();
 	$is_querying_token = false;
 
-	if ( empty( $token ) ) {
+	if ( empty( $token ) || empty( $client ) ) {
 		$oauth2_error = create_invalid_token_error( $token_value );
 		return $user;
 	}
@@ -158,9 +159,9 @@ function create_invalid_token_error( $token ) {
 	return new WP_Error(
 		'oauth2.authentication.attempt_authentication.invalid_token',
 		__( 'Supplied token is invalid.', 'oauth2' ),
-		array(
+		[
 			'status' => \WP_Http::FORBIDDEN,
 			'token'  => $token,
-		)
+		]
 	);
 }
