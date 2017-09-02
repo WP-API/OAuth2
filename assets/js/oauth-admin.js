@@ -20,12 +20,12 @@
     let generateTokenButton = document.getElementById('generate-access-token');
     generateTokenButton.addEventListener('click', function() {
       let token = admin.getAccessToken(function(token) {
-        if (token.success) {
-          document.getElementById('test-access-token').value = token.access_token
-        } else {
-          alert("");
+        if (token.access_token) {
+          let tokenInput = document.getElementById('test-access-token')
+          tokenInput.value = token.access_token;
+          tokenInput.focus();
+          document.execCommand("selectall", null, false);
         }
-        
       });
     });
 
