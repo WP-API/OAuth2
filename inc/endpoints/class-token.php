@@ -11,8 +11,9 @@ use WP_REST_Request;
  * Token endpoint handler.
  */
 class Token {
+
 	public function register_routes() {
-		register_rest_route( 'oauth2', '/access_token', [
+		register_rest_route('oauth2', '/access_token', [
 			'methods' => 'POST',
 			'callback' => [ $this, 'exchange_token' ],
 			'args' => [
@@ -32,7 +33,7 @@ class Token {
 					'validate_callback' => 'rest_validate_request_arg',
 				],
 			],
-		] );
+		]);
 	}
 
 	/**

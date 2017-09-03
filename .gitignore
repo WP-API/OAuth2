@@ -16,3 +16,5 @@ _book
 *.pdf
 .idea
 .vscode
+vendor
+composer.lock

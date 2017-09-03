@@ -12,8 +12,8 @@ const AJAX_GENERATE_ACCESS_TOKEN = 'oauth2_generate_test_access_token';
  */
 function register() {
 	/**
-	 * Include anything we need that relies on admin classes/functions
-	 */
+	* Include anything we need that relies on admin classes/functions
+	*/
 	include_once dirname( __FILE__ ) . '/class-listtable.php';
 
 	$hook = add_users_page(
@@ -81,7 +81,6 @@ function load() {
 
 			return;
 	}
-
 }
 
 function dispatch() {
@@ -102,28 +101,23 @@ function dispatch() {
  * Render the list page.
  */
 function render() {
-	global $wp_list_table;
-
-	?>
+	global $wp_list_table; ?>
 	<div class="wrap">
 		<h2>
 			<?php
 			esc_html_e( 'Registered Applications', 'oauth2' );
 
-			if ( current_user_can( 'create_users' ) ) : ?>
+			if ( current_user_can( 'create_users' ) ) { ?>
 				<a href="<?php echo esc_url( get_url( 'action=add' ) ) ?>"
 				   class="add-new-h2"><?php echo esc_html_x( 'Add New', 'application', 'oauth2' ); ?></a>
-				<?php
-			endif;
-			?>
+			<?php } ?>
 		</h2>
 		<?php
 		if ( ! empty( $_GET['deleted'] ) ) {
 			echo '<div id="message" class="updated"><p>' . esc_html__( 'Deleted application.', 'oauth2' ) . '</p></div>';
 		} elseif ( ! empty( $_GET['approved'] ) ) {
 			echo '<div id="message" class="updated"><p>' . esc_html__( 'Approved application.', 'oauth2' ) . '</p></div>';
-		}
-		?>
+		} ?>
 
 		<?php $wp_list_table->views(); ?>
 
@@ -246,32 +240,30 @@ function handle_edit_submit( Client $consumer = null ) {
 }
 
 function enqueue_javascript() {
-	wp_localize_script( 'oauth2-edit-application', 'oauth2_ajax', [
-      'action' => AJAX_GENERATE_ACCESS_TOKEN,
-      'url' => admin_url( 'admin-ajax.php' )
-  ]);
+	wp_localize_script('oauth2-edit-application', 'oauth2_ajax', [
+		'action' => AJAX_GENERATE_ACCESS_TOKEN,
+		'url' => admin_url( 'admin-ajax.php' ),
+	]);
 	wp_enqueue_script( 'oauth2-edit-application' );
 }
 
 function get_application_id() {
-	if (!empty($_SERVER['HTTP_REFERER'])) {
-		$id = \parse_url($_SERVER['HTTP_REFERER'], PHP_URL_QUERY);
+	if ( ! empty( $_SERVER['HTTP_REFERER'] ) ) {
+		$id = \parse_url( $_SERVER['HTTP_REFERER'], PHP_URL_QUERY );
 		$params = [];
-		parse_str($id, $params);
-		if (!isset($params['id'])) {
-			throw "Not on admin page of the Application";
+		parse_str( $id, $params );
+		if ( ! isset( $params['id'] ) ) {
+			throw 'Not on admin page of the Application';
 		} else {
 			return $params['id'];
 		}
 	}
 
-	throw "No server referer";
+	throw 'No server referer';
 }
 
-add_action( 'wp_ajax_' . AJAX_GENERATE_ACCESS_TOKEN , __NAMESPACE__ . '\\generate_test_access_token' );
+add_action( 'wp_ajax_' . AJAX_GENERATE_ACCESS_TOKEN, __NAMESPACE__ . '\\generate_test_access_token' );
 function generate_test_access_token() {
-	
-
 	$client = Client::get_by_post_id( get_application_id() );
 	$token = $client->issue_token( wp_get_current_user() );
 
@@ -281,10 +273,10 @@ function generate_test_access_token() {
 
 	$data = array(
 		'access_token' => $token->get_key(),
-		'token_type'   => 'bearer'
+		'token_type'   => 'bearer',
 	);
 
-	echo \json_encode($data);
+	echo \json_encode( $data );
 
 	wp_die();
 }
@@ -366,8 +358,7 @@ function render_edit_page() {
 	$parent_file  = 'users.php';
 	$submenu_file = BASE_SLUG;
 
-	include( ABSPATH . 'wp-admin/admin-header.php' );
-	?>
+	include( ABSPATH . 'wp-admin/admin-header.php' ); ?>
 
 	<div class="wrap">
 		<h2 id="edit-site"><?php echo esc_html( $title ) ?></h2>
@@ -377,8 +368,7 @@ function render_edit_page() {
 			foreach ( $messages as $msg ) {
 				echo '<div id="message" class="updated"><p>' . esc_html( $msg ) . '</p></div>';
 			}
-		}
-		?>
+		} ?>
 
 		<form method="post" action="<?php echo esc_url( $form_action ) ?>">
 			<table class="form-table">
@@ -464,9 +454,7 @@ function render_edit_page() {
 				echo '<input type="hidden" name="id" value="' . esc_attr( $consumer->get_post_id() ) . '" />';
 				wp_nonce_field( 'rest-oauth2-edit-' . $consumer->get_post_id() );
 				submit_button( __( 'Save Client', 'oauth2' ) );
-			}
-
-			?>
+			} ?>
 		</form>
 
 		<?php if ( ! empty( $consumer ) ) : ?>
@@ -494,8 +482,7 @@ function render_edit_page() {
 
 				<?php
 				wp_nonce_field( 'rest-oauth2-regenerate:' . $consumer->get_post_id() );
-				submit_button( __( 'Regenerate Secret', 'oauth2' ), 'delete' );
-				?>
+				submit_button( __( 'Regenerate Secret', 'oauth2' ), 'delete' ); ?>
 			</form>
 		<?php endif ?>
 
@@ -505,7 +492,7 @@ function render_edit_page() {
 						<button <?php echo empty( $consumer ) ? 'disabled' : '' ?>  type="button" class="button-primary" id="generate-access-token">Generate Access Token</button>
 					</th>
 					<td>
-						<input <?php echo empty( $consumer ) ? 'disabled' : '' ?> type="text" class="regular-text" name="name" id="test-access-token" value="<?php echo isset($data['test-access-token']) ? esc_attr( $data['test-access-token'] ) : '' ?>"/>
+						<input <?php echo empty( $consumer ) ? 'disabled' : '' ?> type="text" class="regular-text" name="name" id="test-access-token" value="<?php echo isset( $data['test-access-token'] ) ? esc_attr( $data['test-access-token'] ) : '' ?>"/>
 						<p class="description"><?php esc_html_e( 'Generate a self-issued access token for testing purposes', 'oauth2' ) ?></p>
 					</td>
 				</tr>
