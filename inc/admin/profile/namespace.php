@@ -17,7 +17,13 @@ function bootstrap() {
 	add_action( 'all_admin_notices', __NAMESPACE__ . '\\output_profile_messages' );
 	add_action( 'personal_options_update',  __NAMESPACE__ . '\\handle_revocation', 10, 1 );
 	add_action( 'edit_user_profile_update', __NAMESPACE__ . '\\handle_revocation', 10, 1 );
+	register_scripts();
 }
+
+function register_scripts() {
+	wp_register_script( 'oauth2-edit-application', plugins_url( '../../../assets/js/oauth-admin.js', __FILE__ ) );
+}
+
 
 /**
  * Render current tokens for a user.
