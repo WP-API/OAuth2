@@ -25,6 +25,7 @@ function register() {
 	);
 
 	add_action( 'load-' . $hook, __NAMESPACE__ . '\\load' );
+	add_action( 'wp_ajax_' . AJAX_GENERATE_ACCESS_TOKEN, __NAMESPACE__ . '\\generate_test_access_token' );
 }
 
 /**
@@ -262,7 +263,6 @@ function get_application_id() {
 	throw 'No server referer';
 }
 
-add_action( 'wp_ajax_' . AJAX_GENERATE_ACCESS_TOKEN, __NAMESPACE__ . '\\generate_test_access_token' );
 function generate_test_access_token() {
 	$client = Client::get_by_post_id( get_application_id() );
 	$token = $client->issue_token( wp_get_current_user() );
@@ -271,10 +271,10 @@ function generate_test_access_token() {
 		throw $token->getMessage();
 	}
 
-	$data = array(
+	$data = [
 		'access_token' => $token->get_key(),
 		'token_type'   => 'bearer',
-	);
+	];
 
 	echo \json_encode( $data );
 
