@@ -7,6 +7,7 @@ use WP_Http;
 use WP\OAuth2\Client;
 
 abstract class Base implements Type {
+
 	/**
 	 * Handle submission of authorisation page.
 	 *
@@ -25,6 +26,8 @@ abstract class Base implements Type {
 	 * Handle authorisation page.
 	 */
 	public function handle_authorisation() {
+		// Should probably keep this as an option in the application (e.g. force PKCE)
+		$pkce = true;
 
 		if ( empty( $_GET['client_id'] ) ) {
 			return new WP_Error(
@@ -34,10 +37,20 @@ abstract class Base implements Type {
 		}
 
 		// Gather parameters.
-		$client_id    = wp_unslash( $_GET['client_id'] );
-		$redirect_uri = isset( $_GET['redirect_uri'] ) ? wp_unslash( $_GET['redirect_uri'] ) : null;
-		$scope        = isset( $_GET['scope'] ) ? wp_unslash( $_GET['scope'] ) : null;
-		$state        = isset( $_GET['state'] ) ? wp_unslash( $_GET['state'] ) : null;
+		$client_id    			= wp_unslash( $_GET['client_id'] );
+		$redirect_uri 			= isset( $_GET['redirect_uri'] ) ? wp_unslash( $_GET['redirect_uri'] ) : null;
+		$scope        			= isset( $_GET['scope'] ) ? wp_unslash( $_GET['scope'] ) : null;
+		$state        			= isset( $_GET['state'] ) ? wp_unslash( $_GET['state'] ) : null;
+
+		if ( $pkce ) {
+			$pkce_data = $this->handle_pkce();
+			if ( is_wp_error( $pkce_data ) ) {
+				return $pkce_data;
+			}
+
+			$code_challenge = $pkce_data['code_challenge'];
+			$code_challenge_method = $pkce_data['code_challenge_method'];
+		}
 
 		$client = Client::get_by_id( $client_id );
 		if ( empty( $client ) ) {
@@ -70,7 +83,7 @@ abstract class Base implements Type {
 
 		// Check nonce.
 		$nonce_action = $this->get_nonce_action( $client );
-		if ( ! wp_verify_nonce( wp_unslash( $_POST['_wpnonce'] ), $none_action ) ) {
+		if ( ! wp_verify_nonce( wp_unslash( $_POST['_wpnonce'] ), $this->get_nonce_action( $client ) ) ) {
 			return new WP_Error(
 				'oauth2.types.authorization_code.handle_authorisation.invalid_nonce',
 				__( 'Invalid nonce.', 'oauth2' )
@@ -93,7 +106,7 @@ abstract class Base implements Type {
 
 		$submit = wp_unslash( $_POST['wp-submit'] );
 
-		$data = compact( 'redirect_uri', 'scope', 'state' );
+		$data = compact( 'redirect_uri', 'scope', 'state', 'code_challenge', 'code_challenge_method' );
 		return $this->handle_authorization_submission( $submit, $client, $data );
 	}
 
@@ -151,5 +164,45 @@ abstract class Base implements Type {
 	 */
 	protected function get_nonce_action( Client $client ) {
 		return sprintf( 'oauth2_authorize:%s', $client->get_id() );
+	}
+
+	/**
+	 * Get and validate PKCE parameters from a request.
+	 *
+	 * @return string[] code_challenge and code_challenge_method
+	 */
+	private function handle_pkce() {
+		$code_challenge        	= isset( $_GET['code_challenge'] ) ? wp_unslash( $_GET['code_challenge'] ) : null;
+		$code_challenge_method 	= isset( $_GET['code_challenge_method'] ) ? wp_unslash( $_GET['code_challenge_method'] ) : null;
+
+		if ( ! is_null( $code_challenge ) ) {
+			if ( '' === \trim( $code_challenge ) ) {
+				return new WP_Error(
+					'oauth2.types.authorization_code.handle_authorisation.code_challenge_empty',
+					sprintf( __( 'Code challenge cannot be empty', 'oauth2' ), $client_id ),
+					[
+						'status' => WP_Http::BAD_REQUEST,
+						'client_id' => $client_id,
+					]
+				);
+			}
+
+			$code_challenge_method = is_null( $code_challenge_method ) ? 'plain' : $code_challenge_method;
+
+			if ( ! \in_array( \strtolower( $code_challenge_method ), [ 'plain', 's256' ], true ) ) {
+				return new WP_Error(
+					'oauth2.types.authorization_code.handle_authorisation.wrong_challenge_method',
+					sprintf( __( 'Challenge method must be S256 or plain', 'oauth2' ), $client_id ),
+					[
+						'status' => WP_Http::BAD_REQUEST,
+						'client_id' => $client_id,
+					]
+				);
+			}
+
+			return [ 'code_challenge' => $code_challenge, 'code_challenge_method' => $code_challenge_method ];
+		}
+
+		return false;
 	}
 }

@@ -108,6 +108,36 @@ class Authorization_Code {
 		return (int) $value['expiration'];
 	}
 
+	private function validate_code_verifier( $args ) {
+		$value = $this->get_value();
+
+		if ( empty( $value['code_challenge'] ) ) {
+			return true;
+		}
+
+		$code_verifier = $args['code_verifier'];
+		$is_valid = false;
+
+		switch ( strtolower( $value['code_challenge_method'] ) ) {
+			case 's256':
+				$decoded = base64_encode( hash( 'sha256', $code_verifier ) );
+				$is_valid = $decoded === $value['code_challenge'];
+				break;
+			case 'plain':
+				$is_valid = $code_verifier === $value['code_challenge'];
+			break;
+		}
+
+		if ( ! $is_valid ) {
+			return new WP_Error(
+				'oauth2.tokens.authorization_code.validate_code_verifier.invalid_grant',
+				__( 'Invalid code verifier.', 'oauth2' )
+			);
+		}
+
+		return true;
+	}
+
 	/**
 	 * Validate the code for use.
 	 *
@@ -129,7 +159,15 @@ class Authorization_Code {
 			);
 		}
 
-		return true;
+		$code_verifier = $this->validate_code_verifier( [
+				'code_verifier' => $args['code_verifier'],
+			]
+		);
+		if ( is_wp_error( $code_verifier ) ) {
+			return $code_verifier;
+		}
+
+		return $code_verifier;
 	}
 
 	/**
@@ -183,13 +221,13 @@ class Authorization_Code {
 	 *
 	 * @return Authorization_Code|WP_Error Authorization code instance, or error on failure.
 	 */
-	public static function create( Client $client, WP_User $user ) {
+	public static function create( Client $client, WP_User $user, $data ) {
 		$code = wp_generate_password( static::KEY_LENGTH, false );
 		$meta_key = static::KEY_PREFIX . $code;
-		$data = [
+		$data = \array_merge( [
 			'user'       => (int) $user->ID,
 			'expiration' => time() + static::MAX_AGE,
-		];
+		], $data );
 		$result = add_post_meta( $client->get_post_id(), wp_slash( $meta_key ), wp_slash( $data ), true );
 		if ( ! $result ) {
 			return new WP_Error(

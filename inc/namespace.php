@@ -21,6 +21,12 @@ function bootstrap() {
 	// Admin-related.
 	add_action( 'init', __NAMESPACE__ . '\\rest_oauth2_load_authorize_page' );
 	add_action( 'admin_menu', __NAMESPACE__ . '\\Admin\\register' );
+
+	// WP-Cli
+	if ( class_exists( __NAMESPACE__ . '\\Utilities\\Oauth2_Wp_Cli' ) ) {
+		\WP_CLI::add_command( 'oauth2', __NAMESPACE__ . '\\Utilities\\Oauth2_Wp_Cli' );
+	}
+
 	Admin\Profile\bootstrap();
 }
 
