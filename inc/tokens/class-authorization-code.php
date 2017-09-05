@@ -129,6 +129,50 @@ class Authorization_Code {
 			);
 		}
 
+		if ( ! empty( $args['code'] ) ) {
+			$key = static::KEY_PREFIX . $args['code'];
+			$value = get_post_meta( $this->client->get_post_id(), wp_slash( $key ), false );
+		}
+
+		if ( ! empty( $value[0]['redirect_uri'] ) ) {
+
+			if ( empty( $args['redirect_uri'] ) ) {
+				return new WP_Error(
+					'oauth2.tokens.authorization_code.redirect_uri.wrong',
+					__( 'Missing redirect_uri.', 'oauth2' ),
+					[
+						'status' => WP_Http::BAD_REQUEST,
+						'expiration' => $expiration,
+						'time' => $now,
+					]
+				);
+			}
+
+			if ( $value[0]['redirect_uri'] !== $args['redirect_uri'] ) {
+				return new WP_Error(
+					'oauth2.tokens.authorization_code.redirect_uri.mismatch',
+					__( 'redirect_uri does not match the one in the initial request.', 'oauth2' ),
+					[
+						'status' => WP_Http::BAD_REQUEST,
+						'expiration' => $expiration,
+						'time' => $now,
+					]
+				);
+			}
+		}
+
+		if ( empty( $value[0]['redirect_uri'] ) && ! empty( $args['redirect_uri'] ) ) {
+			return new WP_Error(
+				'oauth2.tokens.authorization_code.redirect_uri.mismatch',
+				__( 'redirect_uri does not match the one in the initial request.', 'oauth2' ),
+				[
+					'status' => WP_Http::BAD_REQUEST,
+					'expiration' => $expiration,
+					'time' => $now,
+				]
+			);
+		}
+
 		return true;
 	}
 
@@ -183,12 +227,13 @@ class Authorization_Code {
 	 *
 	 * @return Authorization_Code|WP_Error Authorization code instance, or error on failure.
 	 */
-	public static function create( Client $client, WP_User $user ) {
+	public static function create( Client $client, WP_User $user, $redirect_uri = '' ) {
 		$code = wp_generate_password( static::KEY_LENGTH, false );
 		$meta_key = static::KEY_PREFIX . $code;
 		$data = [
-			'user'       => (int) $user->ID,
-			'expiration' => time() + static::MAX_AGE,
+			'user'       	=> (int) $user->ID,
+			'expiration' 	=> time() + static::MAX_AGE,
+			'redirect_uri' 	=> $redirect_uri,
 		];
 		$result = add_post_meta( $client->get_post_id(), wp_slash( $meta_key ), wp_slash( $data ), true );
 		if ( ! $result ) {
