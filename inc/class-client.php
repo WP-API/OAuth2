@@ -229,8 +229,8 @@ class Client {
 	 *
 	 * @return Authorization_Code|WP_Error
 	 */
-	public function generate_authorization_code( WP_User $user, $redirect_uri = '' ) {
-		return Authorization_Code::create( $this, $user, $redirect_uri );
+	public function generate_authorization_code( WP_User $user, $data ) {
+		return Authorization_Code::create( $this, $user, $data );
 	}
 
 	/**

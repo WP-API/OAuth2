@@ -108,6 +108,47 @@ class Authorization_Code {
 		return (int) $value['expiration'];
 	}
 
+	private function validate_redirect_uri( $args ) {
+		$value = $this->get_value();
+
+		if ( ! empty( $args['redirect_uri'] ) ) {
+			if ( empty( $value['redirect_uri'] ) ) {
+				return new WP_Error(
+					'oauth2.tokens.authorization_code.redirect_uri.wrong',
+					__( 'Missing redirect_uri.', 'oauth2' ),
+					[
+						'status' => WP_Http::BAD_REQUEST,
+						'expiration' => $expiration,
+						'time' => $now,
+					]
+				);
+			}
+
+			if ( $value['redirect_uri'] !== $args['redirect_uri'] ) {
+				return new WP_Error(
+					'oauth2.tokens.authorization_code.redirect_uri.mismatch',
+					__( 'redirect_uri does not match the one in the initial request.', 'oauth2' ),
+					[
+						'status' => WP_Http::BAD_REQUEST,
+					]
+				);
+			}
+		}
+		if ( empty( $value['redirect_uri'] ) && ! empty( $args['redirect_uri'] ) ) {
+			return new WP_Error(
+				'oauth2.tokens.authorization_code.redirect_uri.mismatch',
+				__( 'redirect_uri does not match the one in the initial request.', 'oauth2' ),
+				[
+					'status' => WP_Http::BAD_REQUEST,
+					'expiration' => $expiration,
+					'time' => $now,
+				]
+			);
+		}
+
+		return true;
+	}
+
 	/**
 	 * Validate the code for use.
 	 *
@@ -129,48 +170,11 @@ class Authorization_Code {
 			);
 		}
 
-		if ( ! empty( $args['code'] ) ) {
-			$key = static::KEY_PREFIX . $args['code'];
-			$value = get_post_meta( $this->client->get_post_id(), wp_slash( $key ), false );
-		}
-
-		if ( ! empty( $value[0]['redirect_uri'] ) ) {
-
-			if ( empty( $args['redirect_uri'] ) ) {
-				return new WP_Error(
-					'oauth2.tokens.authorization_code.redirect_uri.wrong',
-					__( 'Missing redirect_uri.', 'oauth2' ),
-					[
-						'status' => WP_Http::BAD_REQUEST,
-						'expiration' => $expiration,
-						'time' => $now,
-					]
-				);
-			}
-
-			if ( $value[0]['redirect_uri'] !== $args['redirect_uri'] ) {
-				return new WP_Error(
-					'oauth2.tokens.authorization_code.redirect_uri.mismatch',
-					__( 'redirect_uri does not match the one in the initial request.', 'oauth2' ),
-					[
-						'status' => WP_Http::BAD_REQUEST,
-						'expiration' => $expiration,
-						'time' => $now,
-					]
-				);
-			}
-		}
-
-		if ( empty( $value[0]['redirect_uri'] ) && ! empty( $args['redirect_uri'] ) ) {
-			return new WP_Error(
-				'oauth2.tokens.authorization_code.redirect_uri.mismatch',
-				__( 'redirect_uri does not match the one in the initial request.', 'oauth2' ),
-				[
-					'status' => WP_Http::BAD_REQUEST,
-					'expiration' => $expiration,
-					'time' => $now,
-				]
-			);
+		$redirect_uri = $this->validate_redirect_uri( [
+			'redirect_uri' => $args['redirect_uri'],
+		] );
+		if ( is_wp_error( $redirect_uri ) ) {
+			return $redirect_uri;
 		}
 
 		return true;
