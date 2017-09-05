@@ -1,0 +1,31 @@
+{
+  "name": "oauth2",
+  "version": "0.5.0",
+  "description": "Connect applications to your WordPress site without ever giving away your password.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "phpcs": "vendor/bin/phpcs --standard='vendor/humanmade/coding-standards' ."
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/WP-API/OAuth2.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/WP-API/OAuth2/issues"
+  },
+  "homepage": "https://github.com/WP-API/OAuth2#readme",
+  "devDependencies": {
+    "git-guppy": "^2.1.0",
+    "gulp": "^3.9.1",
+    "gulp-phpcs": "^1.4.0",
+    "gulp-shell": "^0.6.3",
+    "guppy-pre-commit": "^0.4.0"
+  }
+}
