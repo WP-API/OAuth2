@@ -135,18 +135,18 @@ function render_token_row( WP_User $user, Access_Token $token ) {
 	 */
 	$actions = apply_filters( 'oauth2.admin.profile.render_token_row.actions', $actions, $token, $user );
 
-	$name = $client->get_name();
+	$name = sprintf( '<strong>%s</strong>', $client->get_name() );
 	if ( $is_personal ) {
 		$name = sprintf(
-			'%s <em>(%s)</em>',
+			'<strong>%s</strong> <em>(%s)</em>',
 			esc_html( $token_name ),
-			$name
+			$client->get_name()
 		);
 	}
 	?>
 	<tr>
 		<td>
-			<p><strong><?php echo $name ?></strong></p>
+			<p><?php echo $name ?></p>
 			<p><?php echo implode( ' | ', $details ) ?></p>
 		</td>
 		<td style="vertical-align: middle">
