@@ -13,6 +13,7 @@ namespace WP\OAuth2;
 require __DIR__ . '/inc/namespace.php';
 require __DIR__ . '/inc/class-clientinterface.php';
 require __DIR__ . '/inc/class-client.php';
+require __DIR__ . '/inc/class-personalclient.php';
 require __DIR__ . '/inc/class-scopes.php';
 require __DIR__ . '/inc/authentication/namespace.php';
 require __DIR__ . '/inc/endpoints/namespace.php';

@@ -139,5 +139,9 @@ function get_token_url() {
  * @return ClientInterface Client instance.
  */
 function get_client( $id ) {
+	if ( $id === PersonalClient::ID ) {
+		return PersonalClient::get_instance();
+	}
+
 	return Client::get_by_id( $id );
 }
