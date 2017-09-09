@@ -33,6 +33,12 @@ function render_profile_section( WP_User $user ) {
 		return (bool) $token->get_client();
 	});
 
+	if ( ! IS_PROFILE_PAGE ) {
+		$personal_url = PersonalTokens\get_page_url( [ 'user_id' => $user->ID ] );
+	} else {
+		$personal_url = PersonalTokens\get_page_url();
+	}
+
 	?>
 	<h2><?php _e( 'Authorized Applications', 'oauth2' ) ?></h2>
 	<?php if ( ! empty( $tokens ) ) : ?>
@@ -50,9 +56,19 @@ function render_profile_section( WP_User $user ) {
 			}
 			?>
 			</tbody>
+			<tfoot>
+				<tr>
+					<td colspan="2">
+						<a href="<?php echo esc_url( $personal_url ) ?>">
+							<?php esc_html_e( 'Create personal access token', 'oauth2' ) ?>
+						</a>
+					</td>
+				</tr>
+			</tfoot>
 		</table>
 	<?php else : ?>
 		<p class="description"><?php esc_html_e( 'No applications authorized.', 'oauth2' ) ?></p>
+		<p><a href="<?php echo esc_url( $personal_url ) ?>"><?php esc_html_e( 'Create personal access token', 'oauth2' ) ?></a></p>
 	<?php endif ?>
 	<?php
 }
