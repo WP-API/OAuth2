@@ -259,11 +259,12 @@ class Client implements ClientInterface {
 	 * Issue token for a user.
 	 *
 	 * @param \WP_User $user
+	 * @param array $meta
 	 *
 	 * @return Access_Token
 	 */
-	public function issue_token( WP_User $user ) {
-		return Tokens\Access_Token::create( $this, $user );
+	public function issue_token( WP_User $user, $meta = [] ) {
+		return Tokens\Access_Token::create( $this, $user, $meta );
 	}
 
 	/**
