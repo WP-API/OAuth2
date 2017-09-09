@@ -39,7 +39,7 @@ function bootstrap_profile_page() {
 
 	$current_user = wp_get_current_user();
 	if ( ! defined( 'IS_PROFILE_PAGE' ) ) {
-		define( 'IS_PROFILE_PAGE', ( $user_id == $current_user->ID ) );
+		define( 'IS_PROFILE_PAGE', $user_id === $current_user->ID );
 	}
 
 	if ( ! $user_id && IS_PROFILE_PAGE ) {
@@ -54,7 +54,7 @@ function bootstrap_profile_page() {
 		wp_die( __( 'Sorry, you are not allowed to edit this user.' ) );
 	}
 
-	if ( current_user_can('edit_users') && ! IS_PROFILE_PAGE ) {
+	if ( current_user_can( 'edit_users' ) && ! IS_PROFILE_PAGE ) {
 		$submenu_file = 'users.php';
 	} else {
 		$submenu_file = 'profile.php';
