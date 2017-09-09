@@ -120,7 +120,7 @@ function render_token_row( WP_User $user, Access_Token $token ) {
 	$actions = [
 		sprintf(
 			'<button class="button" name="oauth2_revoke" title="%s" value="%s">%s</button>',
-			$button_title,
+			esc_attr( $button_title ),
 			wp_create_nonce( 'oauth2_revoke:' . $token->get_key() ) . ':' . esc_attr( $token->get_key() ),
 			esc_html__( 'Revoke', 'oauth2' )
 		),
