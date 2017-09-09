@@ -75,7 +75,7 @@ function render_page() {
 
 	$user = get_user_by( 'id', $GLOBALS['user_id'] );
 
-	if ( isset( $_POST['oauth2_action'] ) ) {
+	if ( isset( $_POST['oauth2_action'] ) ) { // WPCS: CSRF OK
 		$error = handle_page_action( $user );
 
 		if ( is_wp_error( $error ) ) {
@@ -137,7 +137,7 @@ function render_page() {
  * Handle action from a form.
  */
 function handle_page_action( WP_User $user ) {
-	$action = $_POST['oauth2_action'];
+	$action = $_POST['oauth2_action']; // WPCS: CSRF OK
 
 	switch ( $action ) {
 		case 'create':
