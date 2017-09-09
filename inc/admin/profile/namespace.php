@@ -5,6 +5,7 @@
 
 namespace WP\OAuth2\Admin\Profile;
 
+use WP\OAuth2\PersonalClient;
 use WP\OAuth2\Tokens\Access_Token;
 use WP_User;
 
@@ -61,6 +62,11 @@ function render_profile_section( WP_User $user ) {
  */
 function render_token_row( WP_User $user, Access_Token $token ) {
 	$client = $token->get_client();
+	$is_personal = $client instanceof PersonalClient;
+
+	if ( $is_personal ) {
+		$token_name = $token->get_meta( 'name', __( 'Unknown Token', 'oauth2' ) );
+	}
 
 	$creation_time = $token->get_creation_time();
 	$details = [
@@ -82,11 +88,19 @@ function render_token_row( WP_User $user, Access_Token $token ) {
 	$details = apply_filters( 'oauth2.admin.profile.render_token_row.details', $details, $token, $user );
 
 	// Build actions.
-	$button_title = sprintf(
-		/* translators: %s: app name */
-		__( 'Revoke access for "%s"', 'oauth2' ),
-		$client->get_name()
-	);
+	if ( $is_personal ) {
+		$button_title = sprintf(
+			__( 'Revoke personal token "%s"', 'oauth2' ),
+			esc_html( $token_name )
+		);
+	} else {
+		$button_title = sprintf(
+			/* translators: %s: app name */
+			__( 'Revoke access for "%s"', 'oauth2' ),
+			$client->get_name()
+		);
+	}
+
 	$actions = [
 		sprintf(
 			'<button class="button" name="oauth2_revoke" title="%s" value="%s">%s</button>',
@@ -104,10 +118,19 @@ function render_token_row( WP_User $user, Access_Token $token ) {
 	 * @param WP_User $user User whose profile is being rendered.
 	 */
 	$actions = apply_filters( 'oauth2.admin.profile.render_token_row.actions', $actions, $token, $user );
+
+	$name = $client->get_name();
+	if ( $is_personal ) {
+		$name = sprintf(
+			'%s <em>(%s)</em>',
+			esc_html( $token_name ),
+			$name
+		);
+	}
 	?>
 	<tr>
 		<td>
-			<p><strong><?php echo $client->get_name() ?></strong></p>
+			<p><strong><?php echo $name ?></strong></p>
 			<p><?php echo implode( ' | ', $details ) ?></p>
 		</td>
 		<td style="vertical-align: middle">
