@@ -9,7 +9,7 @@ use WP_Post;
 use WP_Query;
 use WP_User;
 
-class Client {
+class Client implements ClientInterface {
 	const POST_TYPE            = 'oauth2_client';
 	const CLIENT_SECRET_KEY    = '_oauth2_client_secret';
 	const TYPE_KEY             = '_oauth2_client_type';

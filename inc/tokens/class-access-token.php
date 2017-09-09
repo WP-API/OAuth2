@@ -3,7 +3,8 @@
 namespace WP\OAuth2\Tokens;
 
 use WP_Error;
-use WP\OAuth2\Client;
+use WP\OAuth2;
+use WP\OAuth2\ClientInterface;
 use WP_User;
 use WP_User_Query;
 
@@ -21,10 +22,10 @@ class Access_Token extends Token {
 	/**
 	 * Get client for the token.
 	 *
-	 * @return Client|null
+	 * @return ClientInterface|null
 	 */
 	public function get_client() {
-		return Client::get_by_id( $this->value['client'] );
+		return OAuth2\get_client( $this->value['client'] );
 	}
 
 	/**
@@ -119,7 +120,7 @@ class Access_Token extends Token {
 	 *
 	 * @return Access_Token|WP_Error Token instance, or error on failure.
 	 */
-	public static function create( Client $client, WP_User $user ) {
+	public static function create( ClientInterface $client, WP_User $user, $meta = [] ) {
 		if ( ! $user->exists() ) {
 			return new WP_Error(
 				'oauth2.tokens.access_token.create.no_user',

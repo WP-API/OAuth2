@@ -131,3 +131,13 @@ function get_token_url() {
 	 */
 	return apply_filters( 'oauth2.get_token_url', $url );
 }
+
+/**
+ * Get a client by ID.
+ *
+ * @param string $id ID for the client.
+ * @return ClientInterface Client instance.
+ */
+function get_client( $id ) {
+	return Client::get_by_id( $id );
+}
