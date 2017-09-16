@@ -107,18 +107,11 @@ abstract class Base implements Type {
 	 * @return string|WP_Error Valid redirect URI on success, error otherwise.
 	 */
 	protected function validate_redirect_uri( Client $client, $redirect_uri = null ) {
-		if ( empty( $redirect_uri ) ) {
+		if ( ! $client->check_redirect_uri( $redirect_uri ) ) {
 			return new WP_Error(
-				'oauth2.types.authorization_code.handle_authorisation.missing_redirect_uri',
-				__( 'Redirect URI was required, but not found.', 'oauth2' )
+				'oauth2.types.authorization_code.handle_authorisation.invalid_redirect_uri',
+				__( 'Specified redirect URI is not valid for this client.', 'oauth2' )
 			);
-		} else {
-			if ( ! $client->check_redirect_uri( $redirect_uri ) ) {
-				return new WP_Error(
-					'oauth2.types.authorization_code.handle_authorisation.invalid_redirect_uri',
-					__( 'Specified redirect URI is not valid for this client.', 'oauth2' )
-				);
-			}
 		}
 
 		return $redirect_uri;
