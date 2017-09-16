@@ -108,7 +108,13 @@ class Authorization_Code {
 		return (int) $value['expiration'];
 	}
 
-	private function validate_code_verifier( $args ) {
+	/**
+	 * Verify code_verifier for PKCE
+	 *
+	 * @param  array $args Other request arguments to validate.
+	 * @return Boolean|WP_error True if valid, error describing problem otherwise.
+	 */
+	protected function validate_code_verifier( $args ) {
 		$value = $this->get_value();
 
 		if ( empty( $value['code_challenge'] ) ) {
@@ -120,11 +126,16 @@ class Authorization_Code {
 
 		switch ( strtolower( $value['code_challenge_method'] ) ) {
 			case 's256':
-				$decoded = base64_encode( hash( 'sha256', $code_verifier ) );
-				$is_valid = $decoded === $value['code_challenge'];
+				$encoded = base64_encode( hash( 'sha256', $code_verifier ) );
+				$is_valid = hash_equals( $encoded, $value['code_challenge'] );
 				break;
 			case 'plain':
-				$is_valid = $code_verifier === $value['code_challenge'];
+				$is_valid = hash_equals( $code_verifier, $value['code_challenge'] );
+			default:
+				return new WP_Error(
+					'oauth2.tokens.authorization_code.validate_code_verifier.invalid_request',
+					__( 'Invalid challenge method.', 'oauth2' )
+				);
 			break;
 		}
 

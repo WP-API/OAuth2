@@ -13,9 +13,10 @@ OAuth2 plugin supports PKCE as a protection against authorization code intercept
 
 Code verifier is a 43-128 length random string consisting of [A-Z] / [a-z] / [0-9] / "-" / "." / "_" / "~". Code challenge is derived from the code verifier depending on the challenge method. Two types are supported, 's256' and 'plain'. Plain is just code_challenge = code_verifier. s256 method uses SHA256 to hash the code verifier and then do a base64 encoding of the resulting hash. e.g.
 
-code_verifier = 052edd3941bb8040ecac75d2359d7cd1abe2518911b<br>
-code_challenge = base64( sha256( code_verifier ) ) = MmNmZTJlNGZhYmNmYzQ3YTI4MmRhY2Q1NGEwZDUzZTFiZGFhNTNlODI4MGY3NjM0YWUwNjA1YjYzMmQwNDMxNQ==<br>
+```code_verifier = 052edd3941bb8040ecac75d2359d7cd1abe2518911b
+code_challenge = base64( sha256( code_verifier ) ) = MmNmZTJlNGZhYmNmYzQ3YTI4MmRhY2Q1NGEwZDUzZTFiZGFhNTNlODI4MGY3NjM0YWUwNjA1YjYzMmQwNDMxNQ==
 code_challenge_method = s256
+```
 
 In the next step, when using the code received from the server to obtain an access token, code_verifier must be passed in as an additional field to the request, and it must be using the code_verifier value that was used to calculate the code_challenge in the initial request.
 
