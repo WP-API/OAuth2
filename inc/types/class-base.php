@@ -52,9 +52,12 @@ abstract class Base implements Type {
 		}
 
 		// Validate the redirection URI.
-		$redirect_uri = $this->validate_redirect_uri( $client, $redirect_uri );
-		if ( is_wp_error( $redirect_uri ) ) {
-			return $redirect_uri;
+		if ( ! empty( $redirect_uri ) ) {
+			$redirect_uri = $this->validate_redirect_uri( $client, $redirect_uri );
+
+			if ( is_wp_error( $redirect_uri ) ) {
+				return $redirect_uri;
+			}
 		}
 
 		// Valid parameters, ensure the user is logged in.
@@ -69,8 +72,7 @@ abstract class Base implements Type {
 		}
 
 		// Check nonce.
-		$nonce_action = $this->get_nonce_action( $client );
-		if ( ! wp_verify_nonce( wp_unslash( $_POST['_wpnonce'] ), $none_action ) ) {
+		if ( ! wp_verify_nonce( wp_unslash( $_POST['_wpnonce'] ), $this->get_nonce_action( $client ) ) ) {
 			return new WP_Error(
 				'oauth2.types.authorization_code.handle_authorisation.invalid_nonce',
 				__( 'Invalid nonce.', 'oauth2' )
@@ -105,24 +107,11 @@ abstract class Base implements Type {
 	 * @return string|WP_Error Valid redirect URI on success, error otherwise.
 	 */
 	protected function validate_redirect_uri( Client $client, $redirect_uri = null ) {
-		if ( empty( $redirect_uri ) ) {
-			$registered = $client->get_redirect_uris();
-			if ( count( $registered ) !== 1 ) {
-				// Either none registered, or more than one, so error.
-				return new WP_Error(
-					'oauth2.types.authorization_code.handle_authorisation.missing_redirect_uri',
-					__( 'Redirect URI was required, but not found.', 'oauth2' )
-				);
-			}
-
-			$redirect_uri = $registered[0];
-		} else {
-			if ( ! $client->check_redirect_uri( $redirect_uri ) ) {
-				return new WP_Error(
-					'oauth2.types.authorization_code.handle_authorisation.invalid_redirect_uri',
-					__( 'Specified redirect URI is not valid for this client.', 'oauth2' )
-				);
-			}
+		if ( ! $client->check_redirect_uri( $redirect_uri ) ) {
+			return new WP_Error(
+				'oauth2.types.authorization_code.handle_authorisation.invalid_redirect_uri',
+				__( 'Specified redirect URI is not valid for this client.', 'oauth2' )
+			);
 		}
 
 		return $redirect_uri;

@@ -71,7 +71,7 @@ class Token {
 			return $auth_code;
 		}
 
-		$is_valid = $auth_code->validate();
+		$is_valid = $auth_code->validate( $request );
 		if ( is_wp_error( $is_valid ) ) {
 			// Invalid request, but code itself exists, so we should delete
 			// (and silently ignore errors).

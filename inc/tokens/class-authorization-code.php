@@ -109,6 +109,43 @@ class Authorization_Code {
 	}
 
 	/**
+	 * Validate whether the redirect_uri matches the one in the initial OAuth2 request
+	 *
+	 * @param String $redirect_uri
+	 * @return Boolean|WP_Error
+	 */
+	protected function validate_redirect_uri( $redirect_uri ) {
+		$value = $this->get_value();
+
+		if ( ! empty( $value['redirect_uri'] ) && ! empty( $redirect_uri ) ) {
+			if ( $value['redirect_uri'] !== $redirect_uri ) {
+				return new WP_Error(
+					'oauth2.tokens.authorization_code.redirect_uri.mismatch',
+					__( 'redirect_uri does not match the one in the initial request.', 'oauth2' ),
+					[
+						'status' => WP_Http::BAD_REQUEST,
+					]
+				);
+			}
+		}
+
+		if ( ( empty( $value['redirect_uri'] ) && ! empty( $redirect_uri ) && ! $this->client->check_redirect_uri( $redirect_uri ) ) ||
+			( ! empty( $value['redirect_uri'] ) && empty( $redirect_uri ) ) ) {
+			return new WP_Error(
+				'oauth2.tokens.authorization_code.redirect_uri.mismatch',
+				__( 'redirect_uri does not match the one in the initial request.', 'oauth2' ),
+				[
+					'status' => WP_Http::BAD_REQUEST,
+					'expiration' => $expiration,
+					'time' => $now,
+				]
+			);
+		}
+
+		return true;
+	}
+
+	/**
 	 * Validate the code for use.
 	 *
 	 * @param array $args Other request arguments to validate.
@@ -127,6 +164,11 @@ class Authorization_Code {
 					'time' => $now,
 				]
 			);
+		}
+
+		$redirect_uri = $this->validate_redirect_uri( $args['redirect_uri'] );
+		if ( is_wp_error( $redirect_uri ) ) {
+			return $redirect_uri;
 		}
 
 		return true;
@@ -183,12 +225,13 @@ class Authorization_Code {
 	 *
 	 * @return Authorization_Code|WP_Error Authorization code instance, or error on failure.
 	 */
-	public static function create( Client $client, WP_User $user ) {
+	public static function create( Client $client, WP_User $user, $redirect_uri = '' ) {
 		$code = wp_generate_password( static::KEY_LENGTH, false );
 		$meta_key = static::KEY_PREFIX . $code;
 		$data = [
-			'user'       => (int) $user->ID,
-			'expiration' => time() + static::MAX_AGE,
+			'user'       	=> (int) $user->ID,
+			'expiration' 	=> time() + static::MAX_AGE,
+			'redirect_uri' 	=> $redirect_uri,
 		];
 		$result = add_post_meta( $client->get_post_id(), wp_slash( $meta_key ), wp_slash( $data ), true );
 		if ( ! $result ) {

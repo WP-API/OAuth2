@@ -33,7 +33,8 @@ class Authorization_Code extends Base {
 			case 'authorize':
 				// Generate authorization code and redirect back.
 				$user = wp_get_current_user();
-				$code = $client->generate_authorization_code( $user );
+				$code = $client->generate_authorization_code( $user, $redirect_uri );
+
 				if ( is_wp_error( $code ) ) {
 					return $code;
 				}
