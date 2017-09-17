@@ -131,6 +131,7 @@ class Authorization_Code {
 				break;
 			case 'plain':
 				$is_valid = hash_equals( $code_verifier, $value['code_challenge'] );
+				break;
 			default:
 				return new WP_Error(
 					'oauth2.tokens.authorization_code.validate_code_verifier.invalid_request',
@@ -172,13 +173,12 @@ class Authorization_Code {
 
 		$code_verifier = $this->validate_code_verifier( [
 				'code_verifier' => $args['code_verifier'],
-			]
-		);
+		] );
 		if ( is_wp_error( $code_verifier ) ) {
 			return $code_verifier;
 		}
 
-		return $code_verifier;
+		return true;
 	}
 
 	/**
@@ -229,13 +229,14 @@ class Authorization_Code {
 	 *
 	 * @param Client $client
 	 * @param WP_User $user
+	 * @param Array $data Containing data specific for this OAuth2 request, like redirect_uri and code_challenge
 	 *
 	 * @return Authorization_Code|WP_Error Authorization code instance, or error on failure.
 	 */
 	public static function create( Client $client, WP_User $user, $data ) {
 		$code = wp_generate_password( static::KEY_LENGTH, false );
 		$meta_key = static::KEY_PREFIX . $code;
-		$data = \array_merge( [
+		$data = array_merge( [
 			'user'       => (int) $user->ID,
 			'expiration' => time() + static::MAX_AGE,
 		], $data );

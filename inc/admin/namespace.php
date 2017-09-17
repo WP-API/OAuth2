@@ -171,6 +171,7 @@ function validate_parameters( $params ) {
 	if ( ! empty( $params['callback'] ) ) {
 		$valid['callback'] = $params['callback'];
 	}
+	$valid['force-pkce'] = ( ! empty( $params['force-pkce'] ) ) ? 'true' : 'false';
 
 	return $valid;
 }
@@ -201,29 +202,21 @@ function handle_edit_submit( Client $consumer = null ) {
 		return $messages;
 	}
 
+	$data = [
+		'name'        => $params['name'],
+		'description' => $params['description'],
+		'meta'        => [
+			'type'     	 => $params['type'],
+			'callback' 	 => $params['callback'],
+			'force-pkce' => isset( $params['force-pkce'] ) ? 'true' : 'false',
+		],
+	];
+
 	if ( empty( $consumer ) ) {
 		// Create the consumer
-		$data     = [
-			'name'        => $params['name'],
-			'description' => $params['description'],
-			'meta'        => [
-				'type'     => $params['type'],
-				'callback' => $params['callback'],
-			],
-		];
-
 		$consumer = $result = Client::create( $data );
 	} else {
 		// Update the existing consumer post
-		$data   = [
-			'name'        => $params['name'],
-			'description' => $params['description'],
-			'meta'        => [
-				'type'     => $params['type'],
-				'callback' => $params['callback'],
-			],
-		];
-
 		$result = $consumer->update( $data );
 	}
 
@@ -300,7 +293,7 @@ function render_edit_page() {
 	$data = [];
 
 	if ( empty( $consumer ) || ! empty( $form_data ) ) {
-		foreach ( [ 'name', 'description', 'callback', 'type' ] as $key ) {
+		foreach ( [ 'name', 'description', 'callback', 'type', 'force-pkce' ] as $key ) {
 			$data[ $key ] = empty( $form_data[ $key ] ) ? '' : $form_data[ $key ];
 		}
 	} else {
@@ -308,6 +301,7 @@ function render_edit_page() {
 		$data['description'] = $consumer->get_description( true );
 		$data['type']        = $consumer->get_type();
 		$data['callback']    = $consumer->get_redirect_uris();
+		$data['force-pkce']  = $consumer->should_force_pkce() ? 'true' : 'false';
 
 		if ( is_array( $data['callback'] ) ) {
 			$data['callback'] = implode( ',', $data['callback'] );
@@ -404,7 +398,16 @@ function render_edit_page() {
 					</th>
 					<td>
 						<input type="text" class="regular-text" name="callback" id="oauth-callback" value="<?php echo esc_attr( $data['callback'] ) ?>"/>
-						<p class="description"><?php esc_html_e( "Your application's callback URI or a list of comma separated URIs. The callback passed with the request token must match the scheme, host, port, and path of this URL.", 'oauth2' ) ?></p>
+						<p class="description"><?php esc_html_e( 'Your application\'s callback URI or a list of comma separated URIs. The callback passed with the request token must match the scheme, host, port, and path of this URL.', 'oauth2' ) ?></p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row">
+						<label for="force-pkce"><?php echo esc_html_x( 'Force PKCE?', 'field name', 'oauth2' ) ?></label>
+					</th>
+					<td>
+						<input type="checkbox" <?php checked( 'true', esc_attr( $data['force-pkce'] ) ) ?> class="regular-text" name="force-pkce" id="force-pkce" value="true"/>
+						<p class="description"><?php esc_html_e( 'Whether your OAuth2 server should force PKCE for authorisation requests. If PKCE is forced, code_challenge field must be present in the initial request when authorization code grant is used', 'oauth2' ) ?></p>
 					</td>
 				</tr>
 			</table>

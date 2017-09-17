@@ -4,6 +4,7 @@ namespace WP\OAuth2;
 
 use WP\OAuth2\Types\Type;
 use WP_REST_Response;
+use WP_CLI;
 
 function bootstrap() {
 	// Core authentication hooks.
@@ -23,8 +24,8 @@ function bootstrap() {
 	add_action( 'admin_menu', __NAMESPACE__ . '\\Admin\\register' );
 
 	// WP-Cli
-	if ( class_exists( __NAMESPACE__ . '\\Utilities\\Oauth2_Wp_Cli' ) ) {
-		\WP_CLI::add_command( 'oauth2', __NAMESPACE__ . '\\Utilities\\Oauth2_Wp_Cli' );
+	if ( class_exists( __NAMESPACE__ . '\\Utilities\\Command' ) ) {
+		WP_CLI::add_command( 'oauth2', __NAMESPACE__ . '\\Utilities\\Command' );
 	}
 
 	Admin\Profile\bootstrap();

@@ -15,6 +15,7 @@ class Client {
 	const TYPE_KEY             = '_oauth2_client_type';
 	const REDIRECT_URI_KEY     = '_oauth2_redirect_uri';
 	const AUTH_CODE_KEY_PREFIX = '_oauth2_authcode_';
+	const FORCE_PKCE 		   = '_oauth2_force-pkce';
 	const AUTH_CODE_LENGTH     = 12;
 	const CLIENT_ID_LENGTH     = 12;
 	const CLIENT_SECRET_LENGTH = 48;
@@ -122,6 +123,15 @@ class Client {
 	 */
 	public function get_redirect_uris() {
 		return (array) get_post_meta( $this->get_post_id(), static::REDIRECT_URI_KEY, true );
+	}
+
+	/**
+	 * Whether the client requires PKCE
+	 *
+	 * @return Boolean
+	 */
+	public function should_force_pkce() {
+		return 'true' === get_post_meta( $this->get_post_id(), static::FORCE_PKCE, true );
 	}
 
 	/**
@@ -332,6 +342,7 @@ class Client {
 			static::REDIRECT_URI_KEY  => $data['meta']['callback'],
 			static::TYPE_KEY          => $data['meta']['type'],
 			static::CLIENT_SECRET_KEY => wp_generate_password( static::CLIENT_SECRET_LENGTH, false ),
+			static::FORCE_PKCE        => $data['meta']['force-pkce'],
 		];
 
 		foreach ( $meta as $key => $value ) {
@@ -368,6 +379,7 @@ class Client {
 		$meta = [
 			static::REDIRECT_URI_KEY  => $data['meta']['callback'],
 			static::TYPE_KEY          => $data['meta']['type'],
+			static::FORCE_PKCE        => $data['meta']['force-pkce'],
 		];
 
 		foreach ( $meta as $key => $value ) {
