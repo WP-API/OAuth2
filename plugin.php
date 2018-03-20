@@ -33,4 +33,8 @@ require __DIR__ . '/inc/types/class-implicit.php';
 require __DIR__ . '/inc/admin/namespace.php';
 require __DIR__ . '/inc/admin/profile/namespace.php';
 
+if ( defined( 'WP_CLI' ) && WP_CLI ) {
+	require __DIR__ . '/inc/utilities/class-command.php';
+}
+
 bootstrap();
