@@ -61,7 +61,7 @@ function render_token_row( WP_User $user, Access_Token $token ) {
 	$client = $token->get_client();
 
 	$creation_time = $token->get_creation_time();
-	$details = [
+	$details       = [
 		sprintf(
 			/* translators: %1$s: formatted date, %2$s: formatted time */
 			esc_html__( 'Authorized %1$s at %2$s', 'oauth2' ),
@@ -77,7 +77,7 @@ function render_token_row( WP_User $user, Access_Token $token ) {
 	 * @param Access_Token $token Token being displayed.
 	 * @param WP_User $user User whose profile is being rendered.
 	 */
-	$details      = apply_filters( 'oauth2.admin.profile.render_token_row.details', $details, $token, $user );
+	$details = apply_filters( 'oauth2.admin.profile.render_token_row.details', $details, $token, $user );
 
 	// Build actions.
 	$button_title = sprintf(
@@ -85,7 +85,7 @@ function render_token_row( WP_User $user, Access_Token $token ) {
 		__( 'Revoke access for "%s"', 'oauth2' ),
 		$client->get_name()
 	);
-	$actions      = [
+	$actions = [
 		sprintf(
 			'<button class="button" name="oauth2_revoke" title="%s" value="%s">%s</button>',
 			$button_title,

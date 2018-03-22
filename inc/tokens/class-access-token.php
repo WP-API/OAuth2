@@ -62,7 +62,7 @@ class Access_Token extends Token {
 	 * @return static|null Token if ID is found, null otherwise.
 	 */
 	public static function get_by_id( $id ) {
-		$key = static::META_PREFIX . $id;
+		$key  = static::META_PREFIX . $id;
 		$args = [
 			'number'      => 1,
 			'count_total' => false,
@@ -76,13 +76,13 @@ class Access_Token extends Token {
 				],
 			],
 		];
-		$query = new WP_User_Query( $args );
+		$query   = new WP_User_Query( $args );
 		$results = $query->get_results();
 		if ( empty( $results ) ) {
 			return null;
 		}
 
-		$user = $results[0];
+		$user  = $results[0];
 		$value = get_user_meta( $user->ID, wp_slash( $key ), false );
 		if ( empty( $value ) ) {
 			return null;
@@ -97,7 +97,7 @@ class Access_Token extends Token {
 	 * @return static[] List of tokens.
 	 */
 	public static function get_for_user( WP_User $user ) {
-		$meta = get_user_meta( $user->ID );
+		$meta   = get_user_meta( $user->ID );
 		$tokens = [];
 		foreach ( $meta as $key => $values ) {
 			if ( strpos( $key, static::META_PREFIX ) !== 0 ) {
@@ -127,7 +127,7 @@ class Access_Token extends Token {
 			);
 		}
 
-		$data = [
+		$data     = [
 			'client'  => $client->get_id(),
 			'created' => time(),
 		];

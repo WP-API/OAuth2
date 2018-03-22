@@ -21,12 +21,12 @@ class Token {
 					'type'              => 'string',
 					'validate_callback' => [ $this, 'validate_grant_type' ],
 				],
-				'client_id' => [
+				'client_id'  => [
 					'required'          => true,
 					'type'              => 'string',
 					'validate_callback' => 'rest_validate_request_arg',
 				],
-				'code' => [
+				'code'       => [
 					'required'          => true,
 					'type'              => 'string',
 					'validate_callback' => 'rest_validate_request_arg',
