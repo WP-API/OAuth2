@@ -76,6 +76,7 @@ class Access_Token extends Token {
 				],
 			],
 		];
+
 		$query   = new WP_User_Query( $args );
 		$results = $query->get_results();
 		if ( empty( $results ) ) {

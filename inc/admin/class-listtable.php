@@ -103,12 +103,12 @@ class ListTable extends WP_List_Table {
 				[
 					'page'   => 'rest-oauth2-apps',
 					'action' => 'approve',
-					'id'   => $item->ID,
+					'id'     => $item->ID,
 				],
 				admin_url( 'users.php' )
 			);
 
-			$publish_link          = wp_nonce_url( $publish_link, 'rest-oauth2-approve:' . $item->ID );
+			$publish_link           = wp_nonce_url( $publish_link, 'rest-oauth2-approve:' . $item->ID );
 			$actions['app-approve'] = sprintf(
 				'<a href="%s">%s</a>',
 				esc_url( $publish_link ),

@@ -213,7 +213,7 @@ function handle_edit_submit( Client $consumer = null ) {
 		];
 
 		$consumer = Client::create( $data );
-		$result = $consumer;
+		$result   = $consumer;
 	} else {
 		// Update the existing consumer post
 		$data = [
