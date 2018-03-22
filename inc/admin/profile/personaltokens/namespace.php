@@ -185,7 +185,7 @@ function render_create_success( WP_User $user, $token ) {
 
 		<pre style="font-size: 2em"><?php echo esc_html( $token->get_key() ) ?></pre>
 
-		<p><a href="<?php echo esc_url( get_page_url() ) ?>"><?php esc_html_e( 'Back to tokens', 'oauth2' ) ?></a></p>
+		<p><a href="<?php echo esc_url( get_edit_user_link( $user->ID ) ) ?>"><?php esc_html_e( 'Back to profile', 'oauth2' ) ?></a></p>
 	</div>
 
 	<?php
