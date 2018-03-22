@@ -58,6 +58,7 @@ class Token {
 		if ( empty( $client ) ) {
 			return new WP_Error(
 				'oauth2.endpoints.token.exchange_token.invalid_client',
+				/* translators: %s: client ID */
 				sprintf( __( 'Client ID %s is invalid.', 'oauth2' ), $request['client_id'] ),
 				[
 					'status'    => WP_Http::BAD_REQUEST,
