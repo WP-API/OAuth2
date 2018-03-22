@@ -110,7 +110,8 @@ function render() {
 			<?php
 			esc_html_e( 'Registered Applications', 'oauth2' );
 
-			if ( current_user_can( 'create_users' ) ) : ?>
+			if ( current_user_can( 'create_users' ) ) :
+				?>
 				<a href="<?php echo esc_url( get_url( 'action=add' ) ) ?>"
 					class="add-new-h2"><?php echo esc_html_x( 'Add New', 'application', 'oauth2' ); ?></a>
 				<?php
