@@ -153,7 +153,10 @@ function handle_page_action( WP_User $user ) {
 			return handle_create( $user, $name );
 
 		default:
-			return new WP_Error();
+			return new WP_Error(
+				'rest_oauth2_invalid_action',
+				__( 'Invalid action.', 'oauth2' )
+			);
 	}
 }
 
