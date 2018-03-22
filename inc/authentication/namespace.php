@@ -75,11 +75,11 @@ function get_token_from_bearer_header( $header ) {
  * @return string|null Token on succes, null on failure.
  */
 function get_token_from_request() {
-	if ( empty( $_GET['access_token'] ) ) {
+	if ( empty( $_GET['access_token'] ) ) { // WPCS: CSRF OK
 		return null;
 	}
 
-	$token = $_GET['access_token'];
+	$token = $_GET['access_token']; // WPCS: CSRF OK
 	if ( is_string( $token ) ) {
 		return $token;
 	}
@@ -116,8 +116,8 @@ function attempt_authentication( $user = null ) {
 
 	// Attempt to find the token.
 	$is_querying_token = true;
-	$token = Tokens\get_by_id( $token_value );
-	$client = $token->get_client();
+	$token             = Tokens\get_by_id( $token_value );
+	$client            = $token->get_client();
 	$is_querying_token = false;
 
 	if ( empty( $token ) || empty( $client ) ) {

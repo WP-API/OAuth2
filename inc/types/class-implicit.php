@@ -32,7 +32,7 @@ class Implicit extends Base {
 		switch ( $submit ) {
 			case 'authorize':
 				// Generate token and redirect back.
-				$user = wp_get_current_user();
+				$user  = wp_get_current_user();
 				$token = $client->issue_token( $user );
 				if ( is_wp_error( $token ) ) {
 					return $token;
@@ -61,7 +61,7 @@ class Implicit extends Base {
 			$redirect_args['state'] = $data['state'];
 		}
 
-		$fragment = build_query( $redirect_args );
+		$fragment           = build_query( $redirect_args );
 		$generated_redirect = $redirect_uri . '#' . $fragment;
 		wp_redirect( $generated_redirect );
 		exit;

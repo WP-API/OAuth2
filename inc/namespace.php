@@ -73,7 +73,7 @@ function get_grant_types() {
  */
 function register_grant_types( $types ) {
 	$types['authorization_code'] = new Types\Authorization_Code();
-	$types['implicit'] = new Types\Implicit();
+	$types['implicit']           = new Types\Implicit();
 
 	return $types;
 }
@@ -88,9 +88,9 @@ function register_in_index( WP_REST_Response $response ) {
 	$data = $response->get_data();
 
 	$data['authentication']['oauth2'] = [
-		'endpoints' => [
+		'endpoints'   => [
 			'authorization' => get_authorization_url(),
-			'token' => get_token_url(),
+			'token'         => get_token_url(),
 		],
 		'grant_types' => array_keys( get_grant_types() ),
 	];

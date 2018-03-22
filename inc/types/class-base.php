@@ -29,23 +29,25 @@ abstract class Base implements Type {
 		if ( empty( $_GET['client_id'] ) ) {
 			return new WP_Error(
 				'oauth2.types.authorization_code.handle_authorisation.missing_client_id',
+				/* translators: %s: parameter name */
 				sprintf( __( 'Missing %s parameter.', 'oauth2' ), 'client_id' )
 			);
 		}
 
 		// Gather parameters.
-		$client_id    = wp_unslash( $_GET['client_id'] );
-		$redirect_uri = isset( $_GET['redirect_uri'] ) ? wp_unslash( $_GET['redirect_uri'] ) : null;
-		$scope        = isset( $_GET['scope'] ) ? wp_unslash( $_GET['scope'] ) : null;
-		$state        = isset( $_GET['state'] ) ? wp_unslash( $_GET['state'] ) : null;
+		$client_id    = wp_unslash( $_GET['client_id'] ); // WPCS: CSRF OK
+		$redirect_uri = isset( $_GET['redirect_uri'] ) ? wp_unslash( $_GET['redirect_uri'] ) : null; // WPCS: CSRF OK
+		$scope        = isset( $_GET['scope'] ) ? wp_unslash( $_GET['scope'] ) : null; // WPCS: CSRF OK
+		$state        = isset( $_GET['state'] ) ? wp_unslash( $_GET['state'] ) : null; // WPCS: CSRF OK
 
 		$client = Client::get_by_id( $client_id );
 		if ( empty( $client ) ) {
 			return new WP_Error(
 				'oauth2.types.authorization_code.handle_authorisation.invalid_client_id',
+				/* translators: %s: client ID */
 				sprintf( __( 'Client ID %s is invalid.', 'oauth2' ), $client_id ),
 				[
-					'status' => WP_Http::BAD_REQUEST,
+					'status'    => WP_Http::BAD_REQUEST,
 					'client_id' => $client_id,
 				]
 			);
@@ -82,7 +84,7 @@ abstract class Base implements Type {
 			$error = new WP_Error(
 				'oauth2.types.authorization_code.handle_authorisation.invalid_submit',
 				sprintf(
-					/** translators: %1$s is the translated "Authorize" button, %2$s is the translated "Cancel" button */
+					/* translators: %1$s is the translated "Authorize" button, %2$s is the translated "Cancel" button */
 					__( 'Select either %1$s or %2$s to continue.', 'oauth2' ),
 					__( 'Authorize', 'oauth2' ),
 					__( 'Cancel', 'oauth2' )

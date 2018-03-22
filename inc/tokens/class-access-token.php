@@ -10,7 +10,7 @@ use WP_User_Query;
 
 class Access_Token extends Token {
 	const META_PREFIX = '_oauth2_access_';
-	const KEY_LENGTH = 12;
+	const KEY_LENGTH  = 12;
 
 	/**
 	 * @return string Meta prefix.
@@ -100,27 +100,28 @@ class Access_Token extends Token {
 	 * @return static|null Token if ID is found, null otherwise.
 	 */
 	public static function get_by_id( $id ) {
-		$key = static::META_PREFIX . $id;
+		$key  = static::META_PREFIX . $id;
 		$args = [
 			'number'      => 1,
 			'count_total' => false,
 
 			// We use an EXISTS query here, limited by 1, so we can ignore
 			// the performance warning.
-			'meta_query'  => [ // WPCS: tax_query OK
+			'meta_query'  => [ // WPCS: slow query OK
 				[
 					'key'     => $key,
 					'compare' => 'EXISTS',
 				],
 			],
 		];
-		$query = new WP_User_Query( $args );
+
+		$query   = new WP_User_Query( $args );
 		$results = $query->get_results();
 		if ( empty( $results ) ) {
 			return null;
 		}
 
-		$user = $results[0];
+		$user  = $results[0];
 		$value = get_user_meta( $user->ID, wp_slash( $key ), false );
 		if ( empty( $value ) ) {
 			return null;
@@ -135,7 +136,7 @@ class Access_Token extends Token {
 	 * @return static[] List of tokens.
 	 */
 	public static function get_for_user( WP_User $user ) {
-		$meta = get_user_meta( $user->ID );
+		$meta   = get_user_meta( $user->ID );
 		$tokens = [];
 		foreach ( $meta as $key => $values ) {
 			if ( strpos( $key, static::META_PREFIX ) !== 0 ) {
@@ -143,7 +144,7 @@ class Access_Token extends Token {
 			}
 
 			$real_key = substr( $key, strlen( static::META_PREFIX ) );
-			$value = maybe_unserialize( $values[0] );
+			$value    = maybe_unserialize( $values[0] );
 			$tokens[] = new static( $user, $real_key, $value );
 		}
 		return $tokens;
@@ -165,12 +166,12 @@ class Access_Token extends Token {
 			);
 		}
 
-		$data = [
+		$data     = [
 			'client'  => $client->get_id(),
 			'created' => time(),
 			'meta'    => $meta,
 		];
-		$key = wp_generate_password( static::KEY_LENGTH, false );
+		$key      = wp_generate_password( static::KEY_LENGTH, false );
 		$meta_key = static::META_PREFIX . $key;
 
 		$result = add_user_meta( $user->ID, wp_slash( $meta_key ), wp_slash( $data ), true );

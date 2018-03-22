@@ -16,7 +16,7 @@ function bootstrap() {
 	add_action( 'show_user_profile', __NAMESPACE__ . '\\render_profile_section' );
 	add_action( 'edit_user_profile', __NAMESPACE__ . '\\render_profile_section' );
 	add_action( 'all_admin_notices', __NAMESPACE__ . '\\output_profile_messages' );
-	add_action( 'personal_options_update',  __NAMESPACE__ . '\\handle_revocation', 10, 1 );
+	add_action( 'personal_options_update', __NAMESPACE__ . '\\handle_revocation', 10, 1 );
 	add_action( 'edit_user_profile_update', __NAMESPACE__ . '\\handle_revocation', 10, 1 );
 
 	PersonalTokens\bootstrap();
@@ -85,7 +85,7 @@ function render_token_row( WP_User $user, Access_Token $token ) {
 	}
 
 	$creation_time = $token->get_creation_time();
-	$details = [
+	$details       = [
 		sprintf(
 			/* translators: %1$s: formatted date, %2$s: formatted time */
 			esc_html__( 'Authorized %1$s at %2$s', 'oauth2' ),
@@ -165,10 +165,10 @@ function output_profile_messages() {
 		return;
 	}
 
-	if ( ! empty( $_GET['oauth2_revoked'] ) ) {
+	if ( ! empty( $_GET['oauth2_revoked'] ) ) { // WPCS: CSRF OK
 		echo '<div id="message" class="updated"><p>' . __( 'Token revoked.', 'oauth2' ) . '</p></div>';
 	}
-	if ( ! empty( $_GET['oauth2_revocation_failed'] ) ) {
+	if ( ! empty( $_GET['oauth2_revocation_failed'] ) ) { // WPCS: CSRF OK
 		echo '<div id="message" class="updated"><p>' . __( 'Unable to revoke token.', 'oauth2' ) . '</p></div>';
 	}
 }
@@ -197,7 +197,6 @@ function handle_revocation( $user_id ) {
 
 	$token = Access_Token::get_by_id( $key );
 	if ( empty( $token ) ) {
-		var_dump( $key, $token );
 		wp_safe_redirect( add_query_arg( 'oauth2_revocation_failed', true, get_edit_user_link( $user_id ) ) );
 		exit;
 	}
