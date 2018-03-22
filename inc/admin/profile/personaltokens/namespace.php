@@ -142,8 +142,15 @@ function handle_page_action( WP_User $user ) {
 	switch ( $action ) {
 		case 'create':
 			check_admin_referer( 'oauth2_personal_tokens.create' );
-			$data = wp_unslash( $_POST );
-			return handle_create( $user, $data );
+			if ( empty( $_POST['name'] ) ) {
+				return new WP_Error(
+					'rest_oauth2_missing_name',
+					__( 'Missing name for personal access token.', 'oauth2' )
+				);
+			}
+
+			$name = sanitize_text_field( wp_unslash( $_POST['name'] ) );
+			return handle_create( $user, $name );
 
 		default:
 			return new WP_Error();
@@ -153,10 +160,10 @@ function handle_page_action( WP_User $user ) {
 /**
  * Handle token creation
  */
-function handle_create( WP_User $user, $data ) {
+function handle_create( WP_User $user, $name ) {
 	$client = PersonalClient::get_instance();
 	$meta = [
-		'name' => sanitize_text_field( $data['name'] ),
+		'name' => $name,
 	];
 	$token = $client->issue_token( $user, $meta );
 
