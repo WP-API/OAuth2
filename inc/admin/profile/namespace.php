@@ -124,10 +124,10 @@ function output_profile_messages() {
 		return;
 	}
 
-	if ( ! empty( $_GET['oauth2_revoked'] ) ) {
+	if ( ! empty( $_GET['oauth2_revoked'] ) ) { // WPCS: CSRF OK
 		echo '<div id="message" class="updated"><p>' . __( 'Token revoked.', 'oauth2' ) . '</p></div>';
 	}
-	if ( ! empty( $_GET['oauth2_revocation_failed'] ) ) {
+	if ( ! empty( $_GET['oauth2_revocation_failed'] ) ) { // WPCS: CSRF OK
 		echo '<div id="message" class="updated"><p>' . __( 'Unable to revoke token.', 'oauth2' ) . '</p></div>';
 	}
 }
