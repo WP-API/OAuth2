@@ -10,6 +10,11 @@
 
 namespace WP\OAuth2;
 
+// Avoid loading twice if loaded via App Connect.
+if ( class_exists( 'WP\\OAuth2\\Client' ) ) {
+	return;
+}
+
 require __DIR__ . '/inc/namespace.php';
 require __DIR__ . '/inc/class-clientinterface.php';
 require __DIR__ . '/inc/class-client.php';
