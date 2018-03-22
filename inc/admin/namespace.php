@@ -47,7 +47,7 @@ function get_url( $params = [] ) {
  * @return string One of 'add', 'edit', 'delete', or '' for default (list)
  */
 function get_page_action() {
-	return isset( $_GET['action'] ) ? $_GET['action'] : '';
+	return isset( $_GET['action'] ) ? $_GET['action'] : ''; // WPCS: CSRF OK
 }
 
 /**
@@ -110,17 +110,18 @@ function render() {
 			<?php
 			esc_html_e( 'Registered Applications', 'oauth2' );
 
-			if ( current_user_can( 'create_users' ) ) : ?>
+			if ( current_user_can( 'create_users' ) ) :
+				?>
 				<a href="<?php echo esc_url( get_url( 'action=add' ) ) ?>"
-				   class="add-new-h2"><?php echo esc_html_x( 'Add New', 'application', 'oauth2' ); ?></a>
+					class="add-new-h2"><?php echo esc_html_x( 'Add New', 'application', 'oauth2' ); ?></a>
 				<?php
 			endif;
 			?>
 		</h2>
 		<?php
-		if ( ! empty( $_GET['deleted'] ) ) {
+		if ( ! empty( $_GET['deleted'] ) ) { // WPCS: CSRF OK
 			echo '<div id="message" class="updated"><p>' . esc_html__( 'Deleted application.', 'oauth2' ) . '</p></div>';
-		} elseif ( ! empty( $_GET['approved'] ) ) {
+		} elseif ( ! empty( $_GET['approved'] ) ) { // WPCS: CSRF OK
 			echo '<div id="message" class="updated"><p>' . esc_html__( 'Approved application.', 'oauth2' ) . '</p></div>';
 		}
 		?>
@@ -203,7 +204,7 @@ function handle_edit_submit( Client $consumer = null ) {
 
 	if ( empty( $consumer ) ) {
 		// Create the consumer
-		$data     = [
+		$data = [
 			'name'        => $params['name'],
 			'description' => $params['description'],
 			'meta'        => [
@@ -212,10 +213,11 @@ function handle_edit_submit( Client $consumer = null ) {
 			],
 		];
 
-		$consumer = $result = Client::create( $data );
+		$consumer = Client::create( $data );
+		$result   = $consumer;
 	} else {
 		// Update the existing consumer post
-		$data   = [
+		$data = [
 			'name'        => $params['name'],
 			'description' => $params['description'],
 			'meta'        => [
@@ -264,12 +266,18 @@ function render_edit_page() {
 			wp_die( __( 'Invalid client ID.', 'oauth2' ) );
 		}
 
-		$form_action       = get_url( [ 'action' => 'edit', 'id' => $id ] );
-		$regenerate_action = get_url( [ 'action' => 'regenerate', 'id' => $id ] );
+		$form_action       = get_url( [
+			'action' => 'edit',
+			'id'     => $id,
+		] );
+		$regenerate_action = get_url( [
+			'action' => 'regenerate',
+			'id'     => $id,
+		] );
 	}
 
 	// Handle form submission
-	$messages = [];
+	$messages  = [];
 	$form_data = [];
 	if ( ! empty( $_POST['_wpnonce'] ) ) {
 		if ( empty( $consumer ) ) {
@@ -278,7 +286,7 @@ function render_edit_page() {
 			check_admin_referer( 'rest-oauth2-edit-' . $consumer->get_post_id() );
 		}
 
-		$messages = handle_edit_submit( $consumer );
+		$messages  = handle_edit_submit( $consumer );
 		$form_data = wp_unslash( $_POST );
 	}
 	if ( ! empty( $_GET['did_action'] ) ) {
@@ -371,10 +379,12 @@ function render_edit_page() {
 									<?php echo esc_html_x( 'Private', 'Client type select option', 'oauth2' ); ?>
 								</label>
 								<p class="description">
-									<?php esc_html_e(
+									<?php
+									esc_html_e(
 										'Clients capable of maintaining confidentiality of credentials, such as server-side applications',
 										'oauth2'
-									) ?>
+									);
+									?>
 								</p>
 							</li>
 							<li>
@@ -389,10 +399,12 @@ function render_edit_page() {
 									<?php echo esc_html_x( 'Public', 'Client type select option', 'oauth2' ); ?>
 								</label>
 								<p class="description">
-									<?php esc_html_e(
+									<?php
+									esc_html_e(
 										'Clients incapable of keeping credentials secret, such as browser-based applications or desktop and mobile apps',
 										'oauth2'
-									) ?>
+									);
+									?>
 								</p>
 							</li>
 						</ul>
@@ -552,6 +564,10 @@ function handle_regenerate() {
 		wp_die( $result->get_error_message() );
 	}
 
-	wp_safe_redirect( get_url( [ 'action' => 'edit', 'id' => $id, 'did_action' => 'regenerate' ] ) );
+	wp_safe_redirect( get_url( [
+		'action'     => 'edit',
+		'id'         => $id,
+		'did_action' => 'regenerate',
+	] ) );
 	exit;
 }

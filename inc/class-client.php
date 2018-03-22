@@ -73,7 +73,7 @@ class Client {
 		// Replicate the_content()'s filters.
 		global $post;
 		$current_post = $post;
-		$the_post = get_post( $this->get_post_id() );
+		$the_post     = get_post( $this->get_post_id() );
 		if ( $raw ) {
 			// Skip the filtering and globals.
 			return $the_post->post_content;
@@ -168,7 +168,7 @@ class Client {
 			return false;
 		}
 
-		$supplied = wp_parse_url( $uri );
+		$supplied       = wp_parse_url( $uri );
 		$all_registered = $this->get_redirect_uris();
 
 		foreach ( $all_registered as $registered_uri ) {
@@ -273,7 +273,7 @@ class Client {
 	 * @return static|null Token if ID is found, null otherwise.
 	 */
 	public static function get_by_id( $id ) {
-		$args = [
+		$args  = [
 			'post_type'      => static::POST_TYPE,
 			'post_status'    => 'publish',
 			'posts_per_page' => 1,
@@ -366,8 +366,8 @@ class Client {
 		}
 
 		$meta = [
-			static::REDIRECT_URI_KEY  => $data['meta']['callback'],
-			static::TYPE_KEY          => $data['meta']['type'],
+			static::REDIRECT_URI_KEY => $data['meta']['callback'],
+			static::TYPE_KEY         => $data['meta']['type'],
 		];
 
 		foreach ( $meta as $key => $value ) {
@@ -394,8 +394,8 @@ class Client {
 	 * @return bool|WP_Error True if client was updated, error otherwise.
 	 */
 	public function approve() {
-		$data = [
-			'ID' => $this->get_post_id(),
+		$data   = [
+			'ID'          => $this->get_post_id(),
 			'post_status' => 'publish',
 		];
 		$result = wp_update_post( wp_slash( $data ), true );

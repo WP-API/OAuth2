@@ -15,7 +15,7 @@ function register() {
 
 	// Register convenience URL.
 	register_rest_route( 'oauth2', '/authorize', [
-		'methods' => 'GET',
+		'methods'  => 'GET',
 		'callback' => __NAMESPACE__ . '\\redirect_to_authorize',
 	]);
 }

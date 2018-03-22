@@ -13,22 +13,22 @@ use WP_REST_Request;
 class Token {
 	public function register_routes() {
 		register_rest_route( 'oauth2', '/access_token', [
-			'methods' => 'POST',
+			'methods'  => 'POST',
 			'callback' => [ $this, 'exchange_token' ],
-			'args' => [
+			'args'     => [
 				'grant_type' => [
-					'required' => true,
-					'type' => 'string',
+					'required'          => true,
+					'type'              => 'string',
 					'validate_callback' => [ $this, 'validate_grant_type' ],
 				],
-				'client_id' => [
-					'required' => true,
-					'type' => 'string',
+				'client_id'  => [
+					'required'          => true,
+					'type'              => 'string',
 					'validate_callback' => 'rest_validate_request_arg',
 				],
-				'code' => [
-					'required' => true,
-					'type' => 'string',
+				'code'       => [
+					'required'          => true,
+					'type'              => 'string',
 					'validate_callback' => 'rest_validate_request_arg',
 				],
 			],
@@ -58,9 +58,10 @@ class Token {
 		if ( empty( $client ) ) {
 			return new WP_Error(
 				'oauth2.endpoints.token.exchange_token.invalid_client',
+				/* translators: %s: client ID */
 				sprintf( __( 'Client ID %s is invalid.', 'oauth2' ), $request['client_id'] ),
 				[
-					'status' => WP_Http::BAD_REQUEST,
+					'status'    => WP_Http::BAD_REQUEST,
 					'client_id' => $request['client_id'],
 				]
 			);

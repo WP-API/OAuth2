@@ -57,20 +57,30 @@ $url = $_SERVER['REQUEST_URI'];
 
 <form name="oauth2_authorize_form" id="oauth2_authorize_form" action="<?php echo esc_url( $url ); ?>" method="post">
 
-	<h2 class="login-title"><?php echo esc_html( sprintf( __( 'Connect %1$s', 'oauth2' ), $client->get_name() ) ) ?></h2>
+	<?php
+	printf(
+		'<h2 class="login-title">%s</h2>',
+		esc_html( sprintf(
+			/* translators: %1$s: client name */
+			__( 'Connect %1$s', 'oauth2' ),
+			$client->get_name()
+		) )
+	);
+	?>
 
 	<div class="login-info">
 
 		<?php echo get_avatar( $current_user->ID, '78' ); ?>
 
-		<p><?php
-			printf(
-				__( 'Howdy <strong>%1$s</strong>,<br/> "%2$s" would like to connect to %3$s.', 'oauth2' ),
-				$current_user->user_login,
-				$client->get_name(),
-				get_bloginfo( 'name' )
-			)
-		?></p>
+		<?php
+		printf(
+			/* translators: %1$s: user login, %2$s: client name, %3$s: site name */
+			'<p>' . __( 'Howdy <strong>%1$s</strong>,<br/> "%2$s" would like to connect to %3$s.', 'oauth2' ) . '</p>',
+			$current_user->user_login,
+			$client->get_name(),
+			get_bloginfo( 'name' )
+		);
+		?>
 
 	</div>
 
