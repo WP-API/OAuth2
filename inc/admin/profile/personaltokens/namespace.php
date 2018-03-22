@@ -20,9 +20,9 @@ function bootstrap() {
  * @return string
  */
 function get_page_url( $args = [] ) {
-	$url = admin_url( 'profile.php' );
+	$url            = admin_url( 'profile.php' );
 	$args['action'] = ACCESS_TOKENS_PAGE_SLUG;
-	$url = add_query_arg( urlencode_deep( $args ), $url );
+	$url            = add_query_arg( urlencode_deep( $args ), $url );
 	return $url;
 }
 
@@ -34,7 +34,7 @@ function get_page_url( $args = [] ) {
 function bootstrap_profile_page() {
 	global $user_id, $submenu_file, $parent_file;
 	$user_id = null;
-	if ( ! empty( $_REQUEST['user_id'] ) ) {
+	if ( ! empty( $_REQUEST['user_id'] ) ) { // WPCS: CSRF OK
 		$user_id = (int) $_REQUEST['user_id'];
 	}
 
@@ -166,10 +166,10 @@ function handle_page_action( WP_User $user ) {
  */
 function handle_create( WP_User $user, $name ) {
 	$client = PersonalClient::get_instance();
-	$meta = [
+	$meta   = [
 		'name' => $name,
 	];
-	$token = $client->issue_token( $user, $meta );
+	$token  = $client->issue_token( $user, $meta );
 
 	render_create_success( $user, $token );
 }

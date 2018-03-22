@@ -77,7 +77,7 @@ function render_profile_section( WP_User $user ) {
  * Render a single row.
  */
 function render_token_row( WP_User $user, Access_Token $token ) {
-	$client = $token->get_client();
+	$client      = $token->get_client();
 	$is_personal = $client instanceof PersonalClient;
 
 	if ( $is_personal ) {
@@ -106,6 +106,7 @@ function render_token_row( WP_User $user, Access_Token $token ) {
 	// Build actions.
 	if ( $is_personal ) {
 		$button_title = sprintf(
+			/* translators: %s: personal token name */
 			__( 'Revoke personal token "%s"', 'oauth2' ),
 			esc_html( $token_name )
 		);
