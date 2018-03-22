@@ -56,10 +56,10 @@ class ListTable extends WP_List_Table {
 	public function column_cb( $item ) {
 		?>
 		<label class="screen-reader-text"
-			   for="cb-select-<?php echo esc_attr( $item->ID ) ?>"><?php esc_html_e( 'Select consumer', 'oauth2' ); ?></label>
+			for="cb-select-<?php echo esc_attr( $item->ID ); ?>"><?php esc_html_e( 'Select consumer', 'oauth2' ); ?></label>
 
 		<input id="cb-select-<?php echo esc_attr( $item->ID ) ?>" type="checkbox"
-			   name="consumers[]" value="<?php echo esc_attr( $item->ID ) ?>"/>
+			name="consumers[]" value="<?php echo esc_attr( $item->ID ); ?>"/>
 
 		<?php
 	}
@@ -92,7 +92,7 @@ class ListTable extends WP_List_Table {
 		);
 		$delete_link = wp_nonce_url( $delete_link, 'rest-oauth2-delete:' . $item->ID );
 
-		$actions     = [
+		$actions = [
 			'edit'   => sprintf( '<a href="%s">%s</a>', esc_url( $edit_link ), esc_html__( 'Edit', 'oauth2' ) ),
 			'delete' => sprintf( '<a href="%s">%s</a>', esc_url( $delete_link ), esc_html__( 'Delete', 'oauth2' ) ),
 		];
@@ -101,13 +101,14 @@ class ListTable extends WP_List_Table {
 		if ( current_user_can( $post_type_object->cap->publish_posts ) && $item->post_status !== 'publish' ) {
 			$publish_link = add_query_arg(
 				[
-					'page' => 'rest-oauth2-apps',
+					'page'   => 'rest-oauth2-apps',
 					'action' => 'approve',
-					'id' => $item->ID,
+					'id'   => $item->ID,
 				],
 				admin_url( 'users.php' )
 			);
-			$publish_link = wp_nonce_url( $publish_link, 'rest-oauth2-approve:' . $item->ID );
+
+			$publish_link          = wp_nonce_url( $publish_link, 'rest-oauth2-approve:' . $item->ID );
 			$actions['app-approve'] = sprintf(
 				'<a href="%s">%s</a>',
 				esc_url( $publish_link ),

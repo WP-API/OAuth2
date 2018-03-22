@@ -116,8 +116,8 @@ function attempt_authentication( $user = null ) {
 
 	// Attempt to find the token.
 	$is_querying_token = true;
-	$token = Tokens\get_by_id( $token_value );
-	$client = $token->get_client();
+	$token             = Tokens\get_by_id( $token_value );
+	$client            = $token->get_client();
 	$is_querying_token = false;
 
 	if ( empty( $token ) || empty( $client ) ) {

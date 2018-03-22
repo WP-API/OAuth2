@@ -15,7 +15,7 @@ function bootstrap() {
 	add_action( 'show_user_profile', __NAMESPACE__ . '\\render_profile_section' );
 	add_action( 'edit_user_profile', __NAMESPACE__ . '\\render_profile_section' );
 	add_action( 'all_admin_notices', __NAMESPACE__ . '\\output_profile_messages' );
-	add_action( 'personal_options_update',  __NAMESPACE__ . '\\handle_revocation', 10, 1 );
+	add_action( 'personal_options_update', __NAMESPACE__ . '\\handle_revocation', 10, 1 );
 	add_action( 'edit_user_profile_update', __NAMESPACE__ . '\\handle_revocation', 10, 1 );
 }
 
@@ -77,7 +77,7 @@ function render_token_row( WP_User $user, Access_Token $token ) {
 	 * @param Access_Token $token Token being displayed.
 	 * @param WP_User $user User whose profile is being rendered.
 	 */
-	$details = apply_filters( 'oauth2.admin.profile.render_token_row.details', $details, $token, $user );
+	$details      = apply_filters( 'oauth2.admin.profile.render_token_row.details', $details, $token, $user );
 
 	// Build actions.
 	$button_title = sprintf(
@@ -85,7 +85,7 @@ function render_token_row( WP_User $user, Access_Token $token ) {
 		__( 'Revoke access for "%s"', 'oauth2' ),
 		$client->get_name()
 	);
-	$actions = [
+	$actions      = [
 		sprintf(
 			'<button class="button" name="oauth2_revoke" title="%s" value="%s">%s</button>',
 			$button_title,
@@ -156,7 +156,6 @@ function handle_revocation( $user_id ) {
 
 	$token = Access_Token::get_by_id( $key );
 	if ( empty( $token ) ) {
-		var_dump( $key, $token );
 		wp_safe_redirect( add_query_arg( 'oauth2_revocation_failed', true, get_edit_user_link( $user_id ) ) );
 		exit;
 	}

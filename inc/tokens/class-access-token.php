@@ -9,7 +9,7 @@ use WP_User_Query;
 
 class Access_Token extends Token {
 	const META_PREFIX = '_oauth2_access_';
-	const KEY_LENGTH = 12;
+	const KEY_LENGTH  = 12;
 
 	/**
 	 * @return string Meta prefix.
@@ -105,7 +105,7 @@ class Access_Token extends Token {
 			}
 
 			$real_key = substr( $key, strlen( static::META_PREFIX ) );
-			$value = maybe_unserialize( $values[0] );
+			$value    = maybe_unserialize( $values[0] );
 			$tokens[] = new static( $user, $real_key, $value );
 		}
 		return $tokens;
@@ -131,7 +131,7 @@ class Access_Token extends Token {
 			'client'  => $client->get_id(),
 			'created' => time(),
 		];
-		$key = wp_generate_password( static::KEY_LENGTH, false );
+		$key      = wp_generate_password( static::KEY_LENGTH, false );
 		$meta_key = static::META_PREFIX . $key;
 
 		$result = add_user_meta( $user->ID, wp_slash( $meta_key ), wp_slash( $data ), true );
