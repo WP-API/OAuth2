@@ -57,7 +57,16 @@ $url = $_SERVER['REQUEST_URI'];
 
 <form name="oauth2_authorize_form" id="oauth2_authorize_form" action="<?php echo esc_url( $url ); ?>" method="post">
 
-	<h2 class="login-title"><?php echo esc_html( sprintf( __( 'Connect %1$s', 'oauth2' ), $client->get_name() ) ) ?></h2>
+	<?php
+	printf(
+		'<h2 class="login-title">%s</h2>',
+		esc_html( sprintf(
+			/* translators: %1$s: client name */
+			__( 'Connect %1$s', 'oauth2' ),
+			$client->get_name()
+		) )
+	);
+	?>
 
 	<div class="login-info">
 
