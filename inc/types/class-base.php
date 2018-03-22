@@ -35,10 +35,10 @@ abstract class Base implements Type {
 		}
 
 		// Gather parameters.
-		$client_id    = wp_unslash( $_GET['client_id'] );
-		$redirect_uri = isset( $_GET['redirect_uri'] ) ? wp_unslash( $_GET['redirect_uri'] ) : null;
-		$scope        = isset( $_GET['scope'] ) ? wp_unslash( $_GET['scope'] ) : null;
-		$state        = isset( $_GET['state'] ) ? wp_unslash( $_GET['state'] ) : null;
+		$client_id    = wp_unslash( $_GET['client_id'] ); // WPCS: XSS OK
+		$redirect_uri = isset( $_GET['redirect_uri'] ) ? wp_unslash( $_GET['redirect_uri'] ) : null; // WPCS: XSS OK
+		$scope        = isset( $_GET['scope'] ) ? wp_unslash( $_GET['scope'] ) : null; // WPCS: XSS OK
+		$state        = isset( $_GET['state'] ) ? wp_unslash( $_GET['state'] ) : null; // WPCS: XSS OK
 
 		$client = Client::get_by_id( $client_id );
 		if ( empty( $client ) ) {

@@ -18,8 +18,8 @@ class Authorization {
 
 	public function handle_request() {
 		// If the form hasn't been submitted, show it.
-		if ( isset( $_GET['response_type'] ) ) {
-			$type = wp_unslash( $_GET['response_type'] );
+		if ( isset( $_GET['response_type'] ) ) { // WPCS: XSS OK
+			$type = wp_unslash( $_GET['response_type'] ); // WPCS: XSS OK
 		} else {
 			$type = null;
 		}

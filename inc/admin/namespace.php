@@ -47,7 +47,7 @@ function get_url( $params = [] ) {
  * @return string One of 'add', 'edit', 'delete', or '' for default (list)
  */
 function get_page_action() {
-	return isset( $_GET['action'] ) ? $_GET['action'] : '';
+	return isset( $_GET['action'] ) ? $_GET['action'] : ''; // WPCS: XSS OK
 }
 
 /**
@@ -118,9 +118,9 @@ function render() {
 			?>
 		</h2>
 		<?php
-		if ( ! empty( $_GET['deleted'] ) ) {
+		if ( ! empty( $_GET['deleted'] ) ) { // WPCS: XSS OK
 			echo '<div id="message" class="updated"><p>' . esc_html__( 'Deleted application.', 'oauth2' ) . '</p></div>';
-		} elseif ( ! empty( $_GET['approved'] ) ) {
+		} elseif ( ! empty( $_GET['approved'] ) ) { // WPCS: XSS OK
 			echo '<div id="message" class="updated"><p>' . esc_html__( 'Approved application.', 'oauth2' ) . '</p></div>';
 		}
 		?>
