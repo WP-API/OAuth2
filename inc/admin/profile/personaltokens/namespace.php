@@ -4,6 +4,7 @@ namespace WP\OAuth2\Admin\Profile\PersonalTokens;
 
 use WP\OAuth2\PersonalClient;
 use WP\OAuth2\Tokens\Access_Token;
+use WP_Error;
 use WP_User;
 
 const ACCESS_TOKENS_PAGE_SLUG = 'oauth2_personal_tokens';
