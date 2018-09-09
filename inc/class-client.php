@@ -9,7 +9,7 @@ use WP_Post;
 use WP_Query;
 use WP_User;
 
-class Client {
+class Client implements ClientInterface {
 	const POST_TYPE            = 'oauth2_client';
 	const CLIENT_SECRET_KEY    = '_oauth2_client_secret';
 	const TYPE_KEY             = '_oauth2_client_type';
@@ -259,11 +259,12 @@ class Client {
 	 * Issue token for a user.
 	 *
 	 * @param \WP_User $user
+	 * @param array $meta
 	 *
 	 * @return Access_Token
 	 */
-	public function issue_token( WP_User $user ) {
-		return Tokens\Access_Token::create( $this, $user );
+	public function issue_token( WP_User $user, $meta = [] ) {
+		return Tokens\Access_Token::create( $this, $user, $meta );
 	}
 
 	/**

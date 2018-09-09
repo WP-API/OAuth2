@@ -4,7 +4,7 @@ namespace WP\OAuth2\Endpoints;
 
 use WP_Error;
 use WP_Http;
-use WP\OAuth2\Client;
+use WP\OAuth2;
 use WP_REST_Request;
 
 /**
@@ -54,7 +54,7 @@ class Token {
 	 * @return array|WP_Error Token data on success, or error on failure.
 	 */
 	public function exchange_token( WP_REST_Request $request ) {
-		$client = Client::get_by_id( $request['client_id'] );
+		$client = OAuth2\get_client( $request['client_id'] );
 		if ( empty( $client ) ) {
 			return new WP_Error(
 				'oauth2.endpoints.token.exchange_token.invalid_client',

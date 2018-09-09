@@ -3,7 +3,8 @@
 namespace WP\OAuth2\Tokens;
 
 use WP_Error;
-use WP\OAuth2\Client;
+use WP\OAuth2;
+use WP\OAuth2\ClientInterface;
 use WP_User;
 use WP_User_Query;
 
@@ -21,10 +22,10 @@ class Access_Token extends Token {
 	/**
 	 * Get client for the token.
 	 *
-	 * @return Client|null
+	 * @return ClientInterface|null
 	 */
 	public function get_client() {
-		return Client::get_by_id( $this->value['client'] );
+		return OAuth2\get_client( $this->value['client'] );
 	}
 
 	/**
@@ -34,6 +35,43 @@ class Access_Token extends Token {
 	 */
 	public function get_creation_time() {
 		return $this->value['created'];
+	}
+
+	/**
+	 * Get a meta value for the token.
+	 *
+	 * This is used to store additional information on the token itself, such
+	 * as a description for the token.
+	 *
+	 * @param string $key Meta key to fetch.
+	 * @param mixed $default Value to return if key is unavailable.
+	 * @return mixed Value if available, or value of `$default` if not found.
+	 */
+	public function get_meta( $key, $default = null ) {
+		if ( empty( $this->value['meta'] ) || ! isset( $this->value['meta'][ $key ] ) ) {
+			return null;
+		}
+
+		return $this->value['meta'][ $key ];
+	}
+
+	/**
+	 * Set a meta value for the token.
+	 *
+	 * This is used to store additional information on the token itself, such
+	 * as a description for the token.
+	 *
+	 * @param string $key Meta key to set.
+	 * @param mixed $value Value to set on the key.
+	 * @return bool True if meta was set, false otherwise.
+	 */
+	public function set_meta( $key, $value ) {
+		if ( empty( $this->value['meta'] ) ) {
+			$this->value['meta'] = [];
+		}
+		$this->value['meta'][ $key ] = $value;
+
+		return update_user_meta( $this->get_user_id(), wp_slash( $this->get_meta_key() ), wp_slash( $this->value ) );
 	}
 
 	/**
@@ -120,7 +158,7 @@ class Access_Token extends Token {
 	 *
 	 * @return Access_Token|WP_Error Token instance, or error on failure.
 	 */
-	public static function create( Client $client, WP_User $user ) {
+	public static function create( ClientInterface $client, WP_User $user, $meta = [] ) {
 		if ( ! $user->exists() ) {
 			return new WP_Error(
 				'oauth2.tokens.access_token.create.no_user',
@@ -131,6 +169,7 @@ class Access_Token extends Token {
 		$data     = [
 			'client'  => $client->get_id(),
 			'created' => time(),
+			'meta'    => $meta,
 		];
 		$key      = wp_generate_password( static::KEY_LENGTH, false );
 		$meta_key = static::META_PREFIX . $key;
