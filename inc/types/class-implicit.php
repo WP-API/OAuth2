@@ -61,6 +61,13 @@ class Implicit extends Base {
 			$redirect_args['state'] = $data['state'];
 		}
 
+		$redirect_args = $this->filter_redirect_args(
+			$redirect_args,
+			$submit === 'authorize',
+			$client,
+			$data
+		);
+
 		$fragment           = build_query( $redirect_args );
 		$generated_redirect = $redirect_uri . '#' . $fragment;
 		wp_redirect( $generated_redirect );
