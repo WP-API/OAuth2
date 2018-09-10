@@ -119,7 +119,7 @@ function attempt_authentication( $user = null ) {
 	$token             = Tokens\get_by_id( $token_value );
 	if ( empty( $token ) ) {
 		$is_querying_token = false;
-		$oauth2_error = create_invalid_token_error( $token_value );
+		$oauth2_error      = create_invalid_token_error( $token_value );
 		return $user;
 	}
 
