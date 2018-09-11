@@ -154,4 +154,34 @@ abstract class Base implements Type {
 	protected function get_nonce_action( Client $client ) {
 		return sprintf( 'oauth2_authorize:%s', $client->get_id() );
 	}
+
+	/**
+	 * Filter the redirection args.
+	 *
+	 * @param array $redirect_args Redirect args.
+	 * @param boolean $authorized True if authorized, false otherwise.
+	 * @param Client $client Client being authorised.
+	 * @param array $data Data for the request.
+	 */
+	protected function filter_redirect_args( $redirect_args, $authorized, Client $client, $data ) {
+		if ( ! $authorized ) {
+			/**
+			 * Filter the redirect args when the user has cancelled.
+			 *
+			 * @param array $redirect_args Redirect args.
+			 * @param Client $client Client being authorised.
+			 * @param array $data Data for the request.
+			 */
+			return apply_filters( 'oauth2.redirect_args.cancelled', $redirect_args, $client, $data );
+		}
+
+		/**
+		 * Filter the redirect args when the user has authorized.
+		 *
+		 * @param array $redirect_args Redirect args.
+		 * @param Client $client Client being authorised.
+		 * @param array $data Data for the request.
+		 */
+		return apply_filters( 'oauth2.redirect_args.authorized', $redirect_args, $client, $data );
+	}
 }
