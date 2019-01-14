@@ -66,34 +66,45 @@ abstract class Base implements Type {
 			exit;
 		}
 
-		if ( empty( $_POST['_wpnonce'] ) ) {
-			return $this->render_form( $client );
-		}
+		/**
+		 * Filter the requirement for a user to authorize the oauth client application.
+		 *
+		 * @param bool Require user authorization
+		 * @param Client $client Client being authorized
+		 * @param string $scope Requested scope
+		 */
+		if ( apply_filters( 'oauth2.authorization.client_requires_user_authorization', true, $client, $scope ) ) {
+			if ( empty( $_POST['_wpnonce'] ) ) {
+				return $this->render_form( $client );
+			}
 
-		// Check nonce.
-		$nonce_action = $this->get_nonce_action( $client );
-		if ( ! wp_verify_nonce( wp_unslash( $_POST['_wpnonce'] ), $nonce_action ) ) {
-			return new WP_Error(
-				'oauth2.types.authorization_code.handle_authorisation.invalid_nonce',
-				__( 'Invalid nonce.', 'oauth2' )
-			);
-		}
+			// Check nonce.
+			$nonce_action = $this->get_nonce_action( $client );
+			if ( ! wp_verify_nonce( wp_unslash( $_POST['_wpnonce'] ), $nonce_action ) ) {
+				return new WP_Error(
+					'oauth2.types.authorization_code.handle_authorisation.invalid_nonce',
+					__( 'Invalid nonce.', 'oauth2' )
+				);
+			}
 
-		if ( empty( $_POST['wp-submit'] ) ) {
-			// Submitted, but button not selected...
-			$error = new WP_Error(
-				'oauth2.types.authorization_code.handle_authorisation.invalid_submit',
-				sprintf(
-					/* translators: %1$s is the translated "Authorize" button, %2$s is the translated "Cancel" button */
-					__( 'Select either %1$s or %2$s to continue.', 'oauth2' ),
-					__( 'Authorize', 'oauth2' ),
-					__( 'Cancel', 'oauth2' )
-				)
-			);
-			return $this->render_form( $client, $error );
-		}
+			if ( empty( $_POST['wp-submit'] ) ) {
+				// Submitted, but button not selected...
+				$error = new WP_Error(
+					'oauth2.types.authorization_code.handle_authorisation.invalid_submit',
+					sprintf(
+						/* translators: %1$s is the translated "Authorize" button, %2$s is the translated "Cancel" button */
+						__( 'Select either %1$s or %2$s to continue.', 'oauth2' ),
+						__( 'Authorize', 'oauth2' ),
+						__( 'Cancel', 'oauth2' )
+					)
+				);
+				return $this->render_form( $client, $error );
+			}
 
-		$submit = wp_unslash( $_POST['wp-submit'] );
+			$submit = wp_unslash( $_POST['wp-submit'] );
+		} else {
+			$submit = 'authorize';
+		}
 
 		$data = compact( 'redirect_uri', 'scope', 'state' );
 		return $this->handle_authorization_submission( $submit, $client, $data );
