@@ -19,7 +19,7 @@
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: oauth2
  * Domain Path: /languages
- * Requires WP:  4.8
+ * Requires at least:  4.8
  * Requires PHP: 5.6
  */
 
