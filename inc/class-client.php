@@ -15,15 +15,15 @@ use WP_Query;
 use WP_User;
 
 class Client implements ClientInterface {
-	const POST_TYPE = 'oauth2_client';
-	const CLIENT_SECRET_KEY = '_oauth2_client_secret';
-	const TYPE_KEY = '_oauth2_client_type';
-	const REDIRECT_URI_KEY = '_oauth2_redirect_uri';
+	const POST_TYPE            = 'oauth2_client';
+	const CLIENT_SECRET_KEY    = '_oauth2_client_secret';
+	const TYPE_KEY             = '_oauth2_client_type';
+	const REDIRECT_URI_KEY     = '_oauth2_redirect_uri';
 	const AUTH_CODE_KEY_PREFIX = '_oauth2_authcode_';
-	const AUTH_CODE_LENGTH = 12;
-	const CLIENT_ID_LENGTH = 12;
+	const AUTH_CODE_LENGTH     = 12;
+	const CLIENT_ID_LENGTH     = 12;
 	const CLIENT_SECRET_LENGTH = 48;
-	const AUTH_CODE_AGE = 600; // 10 * MINUTE_IN_SECONDS
+	const AUTH_CODE_AGE        = 600; // 10 * MINUTE_IN_SECONDS
 
 	/**
 	 * @var WP_Post

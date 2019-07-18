@@ -15,7 +15,7 @@ use WP_User_Query;
 
 class Access_Token extends Token {
 	const META_PREFIX = '_oauth2_access_';
-	const KEY_LENGTH = 12;
+	const KEY_LENGTH  = 12;
 
 	/**
 	 * @return string Meta prefix.
