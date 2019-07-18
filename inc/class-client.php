@@ -201,6 +201,18 @@ class Client implements ClientInterface {
 			/**
 			 * Filter whether a callback is counted as valid.
 			 *
+			 * @param boolean $valid          True if the callback URL is valid, false otherwise.
+			 * @param string  $url            Supplied callback URL.
+			 * @param string  $registered_uri URI being checked.
+			 * @param Client  $client         OAuth 2 client object.
+			 *
+			 * @deprecated
+			 */
+			$valid = apply_filters_deprecated( 'rest_oauth.check_callback', $valid, $uri, $registered_uri, $this );// phpcs:ignore WordPress.NamingConventions.ValidHookName.UseUnderscores
+
+			/**
+			 * Filter whether a callback is counted as valid.
+			 *
 			 * By default, the URLs must match scheme, host, port, user, pass, and
 			 * path. Query and fragment segments are allowed to be different.
 			 *
@@ -209,12 +221,13 @@ class Client implements ClientInterface {
 			 * highly recommended not to change this behaviour, as clients will
 			 * expect the same behaviour across all WP sites.
 			 *
-			 * @param boolean $valid True if the callback URL is valid, false otherwise.
-			 * @param string $url Supplied callback URL.
-			 * @param string $registered_uri URI being checked.
-			 * @param Client $client OAuth 2 client object.
+			 * @param boolean $valid          True if the callback URL is valid, false otherwise.
+			 * @param string  $url            Supplied callback URL.
+			 * @param string  $registered_uri URI being checked.
+			 * @param Client  $client         OAuth 2 client object.
 			 */
-			$valid = apply_filters( 'rest_oauth.check_callback', $valid, $uri, $registered_uri, $this );
+			$valid = apply_filters( 'rest_oauth_check_callback', $valid, $uri, $registered_uri, $this );
+
 			if ( $valid ) {
 				// Stop checking, we have a match.
 				return true;
