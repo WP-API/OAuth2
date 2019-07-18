@@ -1,7 +1,7 @@
 <?php
 /**
  *
- * @package WordPress
+ * @package    WordPress
  * @subpackage JSON API
  */
 

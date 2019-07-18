@@ -2,7 +2,7 @@
 /**
  * Administration UI and utilities
  *
- * @package WordPress
+ * @package    WordPress
  * @subpackage JSON API
  */
 
@@ -63,18 +63,20 @@ function render_profile_section( WP_User $user ) {
 			?>
 			</tbody>
 			<tfoot>
-				<tr>
-					<td colspan="2">
-						<a href="<?php echo esc_url( $personal_url ); ?>">
-							<?php esc_html_e( 'Create personal access token', 'oauth2' ); ?>
-						</a>
-					</td>
-				</tr>
+			<tr>
+				<td colspan="2">
+					<a href="<?php echo esc_url( $personal_url ); ?>">
+						<?php esc_html_e( 'Create personal access token', 'oauth2' ); ?>
+					</a>
+				</td>
+			</tr>
 			</tfoot>
 		</table>
 	<?php else : ?>
 		<p class="description"><?php esc_html_e( 'No applications authorized.', 'oauth2' ); ?></p>
-		<p><a href="<?php echo esc_url( $personal_url ); ?>"><?php esc_html_e( 'Create personal access token', 'oauth2' ); ?></a></p>
+		<p>
+			<a href="<?php echo esc_url( $personal_url ); ?>"><?php esc_html_e( 'Create personal access token', 'oauth2' ); ?></a>
+		</p>
 	<?php endif ?>
 	<?php
 }
@@ -106,21 +108,11 @@ function render_token_row( WP_User $user, Access_Token $token ) {
 	/**
 	 * Filter details shown for an access token on the profile screen.
 	 *
-	 * @deprecated
-	 * @param string[] $details List of HTML snippets to render in table.
-	 * @param Access_Token $token Token being displayed.
-	 * @param WP_User $user User whose profile is being rendered.
+	 * @param string[]     $details List of HTML snippets to render in table.
+	 * @param Access_Token $token   Token being displayed.
+	 * @param WP_User      $user    User whose profile is being rendered.
 	 */
-	$details = apply_filters_deprecated( 'oauth2.admin.profile.render_token_row.details', $details, $token, $user ); // phpcs:ignore WordPress.NamingConventions.ValidHookName.UseUnderscores
-
-	/**
-	 * Filter details shown for an access token on the profile screen.
-	 *
-	 * @param string[] $details List of HTML snippets to render in table.
-	 * @param Access_Token $token Token being displayed.
-	 * @param WP_User $user User whose profile is being rendered.
-	 */
-	$details = apply_filters( 'oauth2_admin_profile_render_token_row_details', $details, $token, $user );
+	$details = apply_filters( 'oauth2.admin.profile.render_token_row.details', $details, $token, $user );
 
 	// Build actions.
 	if ( $is_personal ) {
@@ -149,21 +141,11 @@ function render_token_row( WP_User $user, Access_Token $token ) {
 	/**
 	 * Filter actions shown for an access token on the profile screen.
 	 *
-	 * @deprecated
-	 * @param string[] $actions List of HTML snippets to render in table.
-	 * @param Access_Token $token Token being displayed.
-	 * @param WP_User $user User whose profile is being rendered.
+	 * @param string[]     $actions List of HTML snippets to render in table.
+	 * @param Access_Token $token   Token being displayed.
+	 * @param WP_User      $user    User whose profile is being rendered.
 	 */
-	$actions = apply_filters_deprecated( 'oauth2.admin.profile.render_token_row.actions', $actions, $token, $user ); // phpcs:ignore WordPress.NamingConventions.ValidHookName.UseUnderscores
-
-	/**
-	 * Filter actions shown for an access token on the profile screen.
-	 *
-	 * @param string[] $actions List of HTML snippets to render in table.
-	 * @param Access_Token $token Token being displayed.
-	 * @param WP_User $user User whose profile is being rendered.
-	 */
-	$actions = apply_filters( 'oauth2_admin_profile_render_token_row_actions', $actions, $token, $user );
+	$actions = apply_filters( 'oauth2.admin.profile.render_token_row.actions', $actions, $token, $user );
 
 	$name = sprintf( '<strong>%s</strong>', $client->get_name() );
 	if ( $is_personal ) {

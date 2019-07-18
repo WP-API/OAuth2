@@ -23,5 +23,6 @@
 	<rule ref="WordPress">
 		<exclude name="Generic.Commenting" />
 		<exclude name="Squiz.Commenting" />
+		<exclude name="WordPress.NamingConventions.ValidHookName.UseUnderscores" />
 	</rule>
 </ruleset>

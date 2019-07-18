@@ -1,7 +1,7 @@
 <?php
 /**
  *
- * @package WordPress
+ * @package    WordPress
  * @subpackage JSON API
  */
 
@@ -15,7 +15,7 @@ use WP_User_Query;
 
 class Access_Token extends Token {
 	const META_PREFIX = '_oauth2_access_';
-	const KEY_LENGTH  = 12;
+	const KEY_LENGTH = 12;
 
 	/**
 	 * @return string Meta prefix.
@@ -48,8 +48,9 @@ class Access_Token extends Token {
 	 * This is used to store additional information on the token itself, such
 	 * as a description for the token.
 	 *
-	 * @param string $key Meta key to fetch.
+	 * @param string $key     Meta key to fetch.
 	 * @param mixed  $default Value to return if key is unavailable.
+	 *
 	 * @return mixed Value if available, or value of `$default` if not found.
 	 */
 	public function get_meta( $key, $default = null ) {
@@ -66,8 +67,9 @@ class Access_Token extends Token {
 	 * This is used to store additional information on the token itself, such
 	 * as a description for the token.
 	 *
-	 * @param string $key Meta key to set.
+	 * @param string $key   Meta key to set.
 	 * @param mixed  $value Value to set on the key.
+	 *
 	 * @return bool True if meta was set, false otherwise.
 	 */
 	public function set_meta( $key, $value ) {
@@ -82,9 +84,9 @@ class Access_Token extends Token {
 	/**
 	 * Revoke the token.
 	 *
+	 * @return bool|WP_Error True if succeeded, error otherwise.
 	 * @internal This may return other error codes in the future, as we may
 	 *           need to also revoke refresh tokens.
-	 * @return bool|WP_Error True if succeeded, error otherwise.
 	 */
 	public function revoke() {
 		$success = delete_user_meta( $this->get_user_id(), $this->get_meta_key() );
@@ -102,6 +104,7 @@ class Access_Token extends Token {
 	 * Get a token by ID.
 	 *
 	 * @param string $id Token ID.
+	 *
 	 * @return static|null Token if ID is found, null otherwise.
 	 */
 	public static function get_by_id( $id ) {
@@ -152,6 +155,7 @@ class Access_Token extends Token {
 			$value    = maybe_unserialize( $values[0] );
 			$tokens[] = new static( $user, $real_key, $value );
 		}
+
 		return $tokens;
 	}
 

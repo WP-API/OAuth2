@@ -1,7 +1,7 @@
 <?php
 /**
  *
- * @package WordPress
+ * @package    WordPress
  * @subpackage JSON API
  */
 
@@ -46,7 +46,6 @@ function rest_oauth2_load_authorize_page() {
  * @return Type[] Map of grant type to handler object.
  */
 function get_grant_types() {
-	$grant_types = apply_filters_deprecated( 'oauth2.grant_types', [] ); // phpcs:ignore WordPress.NamingConventions.ValidHookName.UseUnderscores
 
 	/**
 	 * Filter valid grant types.
@@ -57,7 +56,7 @@ function get_grant_types() {
 	 *
 	 * @param Type[] $grant_types Map of grant type to handler object.
 	 */
-	$grant_types = apply_filters( 'oauth2_grant_types', $grant_types );
+	$grant_types = apply_filters( 'oauth2.grant_types', [] );
 
 	foreach ( $grant_types as $type => $handler ) {
 		if ( ! $handler instanceof Type ) {
@@ -77,6 +76,7 @@ function get_grant_types() {
  * Callback for the oauth2.grant_types hook.
  *
  * @param array $types Existing grant types.
+ *
  * @return array Grant types with additional types registered.
  */
 function register_grant_types( $types ) {
@@ -90,6 +90,7 @@ function register_grant_types( $types ) {
  * Register the OAuth 2 authentication scheme in the API index.
  *
  * @param WP_REST_Response $response Index response object.
+ *
  * @return WP_REST_Response Update index repsonse object.
  */
 function register_in_index( WP_REST_Response $response ) {
@@ -104,6 +105,7 @@ function register_in_index( WP_REST_Response $response ) {
 	];
 
 	$response->set_data( $data );
+
 	return $response;
 }
 
@@ -121,14 +123,7 @@ function get_authorization_url() {
 	 *
 	 * @param string $url URL for the OAuth 2 authorization endpoint.
 	 */
-	$url = apply_filters_deprecated( 'oauth2.get_authorization_url', $url ); // phpcs:ignore WordPress.NamingConventions.ValidHookName.UseUnderscores
-
-	/**
-	 * Filter the authorization URL.
-	 *
-	 * @param string $url URL for the OAuth 2 authorization endpoint.
-	 */
-	return apply_filters( 'oauth2_get_authorization_url', $url );
+	return apply_filters( 'oauth2.get_authorization_url', $url );
 }
 
 /**
@@ -144,20 +139,14 @@ function get_token_url() {
 	 *
 	 * @param string $url URL for the OAuth 2 token endpoint.
 	 */
-	$url = apply_filters_deprecated( 'oauth2.get_token_url', $url ); // phpcs:ignore WordPress.NamingConventions.ValidHookName.UseUnderscores
-
-	/**
-	 * Filter the token URL.
-	 *
-	 * @param string $url URL for the OAuth 2 token endpoint.
-	 */
-	return apply_filters( 'oauth2_get_token_url', $url );
+	return apply_filters( 'oauth2.get_token_url', $url );
 }
 
 /**
  * Get a client by ID.
  *
  * @param string $id ID for the client.
+ *
  * @return ClientInterface Client instance.
  */
 function get_client( $id ) {

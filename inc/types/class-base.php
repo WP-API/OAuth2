@@ -178,40 +178,20 @@ abstract class Base implements Type {
 			/**
 			 * Filter the redirect args when the user has cancelled.
 			 *
-			 * @deprecated
 			 * @param array $redirect_args Redirect args.
 			 * @param Client $client Client being authorised.
 			 * @param array $data Data for the request.
 			 */
-			$redirect_args = apply_filters_deprecated( 'oauth2.redirect_args.cancelled', $redirect_args, $client, $data ); // phpcs:ignore WordPress.NamingConventions.ValidHookName.UseUnderscores
-
-			/**
-			 * Filter the redirect args when the user has cancelled.
-			 *
-			 * @param array $redirect_args Redirect args.
-			 * @param Client $client Client being authorised.
-			 * @param array $data Data for the request.
-			 */
-			return apply_filters( 'oauth2_redirect_args_cancelled', $redirect_args, $client, $data );
+			return apply_filters( 'oauth2.redirect_args.cancelled', $redirect_args, $client, $data );
 		}
 
 		/**
 		 * Filter the redirect args when the user has authorized.
 		 *
-		 * @deprecated
 		 * @param array $redirect_args Redirect args.
 		 * @param Client $client Client being authorised.
 		 * @param array $data Data for the request.
 		 */
-		$redirect_args = apply_filters_deprecated( 'oauth2.redirect_args.authorized', $redirect_args, $client, $data ); // phpcs:ignore WordPress.NamingConventions.ValidHookName.UseUnderscores
-
-		/**
-		 * Filter the redirect args when the user has authorized.
-		 *
-		 * @param array $redirect_args Redirect args.
-		 * @param Client $client Client being authorised.
-		 * @param array $data Data for the request.
-		 */
-		return apply_filters( 'oauth2_redirect_args_authorized', $redirect_args, $client, $data );
+		return apply_filters( 'oauth2.redirect_args.authorized', $redirect_args, $client, $data );
 	}
 }
