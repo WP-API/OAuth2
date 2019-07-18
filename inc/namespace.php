@@ -49,8 +49,22 @@ function get_grant_types() {
 	 * OAuth 2 specification.
 	 *
 	 * @param Type[] $grant_types Map of grant type to handler object.
+	 *
+	 * @deprecated
 	 */
-	$grant_types = apply_filters( 'oauth2.grant_types', [] );
+	$grant_types = apply_filters_deprecated( 'oauth2.grant_types', [] ); // phpcs:ignore WordPress.NamingConventions.ValidHookName.UseUnderscores
+
+	/**
+	 * Filter valid grant types.
+	 *
+	 * Default supported grant types are added in register_grant_types().
+	 * Note that additional grant types must follow the extension policy in the
+	 * OAuth 2 specification.
+	 *
+	 * @param Type[] $grant_types Map of grant type to handler object.
+	 */
+	$grant_types = apply_filters( 'oauth2_grant_types', $grant_types );
+
 	foreach ( $grant_types as $type => $handler ) {
 		if ( ! $handler instanceof Type ) {
 			/* translators: 1: Grant type name, 2: Grant type interface */
@@ -109,11 +123,22 @@ function get_authorization_url() {
 	$url = add_query_arg( 'action', 'oauth2_authorize', $url );
 
 	/**
+	 * Filter the authorization URL. (deprecated).
+	 *
+	 * @param string $url URL for the OAuth 2 authorization endpoint.
+	 *
+	 * @deprecated
+	 */
+	$url = apply_filters_deprecated( 'oauth2.get_authorization_url', $url ); // phpcs:ignore WordPress.NamingConventions.ValidHookName.UseUnderscores
+
+	/**
 	 * Filter the authorization URL.
 	 *
 	 * @param string $url URL for the OAuth 2 authorization endpoint.
 	 */
-	return apply_filters( 'oauth2.get_authorization_url', $url );
+	$url = apply_filters( 'oauth2_get_authorization_url', $url );
+
+	return $url;
 }
 
 /**
@@ -128,8 +153,19 @@ function get_token_url() {
 	 * Filter the token URL.
 	 *
 	 * @param string $url URL for the OAuth 2 token endpoint.
+	 *
+	 * @deprecated
 	 */
-	return apply_filters( 'oauth2.get_token_url', $url );
+	$url = apply_filters_deprecated( 'oauth2.get_token_url', $url ); // phpcs:ignore WordPress.NamingConventions.ValidHookName.UseUnderscores
+
+	/**
+	 * Filter the token URL.
+	 *
+	 * @param string $url URL for the OAuth 2 token endpoint.
+	 */
+	$url = apply_filters( 'oauth2_get_token_url', $url );
+
+	return $url;
 }
 
 /**

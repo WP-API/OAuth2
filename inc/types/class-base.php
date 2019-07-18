@@ -10,14 +10,15 @@ abstract class Base implements Type {
 	/**
 	 * Handle submission of authorisation page.
 	 *
-	 * @param string $submit Value of the selected button.
-	 * @param Client $client Client being authorised.
-	 * @param array $data Data gathered for the request. {
-	 *     @var string $redirect_uri Specified redirection URI.
-	 *     @var string $scope Requested scope.
-	 *     @var string $state State parameter from the client.
-	 * }
+	 * @param string $submit       Value of the selected button.
+	 * @param Client $client       Client being authorised.
+	 * @param array  $data         Data gathered for the request. {
+	 *
 	 * @return WP_Error|void Method should output form and exit, or return encountered error.
+	 * @var string   $scope        Requested scope.
+	 * @var string   $state        State parameter from the client.
+	 * }
+	 * @var string   $redirect_uri Specified redirection URI.
 	 */
 	abstract protected function handle_authorization_submission( $submit, Client $client, $data );
 
@@ -84,26 +85,29 @@ abstract class Base implements Type {
 			$error = new WP_Error(
 				'oauth2.types.authorization_code.handle_authorisation.invalid_submit',
 				sprintf(
-					/* translators: %1$s is the translated "Authorize" button, %2$s is the translated "Cancel" button */
+				/* translators: %1$s is the translated "Authorize" button, %2$s is the translated "Cancel" button */
 					__( 'Select either %1$s or %2$s to continue.', 'oauth2' ),
 					__( 'Authorize', 'oauth2' ),
 					__( 'Cancel', 'oauth2' )
 				)
 			);
+
 			return $this->render_form( $client, $error );
 		}
 
 		$submit = wp_unslash( $_POST['wp-submit'] );
 
 		$data = compact( 'redirect_uri', 'scope', 'state' );
+
 		return $this->handle_authorization_submission( $submit, $client, $data );
 	}
 
 	/**
 	 * Validate the supplied redirect URI.
 	 *
-	 * @param Client $client Client to validate against.
+	 * @param Client      $client       Client to validate against.
 	 * @param string|null $redirect_uri Redirect URI, if supplied.
+	 *
 	 * @return string|WP_Error Valid redirect URI on success, error otherwise.
 	 */
 	protected function validate_redirect_uri( Client $client, $redirect_uri = null ) {
@@ -133,7 +137,7 @@ abstract class Base implements Type {
 	/**
 	 * Render the authorisation form.
 	 *
-	 * @param Client $client Client being authorised.
+	 * @param Client   $client Client being authorised.
 	 * @param WP_Error $errors Errors to display, if any.
 	 */
 	protected function render_form( Client $client, WP_Error $errors = null ) {
@@ -149,6 +153,7 @@ abstract class Base implements Type {
 	 * Get the nonce action for a client.
 	 *
 	 * @param Client $client Client to generate nonce for.
+	 *
 	 * @return string Nonce action for given client.
 	 */
 	protected function get_nonce_action( Client $client ) {
@@ -158,30 +163,56 @@ abstract class Base implements Type {
 	/**
 	 * Filter the redirection args.
 	 *
-	 * @param array $redirect_args Redirect args.
-	 * @param boolean $authorized True if authorized, false otherwise.
-	 * @param Client $client Client being authorised.
-	 * @param array $data Data for the request.
+	 * @param array   $redirect_args Redirect args.
+	 * @param boolean $authorized    True if authorized, false otherwise.
+	 * @param Client  $client        Client being authorised.
+	 * @param array   $data          Data for the request.
 	 */
 	protected function filter_redirect_args( $redirect_args, $authorized, Client $client, $data ) {
 		if ( ! $authorized ) {
 			/**
 			 * Filter the redirect args when the user has cancelled.
 			 *
-			 * @param array $redirect_args Redirect args.
-			 * @param Client $client Client being authorised.
-			 * @param array $data Data for the request.
+			 * @param array  $redirect_args Redirect args.
+			 * @param Client $client        Client being authorised.
+			 * @param array  $data          Data for the request.
+			 *
+			 * @deprecated
 			 */
-			return apply_filters( 'oauth2.redirect_args.cancelled', $redirect_args, $client, $data );
+			$redirect_args = apply_filters_deprecated( 'oauth2.redirect_args.cancelled', $redirect_args, $client, $data );  // phpcs:ignore WordPress.NamingConventions.ValidHookName.UseUnderscores
+
+			/**
+			 * Filter the redirect args when the user has cancelled.
+			 *
+			 * @param array  $redirect_args Redirect args.
+			 * @param Client $client        Client being authorised.
+			 * @param array  $data          Data for the request.
+			 */
+			$redirect_args = apply_filters( 'oauth2_redirect_args_cancelled', $redirect_args, $client, $data );
+
+			return $redirect_args;
 		}
 
 		/**
 		 * Filter the redirect args when the user has authorized.
 		 *
-		 * @param array $redirect_args Redirect args.
-		 * @param Client $client Client being authorised.
-		 * @param array $data Data for the request.
+		 * @param array  $redirect_args Redirect args.
+		 * @param Client $client        Client being authorised.
+		 * @param array  $data          Data for the request.
+		 *
+		 * @deprecated
 		 */
-		return apply_filters( 'oauth2.redirect_args.authorized', $redirect_args, $client, $data );
+		$redirect_args = apply_filters_deprecated( 'oauth2.redirect_args.authorized', $redirect_args, $client, $data );  // phpcs:ignore WordPress.NamingConventions.ValidHookName.UseUnderscores
+
+		/**
+		 * Filter the redirect args when the user has authorized.
+		 *
+		 * @param array  $redirect_args Redirect args.
+		 * @param Client $client        Client being authorised.
+		 * @param array  $data          Data for the request.
+		 */
+		$redirect_args = apply_filters( 'oauth2_redirect_args_authorized', $redirect_args, $client, $data );
+
+		return $redirect_args;
 	}
 }
