@@ -86,7 +86,6 @@ function load() {
 
 			return;
 	}
-
 }
 
 /**
@@ -342,7 +341,7 @@ function render_edit_page() {
 	$submenu_file = BASE_SLUG;
 	// phpcs:enable
 
-	include( ABSPATH . 'wp-admin/admin-header.php' );
+	include ABSPATH . 'wp-admin/admin-header.php';
 	?>
 
 	<div class="wrap">

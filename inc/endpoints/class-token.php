@@ -52,7 +52,7 @@ class Token {
 	 * @return bool Whether or not the grant type is valid.
 	 */
 	public function validate_grant_type( $type ) {
-		return $type === 'authorization_code';
+		return 'authorization_code' === $type;
 	}
 
 	/**

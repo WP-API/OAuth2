@@ -183,7 +183,7 @@ class Authorization_Code {
 	/**
 	 * Creates a new authorization code instance for the given client and user.
 	 *
-	 * @param Client $client
+	 * @param Client  $client
 	 * @param WP_User $user
 	 *
 	 * @return Authorization_Code|WP_Error Authorization code instance, or error on failure.

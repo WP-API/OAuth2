@@ -46,7 +46,7 @@ function render_profile_section( WP_User $user ) {
 	}
 
 	?>
-	<h2><?php _e( 'Authorized Applications', 'oauth2' ); ?></h2>
+	<h2><?php esc_html_e( 'Authorized Applications', 'oauth2' ); ?></h2>
 	<?php if ( ! empty( $tokens ) ) : ?>
 		<table class="widefat">
 			<thead>
@@ -156,7 +156,6 @@ function render_token_row( WP_User $user, Access_Token $token ) {
 	 */
 	$actions = apply_filters_deprecated( 'oauth2.admin.profile.render_token_row.actions', $actions, $token, $user ); // phpcs:ignore WordPress.NamingConventions.ValidHookName.UseUnderscores
 
-
 	/**
 	 * Filter actions shown for an access token on the profile screen.
 	 *
@@ -192,7 +191,7 @@ function render_token_row( WP_User $user, Access_Token $token ) {
  */
 function output_profile_messages() {
 	global $pagenow;
-	if ( $pagenow !== 'profile.php' && $pagenow !== 'user-edit.php' ) {
+	if ( 'profile.php' !== $pagenow && 'user-edit.php' !== $pagenow ) {
 		return;
 	}
 

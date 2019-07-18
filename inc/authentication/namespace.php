@@ -84,7 +84,7 @@ function get_token_from_request() {
 		return null;
 	}
 
-	$token = $_GET['access_token']; // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+	$token = $_GET['access_token']; // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput
 	if ( is_string( $token ) ) {
 		return $token;
 	}

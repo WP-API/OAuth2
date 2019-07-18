@@ -103,7 +103,7 @@ class ListTable extends WP_List_Table {
 		];
 
 		$post_type_object = get_post_type_object( $item->post_type );
-		if ( current_user_can( $post_type_object->cap->publish_posts ) && $item->post_status !== 'publish' ) {
+		if ( current_user_can( $post_type_object->cap->publish_posts ) && 'publish' !== $item->post_status ) {
 			$publish_link = add_query_arg(
 				[
 					'page'   => 'rest-oauth2-apps',

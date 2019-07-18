@@ -152,7 +152,6 @@ function render_page() {
  * Handle action from a form.
  */
 function handle_page_action( WP_User $user ) {
-
 	if ( ! isset( $_POST['oauth2_action'] ) ) {
 		return new WP_Error(
 			'rest_oauth2_invalid_action',

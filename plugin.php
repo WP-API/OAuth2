@@ -4,8 +4,8 @@
  *
  * @package     WordPress
  * @subpackage  JSON API
- * @author      WordPress Core Contributors (REST API Focus)
- * @copyright   2019 WordPress
+ * @author      Squiz Pty Ltd <products@squiz.net>
+ * @copyright   2019 Squiz Pty Ltd (ABN 77 084 670 600)
  * @license     GPL-2.0-or-later
  *
  * @oauth2

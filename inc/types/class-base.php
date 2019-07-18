@@ -17,7 +17,7 @@ abstract class Base implements Type {
 	 *
 	 * @param string $submit Value of the selected button.
 	 * @param Client $client Client being authorised.
-	 * @param array $data Data gathered for the request. {
+	 * @param array  $data Data gathered for the request. {
 	 *     @var string $redirect_uri Specified redirection URI.
 	 *     @var string $scope Requested scope.
 	 *     @var string $state State parameter from the client.
@@ -32,7 +32,6 @@ abstract class Base implements Type {
 	 * @return string|void|WP_Error|null
 	 */
 	public function handle_authorisation() {
-
 		if ( empty( $_GET['client_id'] ) ) {
 			return new WP_Error(
 				'oauth2.types.authorization_code.handle_authorisation.missing_client_id',
@@ -70,7 +69,7 @@ abstract class Base implements Type {
 		if ( ! is_user_logged_in() ) {
 			$redirect = '';
 			if ( isset( $_SERVER['REQUEST_URI'] ) ) {
-				$redirect = $_SERVER['REQUEST_URI']; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+				$redirect = $_SERVER['REQUEST_URI']; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
 			}
 			$url = wp_login_url( $redirect );
 			wp_safe_redirect( $url );
@@ -113,7 +112,7 @@ abstract class Base implements Type {
 	/**
 	 * Validate the supplied redirect URI.
 	 *
-	 * @param Client $client Client to validate against.
+	 * @param Client      $client Client to validate against.
 	 * @param string|null $redirect_uri Redirect URI, if supplied.
 	 * @return string|WP_Error Valid redirect URI on success, error otherwise.
 	 */
@@ -144,7 +143,7 @@ abstract class Base implements Type {
 	/**
 	 * Render the authorisation form.
 	 *
-	 * @param Client $client Client being authorised.
+	 * @param Client   $client Client being authorised.
 	 * @param WP_Error $errors Errors to display, if any.
 	 */
 	protected function render_form( Client $client, WP_Error $errors = null ) {
@@ -169,10 +168,10 @@ abstract class Base implements Type {
 	/**
 	 * Filter the redirection args.
 	 *
-	 * @param array $redirect_args Redirect args.
+	 * @param array   $redirect_args Redirect args.
 	 * @param boolean $authorized True if authorized, false otherwise.
-	 * @param Client $client Client being authorised.
-	 * @param array $data Data for the request.
+	 * @param Client  $client Client being authorised.
+	 * @param array   $data Data for the request.
 	 */
 	protected function filter_redirect_args( $redirect_args, $authorized, Client $client, $data ) {
 		if ( ! $authorized ) {
@@ -185,7 +184,6 @@ abstract class Base implements Type {
 			 * @param array $data Data for the request.
 			 */
 			$redirect_args = apply_filters_deprecated( 'oauth2.redirect_args.cancelled', $redirect_args, $client, $data ); // phpcs:ignore WordPress.NamingConventions.ValidHookName.UseUnderscores
-
 
 			/**
 			 * Filter the redirect args when the user has cancelled.

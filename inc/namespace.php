@@ -46,7 +46,6 @@ function rest_oauth2_load_authorize_page() {
  * @return Type[] Map of grant type to handler object.
  */
 function get_grant_types() {
-
 	$grant_types = apply_filters_deprecated( 'oauth2.grant_types', [] ); // phpcs:ignore WordPress.NamingConventions.ValidHookName.UseUnderscores
 
 	/**
@@ -162,7 +161,7 @@ function get_token_url() {
  * @return ClientInterface Client instance.
  */
 function get_client( $id ) {
-	if ( $id === PersonalClient::ID ) {
+	if ( PersonalClient::ID === $id ) {
 		return PersonalClient::get_instance();
 	}
 

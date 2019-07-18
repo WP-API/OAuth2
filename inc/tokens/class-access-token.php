@@ -49,7 +49,7 @@ class Access_Token extends Token {
 	 * as a description for the token.
 	 *
 	 * @param string $key Meta key to fetch.
-	 * @param mixed $default Value to return if key is unavailable.
+	 * @param mixed  $default Value to return if key is unavailable.
 	 * @return mixed Value if available, or value of `$default` if not found.
 	 */
 	public function get_meta( $key, $default = null ) {
@@ -67,7 +67,7 @@ class Access_Token extends Token {
 	 * as a description for the token.
 	 *
 	 * @param string $key Meta key to set.
-	 * @param mixed $value Value to set on the key.
+	 * @param mixed  $value Value to set on the key.
 	 * @return bool True if meta was set, false otherwise.
 	 */
 	public function set_meta( $key, $value ) {

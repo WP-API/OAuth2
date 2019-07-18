@@ -149,7 +149,7 @@ class PersonalClient implements ClientInterface {
 	 * Issue token for a user.
 	 *
 	 * @param \WP_User $user
-	 * @param array $meta
+	 * @param array    $meta
 	 *
 	 * @return Access_Token
 	 */

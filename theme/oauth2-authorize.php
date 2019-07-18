@@ -15,7 +15,7 @@ login_header(
 
 $_current_user = wp_get_current_user();
 
-$url = $_SERVER['REQUEST_URI']; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.InputNotValidated
+$url = $_SERVER['REQUEST_URI']; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
 
 ?>
 
@@ -100,14 +100,14 @@ $url = $_SERVER['REQUEST_URI']; // phpcs:ignore WordPress.Security.ValidatedSani
 	?>
 
 	<p class="submit">
-		<button type="submit" name="wp-submit" value="authorize" class="button button-primary button-large"><?php _e( 'Authorize', 'oauth2' ); ?></button>
-		<button type="submit" name="wp-submit" value="cancel" class="button button-large"><?php _e( 'Cancel', 'oauth2' ); ?></button>
+		<button type="submit" name="wp-submit" value="authorize" class="button button-primary button-large"><?php esc_html_e( 'Authorize', 'oauth2' ); ?></button>
+		<button type="submit" name="wp-submit" value="cancel" class="button button-large"><?php esc_html_e( 'Cancel', 'oauth2' ); ?></button>
 	</p>
 
 </form>
 
 <p id="nav">
-<a href="<?php echo esc_url( wp_login_url( $url, true ) ); ?>"><?php _e( 'Switch user', 'oauth2' ); ?></a>
+<a href="<?php echo esc_url( wp_login_url( $url, true ) ); ?>"><?php esc_html_e( 'Switch user', 'oauth2' ); ?></a>
 <?php
 if ( get_option( 'users_can_register' ) ) :
 	$registration_url = sprintf( '<a href="%s">%s</a>', esc_url( wp_registration_url() ), __( 'Register', 'oauth2' ) );
