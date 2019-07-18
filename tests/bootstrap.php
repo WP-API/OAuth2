@@ -20,8 +20,11 @@ if ( false !== getenv( 'WP_DEVELOP_DIR' ) ) {
 
 require $test_root . '/includes/functions.php';
 
-tests_add_filter( 'muplugins_loaded', function () {
-	require dirname( __DIR__ ) . '/plugin.php';
-});
+tests_add_filter(
+	'muplugins_loaded',
+	function () {
+		require dirname( __DIR__ ) . '/plugin.php';
+	}
+);
 
 require $test_root . '/includes/bootstrap.php';

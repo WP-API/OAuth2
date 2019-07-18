@@ -1,4 +1,9 @@
 <?php
+/**
+ *
+ * @package WordPress
+ * @subpackage JSON API
+ */
 
 namespace WP\OAuth2\Admin;
 
@@ -58,7 +63,7 @@ class ListTable extends WP_List_Table {
 		<label class="screen-reader-text"
 			for="cb-select-<?php echo esc_attr( $item->ID ); ?>"><?php esc_html_e( 'Select consumer', 'oauth2' ); ?></label>
 
-		<input id="cb-select-<?php echo esc_attr( $item->ID ) ?>" type="checkbox"
+		<input id="cb-select-<?php echo esc_attr( $item->ID ); ?>" type="checkbox"
 			name="consumers[]" value="<?php echo esc_attr( $item->ID ); ?>"/>
 
 		<?php

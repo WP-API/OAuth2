@@ -1,4 +1,9 @@
 <?php
+/**
+ *
+ * @package WordPress
+ * @subpackage JSON API
+ */
 
 namespace WP\OAuth2\Tokens;
 
@@ -107,7 +112,7 @@ class Access_Token extends Token {
 
 			// We use an EXISTS query here, limited by 1, so we can ignore
 			// the performance warning.
-			'meta_query'  => [ // WPCS: slow query OK
+			'meta_query'  => [ // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
 				[
 					'key'     => $key,
 					'compare' => 'EXISTS',

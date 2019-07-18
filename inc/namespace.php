@@ -1,4 +1,9 @@
 <?php
+/**
+ *
+ * @package WordPress
+ * @subpackage JSON API
+ */
 
 namespace WP\OAuth2;
 
@@ -41,6 +46,9 @@ function rest_oauth2_load_authorize_page() {
  * @return Type[] Map of grant type to handler object.
  */
 function get_grant_types() {
+
+	$grant_types = apply_filters_deprecated( 'oauth2.grant_types', [] ); // phpcs:ignore WordPress.NamingConventions.ValidHookName.UseUnderscores
+
 	/**
 	 * Filter valid grant types.
 	 *
@@ -50,12 +58,13 @@ function get_grant_types() {
 	 *
 	 * @param Type[] $grant_types Map of grant type to handler object.
 	 */
-	$grant_types = apply_filters( 'oauth2.grant_types', [] );
+	$grant_types = apply_filters( 'oauth2_grant_types', $grant_types );
+
 	foreach ( $grant_types as $type => $handler ) {
 		if ( ! $handler instanceof Type ) {
 			/* translators: 1: Grant type name, 2: Grant type interface */
-			$message = __( 'Skipping invalid grant type "%1$s". Required interface "%1$s" not implemented.', 'oauth2' );
-			_doing_it_wrong( __FUNCTION__, sprintf( $message, $type, 'WP\\OAuth2\\Types\\Type' ), '0.1.0' );
+			$message = esc_html__( 'Skipping invalid grant type "%1$s". Required interface "%1$s" not implemented.', 'oauth2' );
+			_doing_it_wrong( __FUNCTION__, sprintf( esc_html( $message ), esc_html( $type ), 'WP\\OAuth2\\Types\\Type' ), '0.1.0' );
 			unset( $grant_types[ $type ] );
 		}
 	}
@@ -113,7 +122,14 @@ function get_authorization_url() {
 	 *
 	 * @param string $url URL for the OAuth 2 authorization endpoint.
 	 */
-	return apply_filters( 'oauth2.get_authorization_url', $url );
+	$url = apply_filters_deprecated( 'oauth2.get_authorization_url', $url ); // phpcs:ignore WordPress.NamingConventions.ValidHookName.UseUnderscores
+
+	/**
+	 * Filter the authorization URL.
+	 *
+	 * @param string $url URL for the OAuth 2 authorization endpoint.
+	 */
+	return apply_filters( 'oauth2_get_authorization_url', $url );
 }
 
 /**
@@ -129,7 +145,14 @@ function get_token_url() {
 	 *
 	 * @param string $url URL for the OAuth 2 token endpoint.
 	 */
-	return apply_filters( 'oauth2.get_token_url', $url );
+	$url = apply_filters_deprecated( 'oauth2.get_token_url', $url ); // phpcs:ignore WordPress.NamingConventions.ValidHookName.UseUnderscores
+
+	/**
+	 * Filter the token URL.
+	 *
+	 * @param string $url URL for the OAuth 2 token endpoint.
+	 */
+	return apply_filters( 'oauth2_get_token_url', $url );
 }
 
 /**

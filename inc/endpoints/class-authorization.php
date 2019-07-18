@@ -1,4 +1,9 @@
 <?php
+/**
+ *
+ * @package WordPress
+ * @subpackage JSON API
+ */
 
 namespace WP\OAuth2\Endpoints;
 
@@ -18,8 +23,8 @@ class Authorization {
 
 	public function handle_request() {
 		// If the form hasn't been submitted, show it.
-		if ( isset( $_GET['response_type'] ) ) { // WPCS: CSRF OK
-			$type = wp_unslash( $_GET['response_type'] ); // WPCS: CSRF OK
+		if ( isset( $_GET['response_type'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			$type = wp_unslash( $_GET['response_type'] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 		} else {
 			$type = null;
 		}

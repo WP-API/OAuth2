@@ -1,4 +1,9 @@
 <?php
+/**
+ *
+ * @package WordPress
+ * @subpackage JSON API
+ */
 
 namespace WP\OAuth2;
 
@@ -80,7 +85,7 @@ class Client implements ClientInterface {
 		}
 
 		// Set up globals so the filters have context.
-		$post = $the_post;
+		$post = $the_post; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
 		setup_postdata( $post );
 		$content = get_the_content();
 
@@ -89,7 +94,7 @@ class Client implements ClientInterface {
 		$content = str_replace( ']]>', ']]&gt;', $content );
 
 		// Restore previous post.
-		$post = $current_post;
+		$post = $current_post; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
 		if ( $post ) {
 			setup_postdata( $post );
 		}
@@ -199,6 +204,17 @@ class Client implements ClientInterface {
 			}
 
 			/**
+			 * Filter whether a callback is counted as valid. (deprecated).
+			 * User rest_oauth_check_callback.
+			 *
+			 * @param boolean $valid True if the callback URL is valid, false otherwise.
+			 * @param string $url Supplied callback URL.
+			 * @param string $registered_uri URI being checked.
+			 * @param Client $client OAuth 2 client object.
+			 */
+			$valid = apply_filters_deprecated( 'rest_oauth.check_callback', $valid, $uri, $registered_uri, $this ); // phpcs:ignore WordPress.NamingConventions.ValidHookName.UseUnderscores
+
+			/**
 			 * Filter whether a callback is counted as valid.
 			 *
 			 * By default, the URLs must match scheme, host, port, user, pass, and
@@ -214,7 +230,8 @@ class Client implements ClientInterface {
 			 * @param string $registered_uri URI being checked.
 			 * @param Client $client OAuth 2 client object.
 			 */
-			$valid = apply_filters( 'rest_oauth.check_callback', $valid, $uri, $registered_uri, $this );
+			$valid = apply_filters( 'rest_oauth_check_callback', $valid, $uri, $registered_uri, $this );
+
 			if ( $valid ) {
 				// Stop checking, we have a match.
 				return true;
@@ -407,25 +424,28 @@ class Client implements ClientInterface {
 	 * Register the underlying post type.
 	 */
 	public static function register_type() {
-		register_post_type( static::POST_TYPE, [
-			'public'          => false,
-			'hierarchical'    => true,
-			'capability_type' => [
-				'oauth2_client',
-				'oauth2_clients',
-			],
-			'capabilities'    => [
-				'edit_posts'        => 'edit_users',
-				'edit_others_posts' => 'edit_users',
-				'publish_posts'     => 'edit_users',
-			],
-			'supports'        => [
-				'title',
-				'editor',
-				'revisions',
-				'author',
-				'thumbnail',
-			],
-		] );
+		register_post_type(
+			static::POST_TYPE,
+			[
+				'public'          => false,
+				'hierarchical'    => true,
+				'capability_type' => [
+					'oauth2_client',
+					'oauth2_clients',
+				],
+				'capabilities'    => [
+					'edit_posts'        => 'edit_users',
+					'edit_others_posts' => 'edit_users',
+					'publish_posts'     => 'edit_users',
+				],
+				'supports'        => [
+					'title',
+					'editor',
+					'revisions',
+					'author',
+					'thumbnail',
+				],
+			]
+		);
 	}
 }
