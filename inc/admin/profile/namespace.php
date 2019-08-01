@@ -1,6 +1,9 @@
 <?php
 /**
  * Administration UI and utilities
+ *
+ * @package    WordPress
+ * @subpackage JSON API
  */
 
 namespace WP\OAuth2\Admin\Profile;
@@ -29,9 +32,12 @@ function bootstrap() {
  */
 function render_profile_section( WP_User $user ) {
 	$tokens = Access_Token::get_for_user( $user );
-	$tokens = array_filter( $tokens, function ( Access_Token $token ) {
-		return (bool) $token->get_client();
-	});
+	$tokens = array_filter(
+		$tokens,
+		function ( Access_Token $token ) {
+			return (bool) $token->get_client();
+		}
+	);
 
 	if ( ! IS_PROFILE_PAGE ) {
 		$personal_url = PersonalTokens\get_page_url( [ 'user_id' => $user->ID ] );
@@ -40,7 +46,7 @@ function render_profile_section( WP_User $user ) {
 	}
 
 	?>
-	<h2><?php _e( 'Authorized Applications', 'oauth2' ) ?></h2>
+	<h2><?php esc_html_e( 'Authorized Applications', 'oauth2' ); ?></h2>
 	<?php if ( ! empty( $tokens ) ) : ?>
 		<table class="widefat">
 			<thead>
@@ -57,24 +63,29 @@ function render_profile_section( WP_User $user ) {
 			?>
 			</tbody>
 			<tfoot>
-				<tr>
-					<td colspan="2">
-						<a href="<?php echo esc_url( $personal_url ) ?>">
-							<?php esc_html_e( 'Create personal access token', 'oauth2' ) ?>
-						</a>
-					</td>
-				</tr>
+			<tr>
+				<td colspan="2">
+					<a href="<?php echo esc_url( $personal_url ); ?>">
+						<?php esc_html_e( 'Create personal access token', 'oauth2' ); ?>
+					</a>
+				</td>
+			</tr>
 			</tfoot>
 		</table>
 	<?php else : ?>
-		<p class="description"><?php esc_html_e( 'No applications authorized.', 'oauth2' ) ?></p>
-		<p><a href="<?php echo esc_url( $personal_url ) ?>"><?php esc_html_e( 'Create personal access token', 'oauth2' ) ?></a></p>
+		<p class="description"><?php esc_html_e( 'No applications authorized.', 'oauth2' ); ?></p>
+		<p>
+			<a href="<?php echo esc_url( $personal_url ); ?>"><?php esc_html_e( 'Create personal access token', 'oauth2' ); ?></a>
+		</p>
 	<?php endif ?>
 	<?php
 }
 
 /**
- * Render a single row.
+ *  Render a single row.
+ *
+ * @param WP_User      $user
+ * @param Access_Token $token
  */
 function render_token_row( WP_User $user, Access_Token $token ) {
 	$client      = $token->get_client();
@@ -97,9 +108,9 @@ function render_token_row( WP_User $user, Access_Token $token ) {
 	/**
 	 * Filter details shown for an access token on the profile screen.
 	 *
-	 * @param string[] $details List of HTML snippets to render in table.
-	 * @param Access_Token $token Token being displayed.
-	 * @param WP_User $user User whose profile is being rendered.
+	 * @param string[]     $details List of HTML snippets to render in table.
+	 * @param Access_Token $token   Token being displayed.
+	 * @param WP_User      $user    User whose profile is being rendered.
 	 */
 	$details = apply_filters( 'oauth2.admin.profile.render_token_row.details', $details, $token, $user );
 
@@ -130,9 +141,9 @@ function render_token_row( WP_User $user, Access_Token $token ) {
 	/**
 	 * Filter actions shown for an access token on the profile screen.
 	 *
-	 * @param string[] $actions List of HTML snippets to render in table.
-	 * @param Access_Token $token Token being displayed.
-	 * @param WP_User $user User whose profile is being rendered.
+	 * @param string[]     $actions List of HTML snippets to render in table.
+	 * @param Access_Token $token   Token being displayed.
+	 * @param WP_User      $user    User whose profile is being rendered.
 	 */
 	$actions = apply_filters( 'oauth2.admin.profile.render_token_row.actions', $actions, $token, $user );
 
@@ -147,11 +158,11 @@ function render_token_row( WP_User $user, Access_Token $token ) {
 	?>
 	<tr>
 		<td>
-			<p><?php echo $name ?></p>
-			<p><?php echo implode( ' | ', $details ) ?></p>
+			<p><?php echo $name; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></p>
+			<p><?php echo implode( ' | ', $details ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></p>
 		</td>
 		<td style="vertical-align: middle">
-			<?php echo implode( '', $actions ) ?>
+			<?php echo implode( '', $actions ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 		</td>
 	</tr>
 	<?php
@@ -162,15 +173,15 @@ function render_token_row( WP_User $user, Access_Token $token ) {
  */
 function output_profile_messages() {
 	global $pagenow;
-	if ( $pagenow !== 'profile.php' && $pagenow !== 'user-edit.php' ) {
+	if ( 'profile.php' !== $pagenow && 'user-edit.php' !== $pagenow ) {
 		return;
 	}
 
-	if ( ! empty( $_GET['oauth2_revoked'] ) ) { // WPCS: CSRF OK
-		echo '<div id="message" class="updated"><p>' . __( 'Token revoked.', 'oauth2' ) . '</p></div>';
+	if ( ! empty( $_GET['oauth2_revoked'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		echo '<div id="message" class="updated"><p>' . esc_html__( 'Token revoked.', 'oauth2' ) . '</p></div>';
 	}
-	if ( ! empty( $_GET['oauth2_revocation_failed'] ) ) { // WPCS: CSRF OK
-		echo '<div id="message" class="updated"><p>' . __( 'Unable to revoke token.', 'oauth2' ) . '</p></div>';
+	if ( ! empty( $_GET['oauth2_revocation_failed'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		echo '<div id="message" class="updated"><p>' . esc_html__( 'Unable to revoke token.', 'oauth2' ) . '</p></div>';
 	}
 }
 
@@ -184,7 +195,7 @@ function handle_revocation( $user_id ) {
 		return;
 	}
 
-	$data = wp_unslash( $_POST['oauth2_revoke'] ); // WPCS: CSRF OK
+	$data = sanitize_text_field( wp_unslash( $_POST['oauth2_revoke'] ) );
 	if ( strpos( $data, ':' ) === null ) {
 		return;
 	}

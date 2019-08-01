@@ -1,4 +1,9 @@
 <?php
+/**
+ *
+ * @package WordPress
+ * @subpackage JSON API
+ */
 
 namespace WP\OAuth2\Types;
 
@@ -63,14 +68,14 @@ class Implicit extends Base {
 
 		$redirect_args = $this->filter_redirect_args(
 			$redirect_args,
-			$submit === 'authorize',
+			'authorize' === $submit,
 			$client,
 			$data
 		);
 
 		$fragment           = build_query( $redirect_args );
 		$generated_redirect = $redirect_uri . '#' . $fragment;
-		wp_redirect( $generated_redirect );
+		wp_safe_redirect( $generated_redirect );
 		exit;
 	}
 

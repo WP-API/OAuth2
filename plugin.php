@@ -1,11 +1,26 @@
 <?php
 /**
+ * OAuth 2 for WordPress
+ *
+ * @package     WordPress
+ * @subpackage  JSON API
+ * @author      Squiz Pty Ltd <products@squiz.net>
+ * @copyright   2019 Squiz Pty Ltd (ABN 77 084 670 600)
+ * @license     GPL-2.0-or-later
+ *
+ * @oauth2
  * Plugin Name: OAuth 2 for WordPress
+ * Plugin URI:  https://github.com/WP-API/OAuth2
  * Description: Connect apps to your site using OAuth 2.
- * Version: 0.1.0
- * Author: WordPress Core Contributors (REST API Focus)
- * Author URI: https://make.wordpress.org/core/
+ * Version:     0.2.0
+ * Author:      WordPress Core Contributors (REST API Focus)
+ * Author URI:  https://make.wordpress.org/core/
+ * License:     GPL v2 or later
+ * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: oauth2
+ * Domain Path: /languages
+ * Requires at least:  4.8
+ * Requires PHP: 5.6
  */
 
 namespace WP\OAuth2;

@@ -1,4 +1,9 @@
 <?php
+/**
+ *
+ * @package    WordPress
+ * @subpackage JSON API
+ */
 
 namespace WP\OAuth2;
 
@@ -37,6 +42,7 @@ class PersonalClient implements ClientInterface {
 		if ( empty( $instance ) ) {
 			$instance = new static();
 		}
+
 		return $instance;
 	}
 
@@ -62,6 +68,7 @@ class PersonalClient implements ClientInterface {
 	 * Get the client's description.
 	 *
 	 * @param boolean $raw True to get raw database value for editing, false to get rendered value for display.
+	 *
 	 * @return string
 	 */
 	public function get_description( $raw = false ) {
@@ -99,6 +106,7 @@ class PersonalClient implements ClientInterface {
 	 * Check if a redirect URI is valid for the client.
 	 *
 	 * @param string $uri Supplied redirect URI to check.
+	 *
 	 * @return boolean Always false: personal tokens do not support redirections.
 	 */
 	public function check_redirect_uri( $uri ) {
@@ -121,6 +129,7 @@ class PersonalClient implements ClientInterface {
 	 * Get data stored for an authorization code.
 	 *
 	 * @param string $code Authorization code to fetch.
+	 *
 	 * @return Authorization_Code|WP_Error Data if available, error if invalid code.
 	 */
 	public function get_authorization_code( $code ) {
@@ -144,7 +153,7 @@ class PersonalClient implements ClientInterface {
 	 * Issue token for a user.
 	 *
 	 * @param \WP_User $user
-	 * @param array $meta
+	 * @param array    $meta
 	 *
 	 * @return Access_Token
 	 */

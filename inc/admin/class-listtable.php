@@ -1,4 +1,9 @@
 <?php
+/**
+ *
+ * @package WordPress
+ * @subpackage JSON API
+ */
 
 namespace WP\OAuth2\Admin;
 
@@ -58,7 +63,7 @@ class ListTable extends WP_List_Table {
 		<label class="screen-reader-text"
 			for="cb-select-<?php echo esc_attr( $item->ID ); ?>"><?php esc_html_e( 'Select consumer', 'oauth2' ); ?></label>
 
-		<input id="cb-select-<?php echo esc_attr( $item->ID ) ?>" type="checkbox"
+		<input id="cb-select-<?php echo esc_attr( $item->ID ); ?>" type="checkbox"
 			name="consumers[]" value="<?php echo esc_attr( $item->ID ); ?>"/>
 
 		<?php
@@ -98,7 +103,7 @@ class ListTable extends WP_List_Table {
 		];
 
 		$post_type_object = get_post_type_object( $item->post_type );
-		if ( current_user_can( $post_type_object->cap->publish_posts ) && $item->post_status !== 'publish' ) {
+		if ( current_user_can( $post_type_object->cap->publish_posts ) && 'publish' !== $item->post_status ) {
 			$publish_link = add_query_arg(
 				[
 					'page'   => 'rest-oauth2-apps',

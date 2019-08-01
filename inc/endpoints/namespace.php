@@ -1,4 +1,9 @@
 <?php
+/**
+ *
+ * @package WordPress
+ * @subpackage JSON API
+ */
 
 namespace WP\OAuth2\Endpoints;
 
@@ -14,10 +19,14 @@ function register() {
 	$token_endpoint->register_routes();
 
 	// Register convenience URL.
-	register_rest_route( 'oauth2', '/authorize', [
-		'methods'  => 'GET',
-		'callback' => __NAMESPACE__ . '\\redirect_to_authorize',
-	]);
+	register_rest_route(
+		'oauth2',
+		'/authorize',
+		[
+			'methods'  => 'GET',
+			'callback' => __NAMESPACE__ . '\\redirect_to_authorize',
+		]
+	);
 }
 
 /**

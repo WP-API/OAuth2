@@ -1,4 +1,9 @@
 <?php
+/**
+ *
+ * @package    WordPress
+ * @subpackage JSON API
+ */
 
 namespace WP\OAuth2;
 
@@ -67,6 +72,7 @@ class Client implements ClientInterface {
 	 * Get the client's description.
 	 *
 	 * @param boolean $raw True to get raw database value for editing, false to get rendered value for display.
+	 *
 	 * @return string
 	 */
 	public function get_description( $raw = false ) {
@@ -80,7 +86,7 @@ class Client implements ClientInterface {
 		}
 
 		// Set up globals so the filters have context.
-		$post = $the_post;
+		$post = $the_post; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
 		setup_postdata( $post );
 		$content = get_the_content();
 
@@ -89,7 +95,7 @@ class Client implements ClientInterface {
 		$content = str_replace( ']]>', ']]&gt;', $content );
 
 		// Restore previous post.
-		$post = $current_post;
+		$post = $current_post; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
 		if ( $post ) {
 			setup_postdata( $post );
 		}
@@ -132,6 +138,7 @@ class Client implements ClientInterface {
 	 * just HTTP with standard ports.
 	 *
 	 * @param string $url URL for the callback.
+	 *
 	 * @return bool True for a valid callback URL, false otherwise.
 	 */
 	public static function validate_callback( $url ) {
@@ -158,10 +165,11 @@ class Client implements ClientInterface {
 	/**
 	 * Check if a redirect URI is valid for the client.
 	 *
+	 * @param string $uri Supplied redirect URI to check.
+	 *
+	 * @return boolean True if the URI is valid, false otherwise.
 	 * @todo Implement this properly :)
 	 *
-	 * @param string $uri Supplied redirect URI to check.
-	 * @return boolean True if the URI is valid, false otherwise.
 	 */
 	public function check_redirect_uri( $uri ) {
 		if ( ! $this->validate_callback( $uri ) ) {
@@ -199,22 +207,16 @@ class Client implements ClientInterface {
 			}
 
 			/**
-			 * Filter whether a callback is counted as valid.
+			 * Filter whether a callback is counted as valid. (deprecated).
+			 * User rest_oauth_check_callback.
 			 *
-			 * By default, the URLs must match scheme, host, port, user, pass, and
-			 * path. Query and fragment segments are allowed to be different.
-			 *
-			 * To change this behaviour, filter this value. Note that consumers must
-			 * have a callback registered, even if you relax this restruction. It is
-			 * highly recommended not to change this behaviour, as clients will
-			 * expect the same behaviour across all WP sites.
-			 *
-			 * @param boolean $valid True if the callback URL is valid, false otherwise.
-			 * @param string $url Supplied callback URL.
-			 * @param string $registered_uri URI being checked.
-			 * @param Client $client OAuth 2 client object.
+			 * @param boolean $valid          True if the callback URL is valid, false otherwise.
+			 * @param string  $url            Supplied callback URL.
+			 * @param string  $registered_uri URI being checked.
+			 * @param Client  $client         OAuth 2 client object.
 			 */
 			$valid = apply_filters( 'rest_oauth.check_callback', $valid, $uri, $registered_uri, $this );
+
 			if ( $valid ) {
 				// Stop checking, we have a match.
 				return true;
@@ -237,6 +239,7 @@ class Client implements ClientInterface {
 	 * Get data stored for an authorization code.
 	 *
 	 * @param string $code Authorization code to fetch.
+	 *
 	 * @return Authorization_Code|WP_Error Data if available, error if invalid code.
 	 */
 	public function get_authorization_code( $code ) {
@@ -259,7 +262,7 @@ class Client implements ClientInterface {
 	 * Issue token for a user.
 	 *
 	 * @param \WP_User $user
-	 * @param array $meta
+	 * @param array    $meta
 	 *
 	 * @return Access_Token
 	 */
@@ -271,6 +274,7 @@ class Client implements ClientInterface {
 	 * Get a client by ID.
 	 *
 	 * @param string $id Client ID.
+	 *
 	 * @return static|null Token if ID is found, null otherwise.
 	 */
 	public static function get_by_id( $id ) {
@@ -295,6 +299,7 @@ class Client implements ClientInterface {
 	 * Get a client by post ID.
 	 *
 	 * @param int $id Client/post ID.
+	 *
 	 * @return static|null Client instance on success, null if invalid/not found.
 	 */
 	public static function get_by_post_id( $id ) {
@@ -310,7 +315,8 @@ class Client implements ClientInterface {
 	 * Create a new client.
 	 *
 	 * @param array $data {
-	 * }
+	 *                    }
+	 *
 	 * @return WP_Error|Client Client instance on success, error otherwise.
 	 */
 	public static function create( $data ) {
@@ -400,6 +406,7 @@ class Client implements ClientInterface {
 			'post_status' => 'publish',
 		];
 		$result = wp_update_post( wp_slash( $data ), true );
+
 		return is_wp_error( $result ) ? $result : true;
 	}
 
@@ -407,25 +414,28 @@ class Client implements ClientInterface {
 	 * Register the underlying post type.
 	 */
 	public static function register_type() {
-		register_post_type( static::POST_TYPE, [
-			'public'          => false,
-			'hierarchical'    => true,
-			'capability_type' => [
-				'oauth2_client',
-				'oauth2_clients',
-			],
-			'capabilities'    => [
-				'edit_posts'        => 'edit_users',
-				'edit_others_posts' => 'edit_users',
-				'publish_posts'     => 'edit_users',
-			],
-			'supports'        => [
-				'title',
-				'editor',
-				'revisions',
-				'author',
-				'thumbnail',
-			],
-		] );
+		register_post_type(
+			static::POST_TYPE,
+			[
+				'public'          => false,
+				'hierarchical'    => true,
+				'capability_type' => [
+					'oauth2_client',
+					'oauth2_clients',
+				],
+				'capabilities'    => [
+					'edit_posts'        => 'edit_users',
+					'edit_others_posts' => 'edit_users',
+					'publish_posts'     => 'edit_users',
+				],
+				'supports'        => [
+					'title',
+					'editor',
+					'revisions',
+					'author',
+					'thumbnail',
+				],
+			]
+		);
 	}
 }

@@ -1,4 +1,9 @@
 <?php
+/**
+ *
+ * @package WordPress
+ * @subpackage JSON API
+ */
 
 /** @var \WP\OAuth2\Client $client */
 
@@ -8,9 +13,9 @@ login_header(
 	$errors
 );
 
-$current_user = wp_get_current_user();
+$_current_user = wp_get_current_user();
 
-$url = $_SERVER['REQUEST_URI'];
+$url = $_SERVER['REQUEST_URI']; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
 
 ?>
 
@@ -60,25 +65,27 @@ $url = $_SERVER['REQUEST_URI'];
 	<?php
 	printf(
 		'<h2 class="login-title">%s</h2>',
-		esc_html( sprintf(
-			/* translators: %1$s: client name */
-			__( 'Connect %1$s', 'oauth2' ),
-			$client->get_name()
-		) )
+		esc_html(
+			sprintf(
+				/* translators: %1$s: client name */
+				__( 'Connect %1$s', 'oauth2' ),
+				$client->get_name()
+			)
+		)
 	);
 	?>
 
 	<div class="login-info">
 
-		<?php echo get_avatar( $current_user->ID, '78' ); ?>
+		<?php echo get_avatar( $_current_user->ID, '78' ); ?>
 
 		<?php
 		printf(
 			/* translators: %1$s: user login, %2$s: client name, %3$s: site name */
-			'<p>' . __( 'Howdy <strong>%1$s</strong>,<br/> "%2$s" would like to connect to %3$s.', 'oauth2' ) . '</p>',
-			$current_user->user_login,
-			$client->get_name(),
-			get_bloginfo( 'name' )
+			'<p>' . __( 'Howdy <strong>%1$s</strong>,<br/> "%2$s" would like to connect to %3$s.', 'oauth2' ) . '</p>', // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			esc_html( $_current_user->user_login ),
+			esc_html( $client->get_name() ),
+			esc_html( get_bloginfo( 'name' ) )
 		);
 		?>
 
@@ -93,14 +100,14 @@ $url = $_SERVER['REQUEST_URI'];
 	?>
 
 	<p class="submit">
-		<button type="submit" name="wp-submit" value="authorize" class="button button-primary button-large"><?php _e( 'Authorize', 'oauth2' ); ?></button>
-		<button type="submit" name="wp-submit" value="cancel" class="button button-large"><?php _e( 'Cancel', 'oauth2' ); ?></button>
+		<button type="submit" name="wp-submit" value="authorize" class="button button-primary button-large"><?php esc_html_e( 'Authorize', 'oauth2' ); ?></button>
+		<button type="submit" name="wp-submit" value="cancel" class="button button-large"><?php esc_html_e( 'Cancel', 'oauth2' ); ?></button>
 	</p>
 
 </form>
 
 <p id="nav">
-<a href="<?php echo esc_url( wp_login_url( $url, true ) ); ?>"><?php _e( 'Switch user', 'oauth2' ) ?></a>
+<a href="<?php echo esc_url( wp_login_url( $url, true ) ); ?>"><?php esc_html_e( 'Switch user', 'oauth2' ); ?></a>
 <?php
 if ( get_option( 'users_can_register' ) ) :
 	$registration_url = sprintf( '<a href="%s">%s</a>', esc_url( wp_registration_url() ), __( 'Register', 'oauth2' ) );
@@ -111,7 +118,7 @@ if ( get_option( 'users_can_register' ) ) :
 	 *
 	 * @param string $registration_url Registration URL.
 	 */
-	echo ' | ' . apply_filters( 'register', $registration_url );
+	echo ' | ' . apply_filters( 'register', $registration_url ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 endif;
 ?>
 </p>

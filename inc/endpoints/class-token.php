@@ -1,4 +1,9 @@
 <?php
+/**
+ *
+ * @package WordPress
+ * @subpackage JSON API
+ */
 
 namespace WP\OAuth2\Endpoints;
 
@@ -12,27 +17,31 @@ use WP_REST_Request;
  */
 class Token {
 	public function register_routes() {
-		register_rest_route( 'oauth2', '/access_token', [
-			'methods'  => 'POST',
-			'callback' => [ $this, 'exchange_token' ],
-			'args'     => [
-				'grant_type' => [
-					'required'          => true,
-					'type'              => 'string',
-					'validate_callback' => [ $this, 'validate_grant_type' ],
+		register_rest_route(
+			'oauth2',
+			'/access_token',
+			[
+				'methods'  => 'POST',
+				'callback' => [ $this, 'exchange_token' ],
+				'args'     => [
+					'grant_type' => [
+						'required'          => true,
+						'type'              => 'string',
+						'validate_callback' => [ $this, 'validate_grant_type' ],
+					],
+					'client_id'  => [
+						'required'          => true,
+						'type'              => 'string',
+						'validate_callback' => 'rest_validate_request_arg',
+					],
+					'code'       => [
+						'required'          => true,
+						'type'              => 'string',
+						'validate_callback' => 'rest_validate_request_arg',
+					],
 				],
-				'client_id'  => [
-					'required'          => true,
-					'type'              => 'string',
-					'validate_callback' => 'rest_validate_request_arg',
-				],
-				'code'       => [
-					'required'          => true,
-					'type'              => 'string',
-					'validate_callback' => 'rest_validate_request_arg',
-				],
-			],
-		] );
+			]
+		);
 	}
 
 	/**
@@ -43,7 +52,7 @@ class Token {
 	 * @return bool Whether or not the grant type is valid.
 	 */
 	public function validate_grant_type( $type ) {
-		return $type === 'authorization_code';
+		return 'authorization_code' === $type;
 	}
 
 	/**

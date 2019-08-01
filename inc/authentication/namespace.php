@@ -1,4 +1,9 @@
 <?php
+/**
+ *
+ * @package WordPress
+ * @subpackage JSON API
+ */
 
 namespace WP\OAuth2\Authentication;
 
@@ -18,7 +23,7 @@ use WP\OAuth2\Tokens;
  */
 function get_authorization_header() {
 	if ( ! empty( $_SERVER['HTTP_AUTHORIZATION'] ) ) {
-		return wp_unslash( $_SERVER['HTTP_AUTHORIZATION'] );
+		return wp_unslash( $_SERVER['HTTP_AUTHORIZATION'] ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 	}
 
 	if ( function_exists( 'getallheaders' ) ) {
@@ -75,11 +80,11 @@ function get_token_from_bearer_header( $header ) {
  * @return string|null Token on succes, null on failure.
  */
 function get_token_from_request() {
-	if ( empty( $_GET['access_token'] ) ) { // WPCS: CSRF OK
+	if ( empty( $_GET['access_token'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		return null;
 	}
 
-	$token = $_GET['access_token']; // WPCS: CSRF OK
+	$token = $_GET['access_token']; // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput
 	if ( is_string( $token ) ) {
 		return $token;
 	}

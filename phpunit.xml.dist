@@ -1,3 +1,4 @@
+<?xml version="1.0"?>
 <phpunit
 	bootstrap="tests/bootstrap.php"
 	backupGlobals="false"
@@ -8,16 +9,8 @@
 	>
 	<testsuites>
 		<testsuite>
-			<directory prefix="class-" suffix=".php">tests</directory>
+			<directory prefix="test-" suffix=".php">./tests/</directory>
+			<exclude>./tests/test-sample.php</exclude>
 		</testsuite>
 	</testsuites>
-	<filter>
-		<blacklist>
-			<directory suffix=".php">.</directory>
-		</blacklist>
-		<whitelist>
-			<directory suffix=".php">./inc</directory>
-			<file>./plugin.php</file>
-		</whitelist>
-	</filter>
 </phpunit>

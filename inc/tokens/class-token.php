@@ -1,4 +1,9 @@
 <?php
+/**
+ *
+ * @package WordPress
+ * @subpackage JSON API
+ */
 
 namespace WP\OAuth2\Tokens;
 
@@ -23,8 +28,8 @@ abstract class Token {
 	protected $value;
 
 	/**
-	 * @param string $key
-	 * @param mixed $value
+	 * @param WP_User $key
+	 * @param mixed  $value
 	 */
 	protected function __construct( WP_User $user, $key, $value ) {
 		$this->user  = $user;

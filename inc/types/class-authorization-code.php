@@ -1,4 +1,9 @@
 <?php
+/**
+ *
+ * @package WordPress
+ * @subpackage JSON API
+ */
 
 namespace WP\OAuth2\Types;
 
@@ -62,13 +67,13 @@ class Authorization_Code extends Base {
 
 		$redirect_args = $this->filter_redirect_args(
 			$redirect_args,
-			$submit === 'authorize',
+			'authorize' === $submit,
 			$client,
 			$data
 		);
 
 		$generated_redirect = add_query_arg( urlencode_deep( $redirect_args ), $redirect_uri );
-		wp_redirect( $generated_redirect );
+		wp_safe_redirect( $generated_redirect );
 		exit;
 	}
 }

@@ -1,4 +1,9 @@
 <?php
+/**
+ *
+ * @package WordPress
+ * @subpackage JSON API
+ */
 
 namespace WP\OAuth2\Types;
 
@@ -12,7 +17,7 @@ abstract class Base implements Type {
 	 *
 	 * @param string $submit Value of the selected button.
 	 * @param Client $client Client being authorised.
-	 * @param array $data Data gathered for the request. {
+	 * @param array  $data Data gathered for the request. {
 	 *     @var string $redirect_uri Specified redirection URI.
 	 *     @var string $scope Requested scope.
 	 *     @var string $state State parameter from the client.
@@ -23,9 +28,10 @@ abstract class Base implements Type {
 
 	/**
 	 * Handle authorisation page.
+	 *
+	 * @return string|void|WP_Error|null
 	 */
 	public function handle_authorisation() {
-
 		if ( empty( $_GET['client_id'] ) ) {
 			return new WP_Error(
 				'oauth2.types.authorization_code.handle_authorisation.missing_client_id',
@@ -35,10 +41,10 @@ abstract class Base implements Type {
 		}
 
 		// Gather parameters.
-		$client_id    = wp_unslash( $_GET['client_id'] ); // WPCS: CSRF OK
-		$redirect_uri = isset( $_GET['redirect_uri'] ) ? wp_unslash( $_GET['redirect_uri'] ) : null; // WPCS: CSRF OK
-		$scope        = isset( $_GET['scope'] ) ? wp_unslash( $_GET['scope'] ) : null; // WPCS: CSRF OK
-		$state        = isset( $_GET['state'] ) ? wp_unslash( $_GET['state'] ) : null; // WPCS: CSRF OK
+		$client_id    = sanitize_text_field( wp_unslash( $_GET['client_id'] ) );
+		$redirect_uri = isset( $_GET['redirect_uri'] ) ? sanitize_text_field( wp_unslash( $_GET['redirect_uri'] ) ) : null;
+		$scope        = isset( $_GET['scope'] ) ? sanitize_text_field( wp_unslash( $_GET['scope'] ) ) : null;
+		$state        = isset( $_GET['state'] ) ? sanitize_text_field( wp_unslash( $_GET['state'] ) ) : null;
 
 		$client = Client::get_by_id( $client_id );
 		if ( empty( $client ) ) {
@@ -61,7 +67,11 @@ abstract class Base implements Type {
 
 		// Valid parameters, ensure the user is logged in.
 		if ( ! is_user_logged_in() ) {
-			$url = wp_login_url( $_SERVER['REQUEST_URI'] );
+			$redirect = '';
+			if ( isset( $_SERVER['REQUEST_URI'] ) ) {
+				$redirect = $_SERVER['REQUEST_URI']; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
+			}
+			$url = wp_login_url( $redirect );
 			wp_safe_redirect( $url );
 			exit;
 		}
@@ -72,7 +82,7 @@ abstract class Base implements Type {
 
 		// Check nonce.
 		$nonce_action = $this->get_nonce_action( $client );
-		if ( ! wp_verify_nonce( wp_unslash( $_POST['_wpnonce'] ), $nonce_action ) ) {
+		if ( ! wp_verify_nonce( wp_unslash( $_POST['_wpnonce'] ), $nonce_action ) ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 			return new WP_Error(
 				'oauth2.types.authorization_code.handle_authorisation.invalid_nonce',
 				__( 'Invalid nonce.', 'oauth2' )
@@ -93,7 +103,7 @@ abstract class Base implements Type {
 			return $this->render_form( $client, $error );
 		}
 
-		$submit = wp_unslash( $_POST['wp-submit'] );
+		$submit = sanitize_text_field( wp_unslash( $_POST['wp-submit'] ) );
 
 		$data = compact( 'redirect_uri', 'scope', 'state' );
 		return $this->handle_authorization_submission( $submit, $client, $data );
@@ -102,7 +112,7 @@ abstract class Base implements Type {
 	/**
 	 * Validate the supplied redirect URI.
 	 *
-	 * @param Client $client Client to validate against.
+	 * @param Client      $client Client to validate against.
 	 * @param string|null $redirect_uri Redirect URI, if supplied.
 	 * @return string|WP_Error Valid redirect URI on success, error otherwise.
 	 */
@@ -133,7 +143,7 @@ abstract class Base implements Type {
 	/**
 	 * Render the authorisation form.
 	 *
-	 * @param Client $client Client being authorised.
+	 * @param Client   $client Client being authorised.
 	 * @param WP_Error $errors Errors to display, if any.
 	 */
 	protected function render_form( Client $client, WP_Error $errors = null ) {
@@ -158,10 +168,10 @@ abstract class Base implements Type {
 	/**
 	 * Filter the redirection args.
 	 *
-	 * @param array $redirect_args Redirect args.
+	 * @param array   $redirect_args Redirect args.
 	 * @param boolean $authorized True if authorized, false otherwise.
-	 * @param Client $client Client being authorised.
-	 * @param array $data Data for the request.
+	 * @param Client  $client Client being authorised.
+	 * @param array   $data Data for the request.
 	 */
 	protected function filter_redirect_args( $redirect_args, $authorized, Client $client, $data ) {
 		if ( ! $authorized ) {
