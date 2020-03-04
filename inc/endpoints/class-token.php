@@ -34,10 +34,17 @@ class Token {
 						'type'              => 'string',
 						'validate_callback' => 'rest_validate_request_arg',
 					],
+					'username '=> [
+                        'required'          => false,
+                        'type'              => 'string',
+                    ],
+                    'password'=> [
+                        'required'          => false,
+                        'type'              => 'string',
+                    ],
 					'code'       => [
-						'required'          => true,
-						'type'              => 'string',
-						'validate_callback' => 'rest_validate_request_arg',
+						'required'          => false,
+						'type'              => 'string'
 					],
 				],
 			]
@@ -111,6 +118,9 @@ class Token {
             $password = $request->get_param('password');
             try {
                 $user = wp_authenticate($username, $password);
+                if (is_wp_error($user)) {
+                    return $user;
+                }
                 $token = $client->issue_token($user);
                 if (is_wp_error($token)) {
                     return $token;
