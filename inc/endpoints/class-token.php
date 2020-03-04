@@ -52,7 +52,7 @@ class Token {
 	 * @return bool Whether or not the grant type is valid.
 	 */
 	public function validate_grant_type( $type ) {
-		return 'authorization_code' === $type;
+		return 'authorization_code' === $type || 'password';
 	}
 
 	/**
@@ -76,36 +76,66 @@ class Token {
 			);
 		}
 
-		$auth_code = $client->get_authorization_code( $request['code'] );
-		if ( is_wp_error( $auth_code ) ) {
-			return $auth_code;
-		}
+		if ($request->get_param('grant_type') == 'authorization_code') {
+            $auth_code = $client->get_authorization_code($request['code']);
+            if (is_wp_error($auth_code)) {
+                return $auth_code;
+            }
 
-		$is_valid = $auth_code->validate();
-		if ( is_wp_error( $is_valid ) ) {
-			// Invalid request, but code itself exists, so we should delete
-			// (and silently ignore errors).
-			$auth_code->delete();
+            $is_valid = $auth_code->validate();
+            if (is_wp_error($is_valid)) {
+                // Invalid request, but code itself exists, so we should delete
+                // (and silently ignore errors).
+                $auth_code->delete();
 
-			return $is_valid;
-		}
+                return $is_valid;
+            }
 
-		// Looks valid, delete the code and issue a token.
-		$user = $auth_code->get_user();
-		if ( is_wp_error( $user ) ) {
-			return $user;
-		}
+            // Looks valid, delete the code and issue a token.
+            $user = $auth_code->get_user();
+            if (is_wp_error($user)) {
+                return $user;
+            }
 
-		$did_delete = $auth_code->delete();
-		if ( is_wp_error( $did_delete ) ) {
-			return $did_delete;
-		}
+            $did_delete = $auth_code->delete();
+            if (is_wp_error($did_delete)) {
+                return $did_delete;
+            }
 
-		$token = $client->issue_token( $user );
-		if ( is_wp_error( $token ) ) {
-			return $token;
-		}
-
+            $token = $client->issue_token($user);
+            if (is_wp_error($token)) {
+                return $token;
+            }
+        } else if ($request->get_param('grant_type') === 'password') {
+            $username = $request->get_param('username');
+            $password = $request->get_param('password');
+            try {
+                $user = wp_authenticate($username, $password);
+                $token = $client->issue_token($user);
+                if (is_wp_error($token)) {
+                    return $token;
+                }
+                $token = $client->issue_token($user);
+                if (is_wp_error($token)) {
+                    return $token;
+                }
+                $data = [
+                    'access_token' => $token->get_key(),
+                    'token_type'   => 'bearer',
+                ];
+                return $data;
+            } catch (Exception $e) {
+                return new WP_Error(
+                    'oauth2.endpoints.token.exchange_token.invalid_client',
+                    /* translators: %s: client ID */
+                    sprintf(__('Client ID %s is invalid.', 'oauth2'), $request['client_id']),
+                    [
+                        'status' => WP_Http::BAD_REQUEST,
+                        'client_id' => $request['client_id'],
+                    ]
+                );
+            }
+        }
 		$data = [
 			'access_token' => $token->get_key(),
 			'token_type'   => 'bearer',
