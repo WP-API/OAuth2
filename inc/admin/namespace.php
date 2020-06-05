@@ -493,7 +493,7 @@ function handle_delete() {
 	$id = absint( $_GET['id'] );
 	check_admin_referer( 'rest-oauth2-delete:' . $id );
 
-	if ( ! current_user_can( 'delete_post', $id ) ) {
+	if ( ! current_user_can( 'delete_posts', $id ) ) {
 		wp_die(
 			'<h1>' . esc_html__( 'Cheatin&#8217; uh?', 'oauth2' ) . '</h1>' .
 			'<p>' . esc_html__( 'You are not allowed to delete this application.', 'oauth2' ) . '</p>',
@@ -562,7 +562,7 @@ function handle_regenerate() {
 	$id = absint( $_GET['id'] );
 	check_admin_referer( 'rest-oauth2-regenerate:' . $id );
 
-	if ( ! current_user_can( 'edit_post', $id ) ) {
+	if ( ! current_user_can( 'edit_posts', $id ) ) {
 		wp_die(
 			'<h1>' . esc_html__( 'Cheatin&#8217; uh?', 'oauth2' ) . '</h1>' .
 			'<p>' . esc_html__( 'You are not allowed to edit this application.', 'oauth2' ) . '</p>',

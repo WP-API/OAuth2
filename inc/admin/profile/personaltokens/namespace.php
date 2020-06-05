@@ -59,7 +59,7 @@ function bootstrap_profile_page() {
 	if ( empty( $user ) ) {
 		wp_die( esc_html__( 'Invalid user ID.' ) );
 	}
-	if ( ! current_user_can( 'edit_user', $user_id ) ) {
+	if ( ! current_user_can( 'edit_users', $user_id ) ) {
 		wp_die( esc_html__( 'Sorry, you are not allowed to edit this user.' ) );
 	}
 
