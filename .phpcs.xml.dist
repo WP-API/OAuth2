@@ -22,7 +22,9 @@
 	<config name="minimum_supported_wp_version" value="4.8"/>
 	<rule ref="WordPress">
 		<exclude name="Generic.Commenting" />
+		<exclude name="Generic.Arrays.DisallowShortArraySyntax" />
 		<exclude name="Squiz.Commenting" />
+		<exclude name="WordPress.DateTime.RestrictedFunctions.date_date" />
 		<exclude name="WordPress.NamingConventions.ValidHookName.UseUnderscores" />
 	</rule>
 </ruleset>
