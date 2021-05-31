@@ -73,7 +73,7 @@ class Authorization_Code extends Base {
 		);
 
 		$generated_redirect = add_query_arg( urlencode_deep( $redirect_args ), $redirect_uri );
-		// phpcs:ignore WordPress.Security.SafeRedirectSniff -- Intentionally external redirect, secured via client registration.
+		// phpcs:ignore WordPress.Security.SafeRedirect -- Intentionally external redirect, secured via client registration.
 		wp_redirect( $generated_redirect );
 		exit;
 	}
