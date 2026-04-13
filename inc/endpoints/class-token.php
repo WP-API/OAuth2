@@ -178,13 +178,17 @@ class Token {
 			return $token;
 		}
 
-		$ttl = apply_filters( 'oauth2.client_token_ttl', OAuth2\Tokens\Access_Token::DEFAULT_CLIENT_TOKEN_TTL );
-
-		return [
+		$data = [
 			'access_token' => $token->get_key(),
 			'token_type'   => 'bearer',
-			'expires_in'   => $ttl,
 		];
+
+		$expires = $token->get_expiration_time();
+		if ( $expires !== null ) {
+			$data['expires_in'] = $expires - time();
+		}
+
+		return $data;
 	}
 
 	/**

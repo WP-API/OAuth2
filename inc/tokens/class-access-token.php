@@ -18,7 +18,6 @@ class Access_Token extends Token {
 	const META_PREFIX              = '_oauth2_access_';
 	const CLIENT_META_PREFIX       = '_oauth2_client_token_';
 	const KEY_LENGTH               = 12;
-	const DEFAULT_CLIENT_TOKEN_TTL = 3600; // 1 hour in seconds
 
 	/**
 	 * @return string Meta prefix. Client tokens use a distinct prefix because
@@ -276,13 +275,16 @@ class Access_Token extends Token {
 			);
 		}
 
-		$ttl  = apply_filters( 'oauth2.client_token_ttl', static::DEFAULT_CLIENT_TOKEN_TTL );
+		$ttl  = $client->get_token_ttl();
 		$data = [
 			'client'  => $client->get_id(),
 			'created' => time(),
-			'expires' => time() + $ttl,
 			'meta'    => $meta,
 		];
+
+		if ( $ttl !== null ) {
+			$data['expires'] = time() + $ttl;
+		}
 		$key      = wp_generate_password( static::KEY_LENGTH, false );
 		$meta_key = static::CLIENT_META_PREFIX . $key;
 

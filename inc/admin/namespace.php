@@ -175,6 +175,16 @@ function validate_parameters( $params ) {
 
 	$valid['client_credentials_enabled'] = ! empty( $params['client_credentials_enabled'] );
 
+	if ( isset( $params['token_ttl'] ) && $params['token_ttl'] !== '' ) {
+		$ttl = (int) $params['token_ttl'];
+		if ( $ttl < 0 ) {
+			return new WP_Error( 'rest_oauth2_invalid_ttl', esc_html__( 'Token TTL must be a positive number or empty for no expiry.', 'oauth2' ) );
+		}
+		$valid['token_ttl'] = $ttl;
+	} else {
+		$valid['token_ttl'] = '';
+	}
+
 	// Callback is required unless this client only uses client_credentials.
 	if ( empty( $params['callback'] ) && ! $valid['client_credentials_enabled'] ) {
 		return new WP_Error( 'rest_oauth2_missing_callback', esc_html__( 'Client callback is required and must be a valid URL.', 'oauth2' ) );
@@ -219,6 +229,7 @@ function handle_edit_submit( Client $consumer = null ) {
 				'type'                       => $params['type'],
 				'callback'                   => $params['callback'],
 				'client_credentials_enabled' => $params['client_credentials_enabled'],
+				'token_ttl'                  => $params['token_ttl'],
 			],
 		];
 
@@ -233,6 +244,7 @@ function handle_edit_submit( Client $consumer = null ) {
 				'type'                       => $params['type'],
 				'callback'                   => $params['callback'],
 				'client_credentials_enabled' => $params['client_credentials_enabled'],
+				'token_ttl'                  => $params['token_ttl'],
 			],
 		];
 
@@ -326,12 +338,14 @@ function render_edit_page() {
 			$data[ $key ] = empty( $form_data[ $key ] ) ? '' : $form_data[ $key ];
 		}
 		$data['client_credentials_enabled'] = ! empty( $form_data['client_credentials_enabled'] );
+		$data['token_ttl']                  = isset( $form_data['token_ttl'] ) ? $form_data['token_ttl'] : '';
 	} else {
 		$data['name']                       = $consumer->get_name();
 		$data['description']                = $consumer->get_description( true );
 		$data['type']                       = $consumer->get_type();
 		$data['callback']                   = $consumer->get_redirect_uris();
 		$data['client_credentials_enabled'] = $consumer->is_client_credentials_enabled();
+		$data['token_ttl']                  = $consumer->get_token_ttl();
 
 		if ( is_array( $data['callback'] ) ) {
 			$data['callback'] = implode( ',', $data['callback'] );
@@ -455,6 +469,15 @@ function render_edit_page() {
 						<p class="description">
 							<?php esc_html_e( 'When enabled, this application can authenticate without a user using its client ID and secret. Use for machine-to-machine integrations only. Tokens issued this way are not associated with a WordPress user.', 'oauth2' ); ?>
 						</p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row">
+						<label for="oauth-token-ttl"><?php echo esc_html_x( 'Token TTL (seconds)', 'field name', 'oauth2' ); ?></label>
+					</th>
+					<td>
+						<input type="number" class="regular-text" name="token_ttl" id="oauth-token-ttl" value="<?php echo esc_attr( $data['token_ttl'] ); ?>" min="0" />
+						<p class="description"><?php esc_html_e( 'Time-to-live for client credentials tokens in seconds. Leave empty for tokens that do not expire.', 'oauth2' ); ?></p>
 					</td>
 				</tr>
 			</table>
