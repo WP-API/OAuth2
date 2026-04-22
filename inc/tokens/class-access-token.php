@@ -15,9 +15,9 @@ use WP_User;
 use WP_User_Query;
 
 class Access_Token extends Token {
-	const META_PREFIX              = '_oauth2_access_';
-	const CLIENT_META_PREFIX       = '_oauth2_client_token_';
-	const KEY_LENGTH               = 12;
+	const META_PREFIX = '_oauth2_access_';
+	const KEY_LENGTH = 12;
+	const CLIENT_META_PREFIX = '_oauth2_client_token_';
 
 	/**
 	 * @return string Meta prefix. Client tokens use a distinct prefix because

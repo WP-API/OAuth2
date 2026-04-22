@@ -8,6 +8,7 @@
 namespace WP\OAuth2\Authentication;
 
 use WP_Error;
+use WP_Http;
 use WP_User;
 use WP\OAuth2\Tokens;
 
@@ -176,7 +177,7 @@ function attempt_authentication( $user = null ) {
 			'oauth2.authentication.token_expired',
 			__( 'Access token has expired.', 'oauth2' ),
 			[
-				'status' => \WP_Http::UNAUTHORIZED,
+				'status' => WP_Http::UNAUTHORIZED,
 			]
 		);
 		return $user;
