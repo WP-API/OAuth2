@@ -46,17 +46,57 @@ function get_authorization_header() {
  * @return string|null Token on success, null on failure.
  */
 function get_provided_token() {
-    $header = get_authorization_header();
-    if ( $header ) {
-        return get_token_from_bearer_header( $header );
-    }
+	// Prefer the standard Authorization header. Only if it is missing or
+	// does not contain a bearer token (e.g. a proxy has injected Basic
+	// auth), fall back to the non-standard X-Authorization header.
+	$header = get_authorization_header();
+	if ( $header ) {
+		$token = get_token_from_bearer_header( $header );
+		if ( $token ) {
+			return $token;
+		}
+	}
 
-    $token = get_token_from_request();
-    if ( $token ) {
-        return $token;
-    }
+	$alt_header = get_custom_authorization_header();
+	if ( $alt_header ) {
+		$token = get_token_from_bearer_header( $alt_header );
+		if ( $token ) {
+			return $token;
+		}
+	}
 
-    return null;
+	$token = get_token_from_request();
+	if ( $token ) {
+		return $token;
+	}
+
+	return null;
+}
+
+/**
+ * Get the X-Authorization header.
+ *
+ * Used when the standard Authorization header is consumed by a proxy
+ * layer (e.g. Imperva HTTP Basic Auth).
+ *
+ * @return string|null Header value if set, null otherwise.
+ */
+function get_custom_authorization_header() {
+	if ( ! empty( $_SERVER['HTTP_X_AUTHORIZATION'] ) ) {
+		return wp_unslash( $_SERVER['HTTP_X_AUTHORIZATION'] ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+	}
+
+	if ( function_exists( 'getallheaders' ) ) {
+		$headers = getallheaders();
+
+		foreach ( $headers as $key => $value ) {
+			if ( strtolower( $key ) === 'x-authorization' ) {
+				return $value;
+			}
+		}
+	}
+
+	return null;
 }
 
 /**
