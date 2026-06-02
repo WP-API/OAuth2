@@ -12,26 +12,27 @@ use WP_User;
 use WP\OAuth2\Tokens;
 
 /**
- * Get the authorization header
+ * Get a request header by name, case-insensitively.
  *
  * On certain systems and configurations, the Authorization header will be
  * stripped out by the server or PHP. Typically this is then used to
  * generate `PHP_AUTH_USER`/`PHP_AUTH_PASS` but not passed on. We use
  * `getallheaders` here to try and grab it out instead.
  *
- * @return string|null Authorization header if set, null otherwise
+ * @param string $name Header name. Default 'authorization'.
+ *
+ * @return string|null Header value if set, null otherwise.
  */
-function get_authorization_header() {
-	if ( ! empty( $_SERVER['HTTP_AUTHORIZATION'] ) ) {
-		return wp_unslash( $_SERVER['HTTP_AUTHORIZATION'] ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+function get_authorization_header( $name = 'authorization' ) {
+	$server_key = 'HTTP_' . strtoupper( str_replace( '-', '_', $name ) );
+	if ( ! empty( $_SERVER[ $server_key ] ) ) {
+		return wp_unslash( $_SERVER[ $server_key ] ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 	}
 
 	if ( function_exists( 'getallheaders' ) ) {
 		$headers = getallheaders();
-
-		// Check for the authorization header case-insensitively
 		foreach ( $headers as $key => $value ) {
-			if ( strtolower( $key ) === 'authorization' ) {
+			if ( strtolower( $key ) === strtolower( $name ) ) {
 				return $value;
 			}
 		}
@@ -46,27 +47,18 @@ function get_authorization_header() {
  * @return string|null Token on success, null on failure.
  */
 function get_provided_token() {
-	$header = get_authorization_header();
+	/**
+	 * Filter the authorization header name used to extract the bearer token.
+	 *
+	 * Override when the standard Authorization header is consumed by a proxy
+	 * (e.g. Imperva HTTP Basic Auth) and the token is forwarded under a
+	 * different name such as X-Authorization.
+	 *
+	 * @param string $name Header name. Default 'authorization'.
+	 */
+	$header = get_authorization_header( apply_filters( 'oauth2.authentication.authorization_header', 'authorization' ) );
 	if ( $header ) {
 		$token = get_token_from_bearer_header( $header );
-		if ( $token ) {
-			return $token;
-		}
-	}
-
-	/**
-	 * Provide an alternative authorization header value.
-	 *
-	 * Use this filter when the standard Authorization header is consumed by a
-	 * proxy or server layer (e.g. Imperva HTTP Basic Auth). Return the raw
-	 * header value (e.g. "Bearer <token>") to have it parsed as a bearer token.
-	 * Return null to skip the fallback entirely.
-	 *
-	 * @param string|null $header Raw header value, or null to skip.
-	 */
-	$alt_header = apply_filters( 'oauth2.authentication.alternative_authorization_header', null );
-	if ( $alt_header ) {
-		$token = get_token_from_bearer_header( $alt_header );
 		if ( $token ) {
 			return $token;
 		}
