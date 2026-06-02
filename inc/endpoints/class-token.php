@@ -20,20 +20,21 @@ class Token {
 			'oauth2',
 			'/access_token',
 			[
-				'methods'  => 'POST',
-				'callback' => [ $this, 'exchange_token' ],
-				'args'     => [
-					'grant_type' => [
+				'methods'             => 'POST',
+				'callback'            => [ $this, 'exchange_token' ],
+				'permission_callback' => '__return_true',
+				'args'                => [
+					'grant_type'    => [
 						'required'          => true,
 						'type'              => 'string',
 						'validate_callback' => [ $this, 'validate_grant_type' ],
 					],
-					'client_id'  => [
+					'client_id'     => [
 						'required'          => false,
 						'type'              => 'string',
 						'validate_callback' => 'rest_validate_request_arg',
 					],
-					'code'       => [
+					'code'          => [
 						'required'          => false,
 						'type'              => 'string',
 						'validate_callback' => 'rest_validate_request_arg',
@@ -67,7 +68,7 @@ class Token {
 	 * @return array|WP_Error Token data on success, or error on failure.
 	 */
 	public function exchange_token( WP_REST_Request $request ) {
-		if ( $request['grant_type'] === 'client_credentials' ) {
+		if ( 'client_credentials' === $request['grant_type'] ) {
 			return $this->handle_client_credentials( $request );
 		}
 
@@ -206,7 +207,7 @@ class Token {
 			$encoded = substr( $auth_header, 6 );
 			$decoded = base64_decode( $encoded, true );
 
-			if ( $decoded === false ) {
+			if ( false === $decoded ) {
 				return new WP_Error(
 					'oauth2.endpoints.token.invalid_request',
 					__( 'Invalid Authorization header.', 'oauth2' ),

@@ -23,8 +23,9 @@ function register() {
 		'oauth2',
 		'/authorize',
 		[
-			'methods'  => 'GET',
-			'callback' => __NAMESPACE__ . '\\redirect_to_authorize',
+			'methods'             => 'GET',
+			'callback'            => __NAMESPACE__ . '\\redirect_to_authorize',
+			'permission_callback' => '__return_true',
 		]
 	);
 }

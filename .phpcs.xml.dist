@@ -6,6 +6,7 @@
 	<file>.</file>
 	<exclude-pattern>/vendor/</exclude-pattern>
 	<exclude-pattern>/node_modules/</exclude-pattern>
+	<exclude-pattern>/tests/</exclude-pattern>
 
 	<!-- How to scan -->
 	<!-- Usage instructions: https://github.com/squizlabs/PHP_CodeSniffer/wiki/Usage -->
@@ -19,12 +20,13 @@
 	<!-- Rules: WordPress Coding Standards -->
 	<!-- https://github.com/WordPress-Coding-Standards/WordPress-Coding-Standards -->
 	<!-- https://github.com/WordPress-Coding-Standards/WordPress-Coding-Standards/wiki/Customizable-sniff-properties -->
-	<config name="minimum_supported_wp_version" value="4.8"/>
+	<config name="minimum_supported_wp_version" value="6.5"/>
 	<rule ref="WordPress">
 		<exclude name="Generic.Commenting" />
 		<exclude name="Generic.Arrays.DisallowShortArraySyntax" />
 		<exclude name="Squiz.Commenting" />
 		<exclude name="WordPress.DateTime.RestrictedFunctions.date_date" />
 		<exclude name="WordPress.NamingConventions.ValidHookName.UseUnderscores" />
+		<exclude name="WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode" />
 	</rule>
 </ruleset>

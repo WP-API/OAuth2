@@ -303,7 +303,7 @@ class Access_Token extends Token {
 	 * @return bool True if this is a client token, false otherwise.
 	 */
 	public function is_client_token() {
-		return $this->user === null;
+		return null === $this->user;
 	}
 
 	/**
