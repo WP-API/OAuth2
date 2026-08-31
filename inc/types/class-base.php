@@ -222,7 +222,10 @@ abstract class Base implements Type {
 	 * @param array   $redirect_args Redirect args.
 	 * @param boolean $authorized True if authorized, false otherwise.
 	 * @param Client  $client Client being authorised.
-	 * @param array   $data Data for the request.
+	 * @param array   $data Data for the request. May include PKCE's
+	 *                      `code_challenge`/`code_challenge_method` for the
+	 *                      authorization_code grant; never `code_verifier`,
+	 *                      which is only ever supplied at the token endpoint.
 	 */
 	protected function filter_redirect_args( $redirect_args, $authorized, Client $client, $data ) {
 		if ( ! $authorized ) {
@@ -231,7 +234,7 @@ abstract class Base implements Type {
 			 *
 			 * @param array $redirect_args Redirect args.
 			 * @param Client $client Client being authorised.
-			 * @param array $data Data for the request.
+			 * @param array $data Data for the request. See filter_redirect_args().
 			 */
 			return apply_filters( 'oauth2.redirect_args.cancelled', $redirect_args, $client, $data );
 		}
@@ -241,7 +244,7 @@ abstract class Base implements Type {
 		 *
 		 * @param array $redirect_args Redirect args.
 		 * @param Client $client Client being authorised.
-		 * @param array $data Data for the request.
+		 * @param array $data Data for the request. See filter_redirect_args().
 		 */
 		return apply_filters( 'oauth2.redirect_args.authorized', $redirect_args, $client, $data );
 	}
