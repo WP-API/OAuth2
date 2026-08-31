@@ -28,5 +28,6 @@
 		<exclude name="WordPress.DateTime.RestrictedFunctions.date_date" />
 		<exclude name="WordPress.NamingConventions.ValidHookName.UseUnderscores" />
 		<exclude name="WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode" />
+		<exclude name="WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode" />
 	</rule>
 </ruleset>
