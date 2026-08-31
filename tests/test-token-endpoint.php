@@ -11,6 +11,7 @@ require_once __DIR__ . '/class-test-case.php';
 
 use WP\OAuth2\Client;
 use WP\OAuth2\Endpoints\Token;
+use WP\OAuth2\PKCE;
 use WP\OAuth2\Tokens\Authorization_Code;
 use WP_REST_Request;
 use WP_REST_Server;
@@ -192,6 +193,141 @@ class Test_Token_Endpoint extends Test_Case {
 
 		$reuse = Authorization_Code::get_by_code( $this->client, $code->get_code() );
 		$this->assertWPError( $reuse );
+	}
+
+	// -------------------------------------------------------------------------
+	// Authorization code grant, PKCE
+	// -------------------------------------------------------------------------
+
+	public function test_exchange_token_with_correct_s256_verifier() {
+		$user = $this->factory->user->create_and_get();
+		$pair = $this->make_pkce_pair( PKCE::METHOD_S256 );
+		$code = Authorization_Code::create( $this->client, $user, [
+			'code_challenge'        => $pair['code_challenge'],
+			'code_challenge_method' => $pair['code_challenge_method'],
+		] );
+
+		$request = new WP_REST_Request( 'POST', '/oauth2/access_token' );
+		$request->set_param( 'grant_type', 'authorization_code' );
+		$request->set_param( 'client_id', $this->client->get_id() );
+		$request->set_param( 'code', $code->get_code() );
+		$request->set_param( 'code_verifier', $pair['code_verifier'] );
+
+		$response = $this->server->dispatch( $request );
+
+		$this->assertEquals( 200, $response->get_status() );
+		$data = $response->get_data();
+		$this->assertArrayHasKey( 'access_token', $data );
+	}
+
+	public function test_exchange_token_with_correct_plain_verifier() {
+		$user = $this->factory->user->create_and_get();
+		$pair = $this->make_pkce_pair( PKCE::METHOD_PLAIN );
+		$code = Authorization_Code::create( $this->client, $user, [
+			'code_challenge'        => $pair['code_challenge'],
+			'code_challenge_method' => $pair['code_challenge_method'],
+		] );
+
+		$request = new WP_REST_Request( 'POST', '/oauth2/access_token' );
+		$request->set_param( 'grant_type', 'authorization_code' );
+		$request->set_param( 'client_id', $this->client->get_id() );
+		$request->set_param( 'code', $code->get_code() );
+		$request->set_param( 'code_verifier', $pair['code_verifier'] );
+
+		$response = $this->server->dispatch( $request );
+
+		$this->assertEquals( 200, $response->get_status() );
+	}
+
+	public function test_exchange_token_with_wrong_verifier_fails_and_burns_code() {
+		$user = $this->factory->user->create_and_get();
+		$pair = $this->make_pkce_pair( PKCE::METHOD_S256 );
+		$code = Authorization_Code::create( $this->client, $user, [
+			'code_challenge'        => $pair['code_challenge'],
+			'code_challenge_method' => $pair['code_challenge_method'],
+		] );
+
+		$request = new WP_REST_Request( 'POST', '/oauth2/access_token' );
+		$request->set_param( 'grant_type', 'authorization_code' );
+		$request->set_param( 'client_id', $this->client->get_id() );
+		$request->set_param( 'code', $code->get_code() );
+		$request->set_param( 'code_verifier', 'wrong-verifier-wrong-verifier-wrong-verifier' );
+
+		$response = $this->server->dispatch( $request );
+		$this->assertEquals( 400, $response->get_status() );
+
+		// The code must be consumed, not just rejected once.
+		$retry = new WP_REST_Request( 'POST', '/oauth2/access_token' );
+		$retry->set_param( 'grant_type', 'authorization_code' );
+		$retry->set_param( 'client_id', $this->client->get_id() );
+		$retry->set_param( 'code', $code->get_code() );
+		$retry->set_param( 'code_verifier', $pair['code_verifier'] );
+
+		$retry_response = $this->server->dispatch( $retry );
+		$this->assertEquals( 400, $retry_response->get_status() );
+	}
+
+	public function test_exchange_token_missing_verifier_for_pkce_code_fails() {
+		$user = $this->factory->user->create_and_get();
+		$pair = $this->make_pkce_pair( PKCE::METHOD_S256 );
+		$code = Authorization_Code::create( $this->client, $user, [
+			'code_challenge'        => $pair['code_challenge'],
+			'code_challenge_method' => $pair['code_challenge_method'],
+		] );
+
+		$request = new WP_REST_Request( 'POST', '/oauth2/access_token' );
+		$request->set_param( 'grant_type', 'authorization_code' );
+		$request->set_param( 'client_id', $this->client->get_id() );
+		$request->set_param( 'code', $code->get_code() );
+
+		$response = $this->server->dispatch( $request );
+		$this->assertEquals( 400, $response->get_status() );
+	}
+
+	public function test_exchange_token_verifier_for_non_pkce_code_fails() {
+		$user = $this->factory->user->create_and_get();
+		$code = Authorization_Code::create( $this->client, $user );
+
+		$request = new WP_REST_Request( 'POST', '/oauth2/access_token' );
+		$request->set_param( 'grant_type', 'authorization_code' );
+		$request->set_param( 'client_id', $this->client->get_id() );
+		$request->set_param( 'code', $code->get_code() );
+		$request->set_param( 'code_verifier', PKCE::generate_verifier() );
+
+		$response = $this->server->dispatch( $request );
+		$this->assertEquals( 400, $response->get_status() );
+	}
+
+	public function test_exchange_token_rejects_array_valued_verifier_via_schema() {
+		$user = $this->factory->user->create_and_get();
+		$pair = $this->make_pkce_pair( PKCE::METHOD_S256 );
+		$code = Authorization_Code::create( $this->client, $user, [
+			'code_challenge'        => $pair['code_challenge'],
+			'code_challenge_method' => $pair['code_challenge_method'],
+		] );
+
+		$request = new WP_REST_Request( 'POST', '/oauth2/access_token' );
+		$request->set_param( 'grant_type', 'authorization_code' );
+		$request->set_param( 'client_id', $this->client->get_id() );
+		$request->set_param( 'code', $code->get_code() );
+		$request->set_param( 'code_verifier', [ 'x' ] );
+
+		$response = $this->server->dispatch( $request );
+		$this->assertEquals( 400, $response->get_status() );
+	}
+
+	public function test_exchange_token_non_pkce_code_with_no_verifier_still_works() {
+		// Back-compat: a code minted without PKCE needs no verifier at all.
+		$user = $this->factory->user->create_and_get();
+		$code = Authorization_Code::create( $this->client, $user );
+
+		$request = new WP_REST_Request( 'POST', '/oauth2/access_token' );
+		$request->set_param( 'grant_type', 'authorization_code' );
+		$request->set_param( 'client_id', $this->client->get_id() );
+		$request->set_param( 'code', $code->get_code() );
+
+		$response = $this->server->dispatch( $request );
+		$this->assertEquals( 200, $response->get_status() );
 	}
 
 	// -------------------------------------------------------------------------
