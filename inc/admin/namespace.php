@@ -174,6 +174,7 @@ function validate_parameters( $params ) {
 	$valid['type'] = wp_kses_post( $params['type'] );
 
 	$valid['client_credentials_enabled'] = ! empty( $params['client_credentials_enabled'] );
+	$valid['pkce_required']              = ! empty( $params['pkce_required'] );
 
 	// Callback is required unless this client only uses client_credentials.
 	if ( empty( $params['callback'] ) && ! $valid['client_credentials_enabled'] ) {
@@ -219,6 +220,7 @@ function handle_edit_submit( Client $consumer = null ) {
 				'type'                       => $params['type'],
 				'callback'                   => $params['callback'],
 				'client_credentials_enabled' => $params['client_credentials_enabled'],
+				'pkce_required'              => $params['pkce_required'],
 			],
 		];
 
@@ -233,6 +235,7 @@ function handle_edit_submit( Client $consumer = null ) {
 				'type'                       => $params['type'],
 				'callback'                   => $params['callback'],
 				'client_credentials_enabled' => $params['client_credentials_enabled'],
+				'pkce_required'              => $params['pkce_required'],
 			],
 		];
 
@@ -326,12 +329,21 @@ function render_edit_page() {
 			$data[ $key ] = empty( $form_data[ $key ] ) ? '' : $form_data[ $key ];
 		}
 		$data['client_credentials_enabled'] = ! empty( $form_data['client_credentials_enabled'] );
+
+		if ( empty( $consumer ) && empty( $form_data ) ) {
+			// A genuinely fresh "Add Application" page, not a failed submission
+			// redisplay: default new clients to requiring PKCE.
+			$data['pkce_required'] = true;
+		} else {
+			$data['pkce_required'] = ! empty( $form_data['pkce_required'] );
+		}
 	} else {
 		$data['name']                       = $consumer->get_name();
 		$data['description']                = $consumer->get_description( true );
 		$data['type']                       = $consumer->get_type();
 		$data['callback']                   = $consumer->get_redirect_uris();
 		$data['client_credentials_enabled'] = $consumer->is_client_credentials_enabled();
+		$data['pkce_required']              = $consumer->is_pkce_required();
 
 		if ( is_array( $data['callback'] ) ) {
 			$data['callback'] = implode( ',', $data['callback'] );
@@ -454,6 +466,26 @@ function render_edit_page() {
 						</label>
 						<p class="description">
 							<?php esc_html_e( 'When enabled, this application can authenticate without a user using its client ID and secret. Use for machine-to-machine integrations only. Tokens issued this way are not associated with a WordPress user.', 'oauth2' ); ?>
+						</p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row">
+						<?php echo esc_html_x( 'Require PKCE (S256)', 'field name', 'oauth2' ); ?>
+					</th>
+					<td>
+						<label for="oauth-pkce-required">
+							<input
+								type="checkbox"
+								name="pkce_required"
+								id="oauth-pkce-required"
+								value="1"
+								<?php checked( ! empty( $data['pkce_required'] ) ); ?>
+							/>
+							<?php esc_html_e( 'Require this application to use PKCE with the S256 code_challenge_method for the authorization_code grant.', 'oauth2' ); ?>
+						</label>
+						<p class="description">
+							<?php esc_html_e( 'Recommended for public clients such as single-page apps, desktop apps, and mobile apps, which cannot keep a client secret confidential. Only S256 satisfies this requirement; plain does not.', 'oauth2' ); ?>
 						</p>
 					</td>
 				</tr>
