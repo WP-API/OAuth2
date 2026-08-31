@@ -98,11 +98,12 @@ function register_in_index( WP_REST_Response $response ) {
 	$data = $response->get_data();
 
 	$data['authentication']['oauth2'] = [
-		'endpoints'   => [
+		'endpoints'                        => [
 			'authorization' => get_authorization_url(),
 			'token'         => get_token_url(),
 		],
-		'grant_types' => array_keys( get_grant_types() ),
+		'grant_types'                      => array_keys( get_grant_types() ),
+		'code_challenge_methods_supported' => PKCE::supported_methods(),
 	];
 
 	$response->set_data( $data );
