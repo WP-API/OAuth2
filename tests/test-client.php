@@ -51,7 +51,7 @@ class Test_Client extends Test_Case {
 	}
 
 	public function test_create_stores_type() {
-		$this->assertEquals( 'web', $this->client->get_type() );
+		$this->assertEquals( 'public', $this->client->get_type() );
 	}
 
 	public function test_create_stores_secret() {
@@ -216,5 +216,86 @@ class Test_Client extends Test_Case {
 
 	public function test_check_redirect_uri_rejects_unregistered() {
 		$this->assertFalse( $this->client->check_redirect_uri( 'https://evil.com/steal' ) );
+	}
+
+	public function test_pkce_required_defaults_to_false() {
+		$this->assertFalse( $this->client->is_pkce_required() );
+	}
+
+	public function test_pkce_required_true_when_set() {
+		$client = $this->create_client( [ 'pkce_required' => true ] );
+		$this->assertTrue( $client->is_pkce_required() );
+	}
+
+	public function test_pkce_required_filter_can_force_true() {
+		$filter = '__return_true';
+		add_filter( 'oauth2.pkce.required', $filter );
+		$this->assertTrue( $this->client->is_pkce_required() );
+		remove_filter( 'oauth2.pkce.required', $filter );
+	}
+
+	public function test_update_omitting_pkce_required_preserves_existing_value() {
+		$client = $this->create_client( [ 'pkce_required' => true ] );
+
+		$client->update( [
+			'name'        => 'Updated Name',
+			'description' => 'Updated description.',
+			'meta'        => [
+				'callback' => 'https://example.com/callback',
+				'type'     => 'public',
+			],
+		] );
+
+		$this->assertTrue( $client->is_pkce_required() );
+	}
+
+	public function test_update_omitting_client_credentials_enabled_preserves_existing_value() {
+		$client = $this->create_client( [ 'client_credentials_enabled' => true ] );
+
+		$client->update( [
+			'name'        => 'Updated Name',
+			'description' => 'Updated description.',
+			'meta'        => [
+				'callback' => 'https://example.com/callback',
+				'type'     => 'public',
+			],
+		] );
+
+		$this->assertTrue( $client->is_client_credentials_enabled() );
+	}
+
+	public function test_update_can_still_explicitly_change_pkce_required() {
+		$client = $this->create_client( [ 'pkce_required' => true ] );
+
+		$client->update( [
+			'name'        => 'Updated Name',
+			'description' => 'Updated description.',
+			'meta'        => [
+				'callback'      => 'https://example.com/callback',
+				'type'          => 'public',
+				'pkce_required' => false,
+			],
+		] );
+
+		$this->assertFalse( $client->is_pkce_required() );
+	}
+
+	public function test_generate_authorization_code_without_data_still_works() {
+		$user = $this->factory->user->create_and_get();
+		$code = $this->client->generate_authorization_code( $user );
+		$this->assertNull( $code->get_code_challenge() );
+	}
+
+	public function test_generate_authorization_code_stores_pkce_challenge() {
+		$user = $this->factory->user->create_and_get();
+		$pair = $this->make_pkce_pair();
+
+		$code = $this->client->generate_authorization_code( $user, [
+			'code_challenge'        => $pair['code_challenge'],
+			'code_challenge_method' => $pair['code_challenge_method'],
+		] );
+
+		$this->assertSame( $pair['code_challenge'], $code->get_code_challenge() );
+		$this->assertSame( $pair['code_challenge_method'], $code->get_code_challenge_method() );
 	}
 }
