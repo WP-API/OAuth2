@@ -105,4 +105,176 @@ class Test_Authorization_Code extends Test_Case {
 		$result = Authorization_Code::get_by_code( $other_client, $code->get_code() );
 		$this->assertWPError( $result );
 	}
+
+	// RFC 7636 Appendix B worked example.
+	const RFC_VERIFIER  = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
+	const RFC_CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
+
+	public function test_create_without_pkce_data_stores_no_challenge() {
+		$code = Authorization_Code::create( $this->client, $this->user );
+		$this->assertNull( $code->get_code_challenge() );
+		$this->assertNull( $code->get_code_challenge_method() );
+	}
+
+	public function test_create_with_pkce_data_stores_challenge_and_method() {
+		$code = Authorization_Code::create(
+			$this->client,
+			$this->user,
+			[
+				'code_challenge'        => static::RFC_CHALLENGE,
+				'code_challenge_method' => 'S256',
+			]
+		);
+
+		$this->assertSame( static::RFC_CHALLENGE, $code->get_code_challenge() );
+		$this->assertSame( 'S256', $code->get_code_challenge_method() );
+	}
+
+	public function test_create_defaults_challenge_method_to_plain_when_omitted() {
+		$code = Authorization_Code::create(
+			$this->client,
+			$this->user,
+			[ 'code_challenge' => static::RFC_VERIFIER ]
+		);
+
+		$this->assertSame( 'plain', $code->get_code_challenge_method() );
+	}
+
+	public function test_create_data_cannot_override_user_or_expiration() {
+		$code = Authorization_Code::create(
+			$this->client,
+			$this->user,
+			[
+				'user'       => 999999,
+				'expiration' => 1,
+			]
+		);
+
+		$user = $code->get_user();
+		$this->assertInstanceOf( WP_User::class, $user );
+		$this->assertEquals( $this->user->ID, $user->ID );
+		$this->assertGreaterThan( time(), $code->get_expiration() );
+	}
+
+	public function test_validate_with_no_args_still_passes_for_non_pkce_code() {
+		// Back-compat guarantee: existing callers pass no args at all.
+		$code = Authorization_Code::create( $this->client, $this->user );
+		$this->assertTrue( $code->validate() );
+	}
+
+	public function test_validate_passes_with_correct_s256_verifier() {
+		$code = Authorization_Code::create(
+			$this->client,
+			$this->user,
+			[
+				'code_challenge'        => static::RFC_CHALLENGE,
+				'code_challenge_method' => 'S256',
+			]
+		);
+
+		$this->assertTrue( $code->validate( [ 'code_verifier' => static::RFC_VERIFIER ] ) );
+	}
+
+	public function test_validate_passes_with_correct_plain_verifier() {
+		$code = Authorization_Code::create(
+			$this->client,
+			$this->user,
+			[
+				'code_challenge'        => static::RFC_VERIFIER,
+				'code_challenge_method' => 'plain',
+			]
+		);
+
+		$this->assertTrue( $code->validate( [ 'code_verifier' => static::RFC_VERIFIER ] ) );
+	}
+
+	public function test_validate_fails_with_wrong_verifier() {
+		$code = Authorization_Code::create(
+			$this->client,
+			$this->user,
+			[
+				'code_challenge'        => static::RFC_CHALLENGE,
+				'code_challenge_method' => 'S256',
+			]
+		);
+
+		$result = $code->validate( [ 'code_verifier' => 'wrong-verifier-wrong-verifier-wrong-verifier' ] );
+		$this->assertWPError( $result );
+		$this->assertSame( 'invalid_grant', $result->get_error_data()['error'] );
+	}
+
+	public function test_validate_fails_with_missing_verifier() {
+		$code = Authorization_Code::create(
+			$this->client,
+			$this->user,
+			[
+				'code_challenge'        => static::RFC_CHALLENGE,
+				'code_challenge_method' => 'S256',
+			]
+		);
+
+		$result = $code->validate();
+		$this->assertWPError( $result );
+		$this->assertEquals( 'oauth2.tokens.authorization_code.validate.missing_verifier', $result->get_error_code() );
+	}
+
+	public function test_validate_fails_with_malformed_verifier() {
+		$code = Authorization_Code::create(
+			$this->client,
+			$this->user,
+			[
+				'code_challenge'        => static::RFC_CHALLENGE,
+				'code_challenge_method' => 'S256',
+			]
+		);
+
+		$result = $code->validate( [ 'code_verifier' => 'too-short' ] );
+		$this->assertWPError( $result );
+	}
+
+	public function test_validate_rejects_verifier_for_code_with_no_stored_challenge() {
+		$code   = Authorization_Code::create( $this->client, $this->user );
+		$result = $code->validate( [ 'code_verifier' => static::RFC_VERIFIER ] );
+
+		$this->assertWPError( $result );
+		$this->assertEquals( 'oauth2.tokens.authorization_code.validate.unexpected_verifier', $result->get_error_code() );
+	}
+
+	public function test_validate_allows_unexpected_verifier_when_filtered() {
+		$code = Authorization_Code::create( $this->client, $this->user );
+
+		$filter = '__return_false';
+		add_filter( 'oauth2.pkce.reject_unexpected_verifier', $filter );
+		$result = $code->validate( [ 'code_verifier' => static::RFC_VERIFIER ] );
+		remove_filter( 'oauth2.pkce.reject_unexpected_verifier', $filter );
+
+		$this->assertTrue( $result );
+	}
+
+	public function test_validate_fails_closed_when_stored_method_is_missing() {
+		$code     = Authorization_Code::create( $this->client, $this->user );
+		$meta_key = Authorization_Code::KEY_PREFIX . $code->get_code();
+
+		// Simulate corrupted meta: a challenge with no method.
+		$value                    = get_post_meta( $this->client->get_post_id(), $meta_key, true );
+		$value['code_challenge']  = static::RFC_CHALLENGE;
+		update_post_meta( $this->client->get_post_id(), $meta_key, $value );
+
+		$result = $code->validate( [ 'code_verifier' => static::RFC_VERIFIER ] );
+		$this->assertWPError( $result );
+		$this->assertEquals( 'oauth2.tokens.authorization_code.validate.missing_challenge_method', $result->get_error_code() );
+	}
+
+	public function test_validate_with_malformed_meta_does_not_pass_expiry_check() {
+		$code     = Authorization_Code::create( $this->client, $this->user );
+		$meta_key = Authorization_Code::KEY_PREFIX . $code->get_code();
+
+		// Corrupt the expiration entirely; get_expiration() now returns a WP_Error.
+		$value = get_post_meta( $this->client->get_post_id(), $meta_key, true );
+		unset( $value['expiration'] );
+		update_post_meta( $this->client->get_post_id(), $meta_key, $value );
+
+		$result = $code->validate();
+		$this->assertWPError( $result );
+	}
 }
