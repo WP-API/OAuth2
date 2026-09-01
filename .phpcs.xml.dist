@@ -23,8 +23,8 @@
 	<config name="minimum_supported_wp_version" value="6.5"/>
 	<rule ref="WordPress">
 		<exclude name="Generic.Commenting" />
-		<exclude name="Generic.Arrays.DisallowShortArraySyntax" />
 		<exclude name="Squiz.Commenting" />
+		<exclude name="Universal.Arrays.DisallowShortArraySyntax" />
 		<exclude name="WordPress.DateTime.RestrictedFunctions.date_date" />
 		<exclude name="WordPress.NamingConventions.ValidHookName.UseUnderscores" />
 		<exclude name="WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode" />

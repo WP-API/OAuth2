@@ -7,6 +7,9 @@
 ## https://docs.npmjs.com/misc/faq#should-i-check-my-node_modules-folder-into-git
 node_modules
 
+# Composer-generated lock file
+composer.lock
+
 # Book build output
 _book
 

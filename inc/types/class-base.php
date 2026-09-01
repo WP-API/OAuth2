@@ -128,13 +128,11 @@ abstract class Base implements Type {
 			}
 
 			$redirect_uri = $registered[0];
-		} else {
-			if ( ! $client->check_redirect_uri( $redirect_uri ) ) {
-				return new WP_Error(
-					'oauth2.types.authorization_code.handle_authorisation.invalid_redirect_uri',
-					__( 'Specified redirect URI is not valid for this client.', 'oauth2' )
-				);
-			}
+		} elseif ( ! $client->check_redirect_uri( $redirect_uri ) ) {
+			return new WP_Error(
+				'oauth2.types.authorization_code.handle_authorisation.invalid_redirect_uri',
+				__( 'Specified redirect URI is not valid for this client.', 'oauth2' )
+			);
 		}
 
 		return $redirect_uri;

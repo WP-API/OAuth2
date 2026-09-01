@@ -19,7 +19,7 @@ function register() {
 	/**
 	 * Include anything we need that relies on admin classes/functions
 	 */
-	include_once dirname( __FILE__ ) . '/class-listtable.php';
+	include_once __DIR__ . '/class-listtable.php';
 
 	$hook = add_users_page(
 		__( 'Registered OAuth Applications', 'oauth2' ),

@@ -78,5 +78,4 @@ class Implicit extends Base {
 		wp_safe_redirect( $generated_redirect );
 		exit;
 	}
-
 }

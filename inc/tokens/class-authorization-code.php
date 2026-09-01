@@ -116,10 +116,9 @@ class Authorization_Code {
 	/**
 	 * Validate the code for use.
 	 *
-	 * @param array $args Other request arguments to validate.
 	 * @return bool|WP_Error True if valid, error describing problem otherwise.
 	 */
-	public function validate( $args = [] ) {
+	public function validate() {
 		$expiration = $this->get_expiration();
 		$now        = time();
 		if ( $expiration <= $now ) {

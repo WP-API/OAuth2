@@ -53,12 +53,12 @@ class Access_Token extends Token {
 	 * This is used to store additional information on the token itself, such
 	 * as a description for the token.
 	 *
-	 * @param string $key     Meta key to fetch.
-	 * @param mixed  $default Value to return if key is unavailable.
+	 * @param string $key           Meta key to fetch.
+	 * @param mixed  $default_value Value to return if key is unavailable.
 	 *
-	 * @return mixed Value if available, or value of `$default` if not found.
+	 * @return mixed Value if available, or value of `$default_value` if not found.
 	 */
-	public function get_meta( $key, $default = null ) {
+	public function get_meta( $key, $default_value = null ) {
 		if ( empty( $this->value['meta'] ) || ! isset( $this->value['meta'][ $key ] ) ) {
 			return null;
 		}
