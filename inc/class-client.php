@@ -418,7 +418,7 @@ class Client implements ClientInterface {
 		// Map of meta key => data key. Built this way, rather than as a fixed
 		// array of values, so that a caller omitting a key leaves the existing
 		// meta value untouched instead of silently resetting it to empty/false.
-		$fields = [
+		$fields         = [
 			static::REDIRECT_URI_KEY               => 'callback',
 			static::TYPE_KEY                       => 'type',
 			static::CLIENT_CREDENTIALS_ENABLED_KEY => 'client_credentials_enabled',

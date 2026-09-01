@@ -256,7 +256,9 @@ class Test_Token_Endpoint extends Test_Case {
 		$response = $this->server->dispatch( $request );
 		$this->assertEquals( 400, $response->get_status() );
 
-		// The code must be consumed, not just rejected once.
+		// The code must be consumed, not just rejected once: it's deleted along
+		// with the failed attempt, so re-using it (even with the right verifier
+		// this time) now fails as an unknown code, not as a bad verifier.
 		$retry = new WP_REST_Request( 'POST', '/oauth2/access_token' );
 		$retry->set_param( 'grant_type', 'authorization_code' );
 		$retry->set_param( 'client_id', $this->client->get_id() );
@@ -264,7 +266,7 @@ class Test_Token_Endpoint extends Test_Case {
 		$retry->set_param( 'code_verifier', $pair['code_verifier'] );
 
 		$retry_response = $this->server->dispatch( $retry );
-		$this->assertEquals( 400, $retry_response->get_status() );
+		$this->assertEquals( 404, $retry_response->get_status() );
 	}
 
 	public function test_exchange_token_missing_verifier_for_pkce_code_fails() {
