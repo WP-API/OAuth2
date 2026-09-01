@@ -122,7 +122,8 @@ class Authorization_Code extends Base {
 				// which would silently mint a code with no challenge.
 				if ( ! empty( $data['code_challenge'] ) && $code->get_code_challenge() !== $data['code_challenge'] ) {
 					$code->delete();
-					wp_safe_redirect(
+					// phpcs:ignore WordPress.Security.SafeRedirect -- Intentionally external redirect, secured via client registration.
+					wp_redirect(
 						$this->get_error_redirect_url(
 							$redirect_uri,
 							'server_error',

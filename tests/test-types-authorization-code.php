@@ -15,6 +15,13 @@ use WP\OAuth2\Types\Authorization_Code;
 use WP\OAuth2\Types\Implicit;
 
 /**
+ * Thrown from a 'wp_redirect' filter to capture the final redirect location
+ * and escape before the real exit(), without swallowing any other exception
+ * a bug elsewhere in the request might throw.
+ */
+class Redirect_Interrupt extends \RuntimeException {}
+
+/**
  * Exposes the protected methods under test without going through
  * $_GET/$_POST/exit, so they can be driven with plain arrays.
  */
@@ -196,6 +203,45 @@ class Test_Types_Authorization_Code extends Test_Case {
 	public function test_error_redirect_url_includes_state_when_present() {
 		$url = $this->type->get_error_redirect_url_public( 'https://example.com/callback', 'invalid_request', 'Bad request.', 'xyz' );
 		$this->assertStringContainsString( 'state=xyz', $url );
+	}
+
+	/**
+	 * Regression test: an authorize-time PKCE error must redirect to the
+	 * client's registered callback, not silently fall back to wp-admin.
+	 *
+	 * wp_safe_redirect() rejects a callback on a host other than the current
+	 * site (there is no allowed_redirect_hosts filter registered anywhere in
+	 * this plugin) and substitutes admin_url() instead, so the client would
+	 * never learn the request failed. wp_redirect() and wp_safe_redirect()
+	 * both funnel through the 'wp_redirect' filter, so hooking it captures
+	 * the final location actually sent, whichever function was used, and
+	 * lets the test escape before handle_authorisation()'s exit.
+	 */
+	public function test_pkce_error_redirects_to_client_callback_not_wp_admin() {
+		$client             = $this->create_client( [ 'pkce_required' => true ] );
+		$_GET['client_id']  = $client->get_id();
+		$captured_location = null;
+
+		add_filter(
+			'wp_redirect',
+			function ( $location ) use ( &$captured_location ) {
+				$captured_location = $location;
+				throw new Redirect_Interrupt();
+			}
+		);
+
+		try {
+			( new Authorization_Code() )->handle_authorisation();
+			$this->fail( 'Expected handle_authorisation() to redirect on a PKCE error.' );
+		} catch ( Redirect_Interrupt $e ) {
+			// Expected: escapes before the real exit(); see filter above.
+		}
+
+		unset( $_GET['client_id'] );
+
+		$this->assertNotNull( $captured_location );
+		$this->assertStringStartsWith( 'https://example.com/callback', $captured_location );
+		$this->assertStringContainsString( 'error=invalid_request', $captured_location );
 	}
 }
 

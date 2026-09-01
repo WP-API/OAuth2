@@ -75,7 +75,8 @@ abstract class Base implements Type {
 		if ( is_wp_error( $extra_params ) ) {
 			$error_data = $extra_params->get_error_data();
 			$error_code = ! empty( $error_data['error'] ) ? $error_data['error'] : 'invalid_request';
-			wp_safe_redirect( $this->get_error_redirect_url( $redirect_uri, $error_code, $extra_params->get_error_message(), $state ) );
+			// phpcs:ignore WordPress.Security.SafeRedirect -- Intentionally external redirect, secured via client registration.
+			wp_redirect( $this->get_error_redirect_url( $redirect_uri, $error_code, $extra_params->get_error_message(), $state ) );
 			exit;
 		}
 
