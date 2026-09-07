@@ -133,6 +133,52 @@ class Test_Token_Endpoint extends Test_Case {
 		$this->assertEquals( 'bearer', $data['token_type'] );
 	}
 
+	public function test_exchange_token_client_id_via_basic_auth_header() {
+		$user    = $this->factory->user->create_and_get();
+		$code    = Authorization_Code::create( $this->client, $user );
+		$encoded = base64_encode( $this->client->get_id() . ':' . $this->client->get_secret() );
+
+		$request = new WP_REST_Request( 'POST', '/oauth2/access_token' );
+		$request->set_param( 'grant_type', 'authorization_code' );
+		$request->set_param( 'code', $code->get_code() );
+		$request->add_header( 'Authorization', 'Basic ' . $encoded );
+
+		$response = $this->server->dispatch( $request );
+
+		$this->assertEquals( 200, $response->get_status() );
+		$data = $response->get_data();
+		$this->assertArrayHasKey( 'access_token', $data );
+	}
+
+	public function test_exchange_token_body_client_id_takes_precedence_over_basic_auth_header() {
+		$user    = $this->factory->user->create_and_get();
+		$code    = Authorization_Code::create( $this->client, $user );
+		$encoded = base64_encode( 'nonexistent-client:any-secret' );
+
+		$request = new WP_REST_Request( 'POST', '/oauth2/access_token' );
+		$request->set_param( 'grant_type', 'authorization_code' );
+		$request->set_param( 'client_id', $this->client->get_id() );
+		$request->set_param( 'code', $code->get_code() );
+		$request->add_header( 'Authorization', 'Basic ' . $encoded );
+
+		$response = $this->server->dispatch( $request );
+
+		$this->assertEquals( 200, $response->get_status() );
+	}
+
+	public function test_exchange_token_invalid_basic_auth_header() {
+		$request = new WP_REST_Request( 'POST', '/oauth2/access_token' );
+		$request->set_param( 'grant_type', 'authorization_code' );
+		$request->set_param( 'code', 'somecode' );
+		$request->add_header( 'Authorization', 'Basic not-valid-base64!!!' );
+
+		$response = $this->server->dispatch( $request );
+
+		$this->assertEquals( 400, $response->get_status() );
+		$data = $response->get_data();
+		$this->assertEquals( 'oauth2.endpoints.token.invalid_request', $data['code'] );
+	}
+
 	public function test_exchange_token_deletes_code_after_use() {
 		$user = $this->factory->user->create_and_get();
 		$code = Authorization_Code::create( $this->client, $user );
