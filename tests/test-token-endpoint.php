@@ -231,6 +231,26 @@ class Test_Token_Endpoint extends Test_Case {
 		$this->assertArrayHasKey( 'access_token', $data );
 	}
 
+	public function test_client_credentials_basic_auth_header_is_form_decoded() {
+		$client = $this->create_client( [ 'client_credentials_enabled' => true ] );
+		$secret = 'a b+c';
+		update_post_meta( $client->get_post_id(), Client::CLIENT_SECRET_KEY, $secret );
+
+		// Per RFC 6749 section 2.3.1 the client form-encodes both values, so a
+		// space arrives as "+" and a literal "+" as "%2B".
+		$encoded = base64_encode( urlencode( $client->get_id() ) . ':' . urlencode( $secret ) );
+
+		$request = new WP_REST_Request( 'POST', '/oauth2/access_token' );
+		$request->set_param( 'grant_type', 'client_credentials' );
+		$request->add_header( 'Authorization', 'Basic ' . $encoded );
+
+		$response = $this->server->dispatch( $request );
+
+		$this->assertEquals( 200, $response->get_status() );
+		$data = $response->get_data();
+		$this->assertArrayHasKey( 'access_token', $data );
+	}
+
 	public function test_client_credentials_wrong_secret() {
 		$client = $this->create_client( [ 'client_credentials_enabled' => true ] );
 

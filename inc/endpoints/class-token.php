@@ -262,6 +262,8 @@ class Token {
 			);
 		}
 
-		return [ trim( $parts[0] ), trim( $parts[1] ) ];
+		// RFC 6749 section 2.3.1: both values are form-encoded before they go
+		// into the header, so decode them on the way back out.
+		return [ urldecode( trim( $parts[0] ) ), urldecode( trim( $parts[1] ) ) ];
 	}
 }
