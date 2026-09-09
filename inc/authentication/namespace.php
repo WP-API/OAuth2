@@ -8,6 +8,7 @@
 namespace WP\OAuth2\Authentication;
 
 use WP_Error;
+use WP_Http;
 use WP_User;
 use WP\OAuth2\Tokens;
 
@@ -139,6 +140,19 @@ function attempt_authentication( $user = null ) {
 	if ( empty( $token ) ) {
 		$is_querying_token = false;
 		$oauth2_error      = create_invalid_token_error( $token_value );
+		return $user;
+	}
+
+	// Reject expired tokens before any further lookups.
+	if ( $token->is_expired() ) {
+		$is_querying_token = false;
+		$oauth2_error      = new WP_Error(
+			'oauth2.authentication.token_expired',
+			__( 'Access token has expired.', 'oauth2' ),
+			[
+				'status' => WP_Http::UNAUTHORIZED,
+			]
+		);
 		return $user;
 	}
 

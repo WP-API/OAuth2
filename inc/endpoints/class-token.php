@@ -194,10 +194,17 @@ class Token {
 			return $token;
 		}
 
-		return [
+		$data = [
 			'access_token' => $token->get_key(),
 			'token_type'   => 'bearer',
 		];
+
+		$expires = $token->get_expiration_time();
+		if ( $expires !== null ) {
+			$data['expires_in'] = $expires - time();
+		}
+
+		return $data;
 	}
 
 	/**

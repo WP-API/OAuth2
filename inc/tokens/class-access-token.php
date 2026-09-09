@@ -16,9 +16,9 @@ use WP_User;
 use WP_User_Query;
 
 class Access_Token extends Token {
-	const META_PREFIX        = '_oauth2_access_';
+	const META_PREFIX = '_oauth2_access_';
+	const KEY_LENGTH = 12;
 	const CLIENT_META_PREFIX = '_oauth2_client_token_';
-	const KEY_LENGTH         = 12;
 
 	/**
 	 * @return string Meta prefix. Client tokens use a distinct prefix because
@@ -276,11 +276,16 @@ class Access_Token extends Token {
 			);
 		}
 
-		$data     = [
+		$ttl  = $client->get_token_ttl();
+		$data = [
 			'client'  => $client->get_id(),
 			'created' => time(),
 			'meta'    => $meta,
 		];
+
+		if ( $ttl !== null ) {
+			$data['expires'] = time() + $ttl;
+		}
 		$key      = wp_generate_password( static::KEY_LENGTH, false );
 		$meta_key = static::CLIENT_META_PREFIX . $key;
 
@@ -307,11 +312,36 @@ class Access_Token extends Token {
 	}
 
 	/**
+	 * Check if the token has expired.
+	 *
+	 * Tokens without an `expires` timestamp never expire (backwards compat
+	 * for user tokens issued before expiry support was added).
+	 *
+	 * @return bool True if the token has expired, false otherwise.
+	 */
+	public function is_expired() {
+		if ( ! isset( $this->value['expires'] ) ) {
+			return false;
+		}
+
+		return time() >= $this->value['expires'];
+	}
+
+	/**
+	 * Get expiration timestamp.
+	 *
+	 * @return int|null Expiration timestamp, or null if no expiration.
+	 */
+	public function get_expiration_time() {
+		return $this->value['expires'] ?? null;
+	}
+
+	/**
 	 * Check if the token is valid.
 	 *
 	 * @return bool True if the token is valid, false otherwise.
 	 */
 	public function is_valid() {
-		return true;
+		return ! $this->is_expired();
 	}
 }

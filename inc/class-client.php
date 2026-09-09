@@ -20,6 +20,7 @@ class Client implements ClientInterface {
 	const TYPE_KEY                       = '_oauth2_client_type';
 	const REDIRECT_URI_KEY               = '_oauth2_redirect_uri';
 	const CLIENT_CREDENTIALS_ENABLED_KEY = '_oauth2_client_credentials_enabled';
+	const TOKEN_TTL_KEY                  = '_oauth2_client_token_ttl';
 	const AUTH_CODE_KEY_PREFIX           = '_oauth2_authcode_';
 	const AUTH_CODE_LENGTH               = 12;
 	const CLIENT_ID_LENGTH               = 12;
@@ -140,6 +141,21 @@ class Client implements ClientInterface {
 	 */
 	public function is_client_credentials_enabled() {
 		return (bool) get_post_meta( $this->get_post_id(), static::CLIENT_CREDENTIALS_ENABLED_KEY, true );
+	}
+
+	/**
+	 * Get the token TTL for client credentials tokens.
+	 *
+	 * @return int|null TTL in seconds, or null if tokens should not expire.
+	 */
+	public function get_token_ttl() {
+		$ttl = get_post_meta( $this->get_post_id(), static::TOKEN_TTL_KEY, true );
+
+		if ( $ttl === '' || $ttl === false ) {
+			return null;
+		}
+
+		return (int) $ttl;
 	}
 
 	/**
@@ -363,6 +379,10 @@ class Client implements ClientInterface {
 			static::CLIENT_CREDENTIALS_ENABLED_KEY => ! empty( $data['meta']['client_credentials_enabled'] ) ? '1' : '',
 		];
 
+		if ( isset( $data['meta']['token_ttl'] ) && $data['meta']['token_ttl'] !== '' ) {
+			$meta[ static::TOKEN_TTL_KEY ] = (int) $data['meta']['token_ttl'];
+		}
+
 		foreach ( $meta as $key => $value ) {
 			$result = update_post_meta( $post_id, wp_slash( $key ), wp_slash( $value ) );
 			if ( ! $result ) {
@@ -399,6 +419,12 @@ class Client implements ClientInterface {
 			static::TYPE_KEY                       => $data['meta']['type'],
 			static::CLIENT_CREDENTIALS_ENABLED_KEY => ! empty( $data['meta']['client_credentials_enabled'] ) ? '1' : '',
 		];
+
+		if ( isset( $data['meta']['token_ttl'] ) && $data['meta']['token_ttl'] !== '' ) {
+			$meta[ static::TOKEN_TTL_KEY ] = (int) $data['meta']['token_ttl'];
+		} else {
+			$meta[ static::TOKEN_TTL_KEY ] = '';
+		}
 
 		foreach ( $meta as $key => $value ) {
 			update_post_meta( $post_id, wp_slash( $key ), wp_slash( $value ) );
