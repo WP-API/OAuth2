@@ -9,6 +9,9 @@ namespace WP\OAuth2\Well_Known;
 
 use WP\OAuth2;
 
+const AUTHORIZATION_SERVER_DOCUMENT = 'oauth-authorization-server';
+const AUTHORIZATION_SERVER_PATH     = '/.well-known/' . AUTHORIZATION_SERVER_DOCUMENT;
+
 /**
  * Intercepts `.well-known/` requests before WordPress tries to match a
  * post/page, and serves the matching discovery document.
@@ -16,7 +19,7 @@ use WP\OAuth2;
 function maybe_serve_document() {
 	$document = match_well_known_path( $_SERVER['REQUEST_URI'] ?? '' ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
 
-	if ( 'oauth-authorization-server' === $document ) {
+	if ( AUTHORIZATION_SERVER_DOCUMENT === $document ) {
 		serve_authorization_server_metadata();
 	}
 }
@@ -34,8 +37,8 @@ function maybe_serve_document() {
 function match_well_known_path( $request_uri ) {
 	$path = untrailingslashit( (string) wp_parse_url( $request_uri, PHP_URL_PATH ) );
 
-	if ( '/.well-known/oauth-authorization-server' === $path ) {
-		return 'oauth-authorization-server';
+	if ( AUTHORIZATION_SERVER_PATH === $path ) {
+		return AUTHORIZATION_SERVER_DOCUMENT;
 	}
 
 	return null;
