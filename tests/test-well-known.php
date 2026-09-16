@@ -9,11 +9,8 @@ namespace WP\OAuth2\Tests;
 
 require_once __DIR__ . '/class-test-case.php';
 
-use WP_REST_Request;
-use WP_REST_Response;
 use WP_REST_Server;
 
-use function WP\OAuth2\Well_Known\add_www_authenticate_header;
 use function WP\OAuth2\Well_Known\get_grant_types_supported;
 use function WP\OAuth2\Well_Known\get_response_types_supported;
 use function WP\OAuth2\Well_Known\match_well_known_path;
@@ -51,13 +48,6 @@ class Test_Well_Known extends Test_Case {
 		$this->assertEquals(
 			'oauth-authorization-server',
 			match_well_known_path( '/.well-known/oauth-authorization-server' )
-		);
-	}
-
-	public function test_match_well_known_path_matches_protected_resource() {
-		$this->assertEquals(
-			'oauth-protected-resource',
-			match_well_known_path( '/.well-known/oauth-protected-resource' )
 		);
 	}
 
@@ -133,39 +123,5 @@ class Test_Well_Known extends Test_Case {
 
 		do_action( 'oauth2_tests_login_wall' );
 		$this->assertFalse( $ran );
-	}
-
-	// -------------------------------------------------------------------------
-	// add_www_authenticate_header
-	// -------------------------------------------------------------------------
-
-	public function test_add_www_authenticate_header_adds_header_on_401() {
-		$response = new WP_REST_Response( [], 401 );
-		$request  = new WP_REST_Request( 'GET', '/wp/v2/posts' );
-
-		$response = add_www_authenticate_header( $response, $this->server, $request );
-
-		$this->assertStringContainsString(
-			'/.well-known/oauth-protected-resource',
-			$response->get_headers()['WWW-Authenticate']
-		);
-	}
-
-	public function test_add_www_authenticate_header_applies_regardless_of_route() {
-		$response = new WP_REST_Response( [], 401 );
-		$request  = new WP_REST_Request( 'GET', '/some/unrelated/route' );
-
-		$response = add_www_authenticate_header( $response, $this->server, $request );
-
-		$this->assertArrayHasKey( 'WWW-Authenticate', $response->get_headers() );
-	}
-
-	public function test_add_www_authenticate_header_ignores_non_401() {
-		$response = new WP_REST_Response( [], 403 );
-		$request  = new WP_REST_Request( 'GET', '/wp/v2/posts' );
-
-		$response = add_www_authenticate_header( $response, $this->server, $request );
-
-		$this->assertArrayNotHasKey( 'WWW-Authenticate', $response->get_headers() );
 	}
 }

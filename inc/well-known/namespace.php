@@ -8,7 +8,6 @@
 namespace WP\OAuth2\Well_Known;
 
 use WP\OAuth2;
-use WP_REST_Response;
 
 /**
  * Register well-known discovery hooks.
@@ -16,7 +15,6 @@ use WP_REST_Response;
 function bootstrap() {
 	add_action( 'init', __NAMESPACE__ . '\\maybe_exempt_login_wall', 998 );
 	add_action( 'parse_request', __NAMESPACE__ . '\\maybe_serve_document' );
-	add_filter( 'rest_post_dispatch', __NAMESPACE__ . '\\add_www_authenticate_header' );
 }
 
 /**
@@ -59,10 +57,6 @@ function maybe_serve_document() {
 	if ( 'oauth-authorization-server' === $document ) {
 		serve_authorization_server_metadata();
 	}
-
-	if ( 'oauth-protected-resource' === $document ) {
-		serve_protected_resource_metadata();
-	}
 }
 
 /**
@@ -73,17 +67,13 @@ function maybe_serve_document() {
  * that redirect must still get the document.
  *
  * @param string $request_uri Raw request URI, as in `$_SERVER['REQUEST_URI']`.
- * @return string|null `oauth-authorization-server`, `oauth-protected-resource`, or null.
+ * @return string|null `oauth-authorization-server`, or null.
  */
 function match_well_known_path( $request_uri ) {
 	$path = untrailingslashit( (string) wp_parse_url( $request_uri, PHP_URL_PATH ) );
 
 	if ( '/.well-known/oauth-authorization-server' === $path ) {
 		return 'oauth-authorization-server';
-	}
-
-	if ( '/.well-known/oauth-protected-resource' === $path ) {
-		return 'oauth-protected-resource';
 	}
 
 	return null;
@@ -145,26 +135,6 @@ function get_response_types_supported() {
 }
 
 /**
- * Outputs the RFC 9728 protected resource metadata document and exits.
- */
-function serve_protected_resource_metadata() {
-	$metadata = [
-		'resource'              => home_url(),
-		'authorization_servers' => [ home_url() ],
-	];
-
-	/**
-	 * Filter the OAuth2 protected resource metadata returned at
-	 * `/.well-known/oauth-protected-resource`.
-	 *
-	 * @param array $metadata RFC 9728 metadata document.
-	 */
-	$metadata = apply_filters( 'oauth2.well_known_protected_resource_metadata', $metadata );
-
-	send_json_document( $metadata );
-}
-
-/**
  * Sends a JSON discovery document and exits.
  *
  * @param array $document Data to encode as the response body.
@@ -174,27 +144,4 @@ function send_json_document( $document ) {
 	header( 'Access-Control-Allow-Origin: *' );
 	echo wp_json_encode( $document );
 	exit;
-}
-
-/**
- * Adds a WWW-Authenticate header to 401 REST responses, so OAuth2 clients
- * can discover the protected resource metadata document after a failed or
- * missing bearer token challenge.
- *
- * Applies to any REST response, not just this plugin's own endpoints, since
- * a 401 on a bearer-protected route is exactly the case this document exists
- * to resolve.
- *
- * @param WP_REST_Response $response Result to send to the client.
- * @return WP_REST_Response
- */
-function add_www_authenticate_header( WP_REST_Response $response ) {
-	if ( $response->get_status() !== 401 ) {
-		return $response;
-	}
-
-	$resource_metadata_url = home_url( '/.well-known/oauth-protected-resource' );
-	$response->header( 'WWW-Authenticate', "Bearer resource_metadata=\"{$resource_metadata_url}\"" );
-
-	return $response;
 }
