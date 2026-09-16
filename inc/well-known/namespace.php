@@ -10,44 +10,6 @@ namespace WP\OAuth2\Well_Known;
 use WP\OAuth2;
 
 /**
- * Register well-known discovery hooks.
- */
-function bootstrap() {
-	add_action( 'init', __NAMESPACE__ . '\\maybe_exempt_login_wall', 998 );
-	add_action( 'parse_request', __NAMESPACE__ . '\\maybe_serve_document' );
-}
-
-/**
- * Removes any configured login-wall callbacks from `.well-known/` requests,
- * so unauthenticated OAuth2 clients can reach the discovery documents.
- *
- * No-ops on sites that don't run one of the filtered plugins.
- */
-function maybe_exempt_login_wall() {
-	if ( strpos( $_SERVER['REQUEST_URI'] ?? '', '/.well-known/' ) !== 0 ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
-		return;
-	}
-
-	/**
-	 * Filter the login-wall callbacks to remove for `.well-known/` requests.
-	 *
-	 * Sites that gate the whole site behind a login wall (via a plugin
-	 * hooked to e.g. `init`) can use this to let unauthenticated OAuth2
-	 * clients still reach the discovery documents. Empty by default.
-	 *
-	 * Each entry is a [ hook, function_to_remove, priority ] tuple passed to
-	 * remove_action().
-	 *
-	 * @param array $exemptions Array of remove_action() argument tuples.
-	 */
-	$exemptions = apply_filters( 'oauth2.well_known_login_wall_exemptions', [] );
-
-	foreach ( $exemptions as list( $hook, $function_to_remove, $priority ) ) {
-		remove_action( $hook, $function_to_remove, $priority );
-	}
-}
-
-/**
  * Intercepts `.well-known/` requests before WordPress tries to match a
  * post/page, and serves the matching discovery document.
  */
