@@ -172,7 +172,7 @@ class Test_Authorization_Code extends Test_Case {
 			]
 		);
 
-		$this->assertTrue( $code->validate( [ 'code_verifier' => static::RFC_VERIFIER ] ) );
+		$this->assertTrue( $code->validate( static::RFC_VERIFIER ) );
 	}
 
 	public function test_validate_passes_with_correct_plain_verifier() {
@@ -185,7 +185,7 @@ class Test_Authorization_Code extends Test_Case {
 			]
 		);
 
-		$this->assertTrue( $code->validate( [ 'code_verifier' => static::RFC_VERIFIER ] ) );
+		$this->assertTrue( $code->validate( static::RFC_VERIFIER ) );
 	}
 
 	public function test_validate_fails_with_wrong_verifier() {
@@ -198,7 +198,7 @@ class Test_Authorization_Code extends Test_Case {
 			]
 		);
 
-		$result = $code->validate( [ 'code_verifier' => 'wrong-verifier-wrong-verifier-wrong-verifier' ] );
+		$result = $code->validate( 'wrong-verifier-wrong-verifier-wrong-verifier' );
 		$this->assertWPError( $result );
 		$this->assertSame( 'invalid_grant', $result->get_error_data()['error'] );
 	}
@@ -228,13 +228,13 @@ class Test_Authorization_Code extends Test_Case {
 			]
 		);
 
-		$result = $code->validate( [ 'code_verifier' => 'too-short' ] );
+		$result = $code->validate( 'too-short' );
 		$this->assertWPError( $result );
 	}
 
 	public function test_validate_rejects_verifier_for_code_with_no_stored_challenge() {
 		$code   = Authorization_Code::create( $this->client, $this->user );
-		$result = $code->validate( [ 'code_verifier' => static::RFC_VERIFIER ] );
+		$result = $code->validate( static::RFC_VERIFIER );
 
 		$this->assertWPError( $result );
 		$this->assertEquals( 'oauth2.tokens.authorization_code.validate.unexpected_verifier', $result->get_error_code() );
@@ -245,7 +245,7 @@ class Test_Authorization_Code extends Test_Case {
 
 		$filter = '__return_false';
 		add_filter( 'oauth2.pkce.reject_unexpected_verifier', $filter );
-		$result = $code->validate( [ 'code_verifier' => static::RFC_VERIFIER ] );
+		$result = $code->validate( static::RFC_VERIFIER );
 		remove_filter( 'oauth2.pkce.reject_unexpected_verifier', $filter );
 
 		$this->assertTrue( $result );
@@ -260,7 +260,7 @@ class Test_Authorization_Code extends Test_Case {
 		$value['code_challenge']  = static::RFC_CHALLENGE;
 		update_post_meta( $this->client->get_post_id(), $meta_key, $value );
 
-		$result = $code->validate( [ 'code_verifier' => static::RFC_VERIFIER ] );
+		$result = $code->validate( static::RFC_VERIFIER );
 		$this->assertWPError( $result );
 		$this->assertEquals( 'oauth2.tokens.authorization_code.validate.missing_challenge_method', $result->get_error_code() );
 	}

@@ -26,8 +26,8 @@ class Redirect_Interrupt extends \RuntimeException {}
  * $_GET/$_POST/exit, so they can be driven with plain arrays.
  */
 class Test_Exposed_Authorization_Code_Type extends Authorization_Code {
-	public function gather_extra_params_public( Client $client, array $request ) {
-		return $this->gather_extra_params( $client, $request );
+	public function validate_extra_params_public( Client $client, array $request ) {
+		return $this->validate_extra_params( $client, $request );
 	}
 
 	public function get_error_redirect_url_public( $redirect_uri, $error, $description, $state = null ) {
@@ -39,8 +39,8 @@ class Test_Exposed_Authorization_Code_Type extends Authorization_Code {
  * Exposes the protected methods under test for the implicit grant.
  */
 class Test_Exposed_Implicit_Type extends Implicit {
-	public function gather_extra_params_public( Client $client, array $request ) {
-		return $this->gather_extra_params( $client, $request );
+	public function validate_extra_params_public( Client $client, array $request ) {
+		return $this->validate_extra_params( $client, $request );
 	}
 
 	public function get_error_redirect_url_public( $redirect_uri, $error, $description, $state = null ) {
@@ -70,12 +70,12 @@ class Test_Types_Authorization_Code extends Test_Case {
 	}
 
 	public function test_no_challenge_returns_empty_array() {
-		$this->assertSame( [], $this->type->gather_extra_params_public( $this->client, [] ) );
+		$this->assertSame( [], $this->type->validate_extra_params_public( $this->client, [] ) );
 	}
 
 	public function test_valid_s256_challenge_returns_both_keys() {
 		$pair   = $this->make_pkce_pair( PKCE::METHOD_S256 );
-		$result = $this->type->gather_extra_params_public(
+		$result = $this->type->validate_extra_params_public(
 			$this->client,
 			[
 				'code_challenge'        => $pair['code_challenge'],
@@ -88,7 +88,7 @@ class Test_Types_Authorization_Code extends Test_Case {
 	}
 
 	public function test_unsupported_method_is_rejected() {
-		$result = $this->type->gather_extra_params_public(
+		$result = $this->type->validate_extra_params_public(
 			$this->client,
 			[
 				'code_challenge'        => str_repeat( 'a', 43 ),
@@ -101,7 +101,7 @@ class Test_Types_Authorization_Code extends Test_Case {
 	}
 
 	public function test_wrongly_cased_method_is_rejected() {
-		$result = $this->type->gather_extra_params_public(
+		$result = $this->type->validate_extra_params_public(
 			$this->client,
 			[
 				'code_challenge'        => str_repeat( 'a', 43 ),
@@ -113,7 +113,7 @@ class Test_Types_Authorization_Code extends Test_Case {
 	}
 
 	public function test_malformed_challenge_is_rejected() {
-		$result = $this->type->gather_extra_params_public(
+		$result = $this->type->validate_extra_params_public(
 			$this->client,
 			[
 				'code_challenge'        => 'too-short',
@@ -125,7 +125,7 @@ class Test_Types_Authorization_Code extends Test_Case {
 	}
 
 	public function test_method_without_challenge_is_ignored() {
-		$result = $this->type->gather_extra_params_public(
+		$result = $this->type->validate_extra_params_public(
 			$this->client,
 			[ 'code_challenge_method' => 'S256' ]
 		);
@@ -135,7 +135,7 @@ class Test_Types_Authorization_Code extends Test_Case {
 
 	public function test_omitted_method_normalizes_to_plain() {
 		$verifier = PKCE::generate_verifier();
-		$result   = $this->type->gather_extra_params_public(
+		$result   = $this->type->validate_extra_params_public(
 			$this->client,
 			[ 'code_challenge' => $verifier ]
 		);
@@ -144,7 +144,7 @@ class Test_Types_Authorization_Code extends Test_Case {
 	}
 
 	public function test_array_valued_challenge_is_treated_as_absent() {
-		$result = $this->type->gather_extra_params_public(
+		$result = $this->type->validate_extra_params_public(
 			$this->client,
 			[ 'code_challenge' => [ 'x' ] ]
 		);
@@ -154,16 +154,16 @@ class Test_Types_Authorization_Code extends Test_Case {
 
 	public function test_pkce_required_client_without_challenge_is_rejected() {
 		$client = $this->create_client( [ 'pkce_required' => true ] );
-		$result = $this->type->gather_extra_params_public( $client, [] );
+		$result = $this->type->validate_extra_params_public( $client, [] );
 
 		$this->assertWPError( $result );
-		$this->assertEquals( 'oauth2.types.authorization_code.gather_extra_params.pkce_required', $result->get_error_code() );
+		$this->assertEquals( 'oauth2.types.authorization_code.check_pkce_requirement.pkce_required', $result->get_error_code() );
 	}
 
 	public function test_pkce_required_client_with_plain_is_rejected() {
 		$client   = $this->create_client( [ 'pkce_required' => true ] );
 		$verifier = PKCE::generate_verifier();
-		$result   = $this->type->gather_extra_params_public(
+		$result   = $this->type->validate_extra_params_public(
 			$client,
 			[
 				'code_challenge'        => $verifier,
@@ -172,13 +172,13 @@ class Test_Types_Authorization_Code extends Test_Case {
 		);
 
 		$this->assertWPError( $result );
-		$this->assertEquals( 'oauth2.types.authorization_code.gather_extra_params.weak_method', $result->get_error_code() );
+		$this->assertEquals( 'oauth2.types.authorization_code.check_pkce_requirement.weak_method', $result->get_error_code() );
 	}
 
 	public function test_pkce_required_client_with_s256_is_accepted() {
 		$client = $this->create_client( [ 'pkce_required' => true ] );
 		$pair   = $this->make_pkce_pair( PKCE::METHOD_S256 );
-		$result = $this->type->gather_extra_params_public(
+		$result = $this->type->validate_extra_params_public(
 			$client,
 			[
 				'code_challenge'        => $pair['code_challenge'],
@@ -267,15 +267,15 @@ class Test_Types_Implicit extends Test_Case {
 	}
 
 	public function test_non_pkce_client_is_allowed() {
-		$this->assertSame( [], $this->type->gather_extra_params_public( $this->client, [] ) );
+		$this->assertSame( [], $this->type->validate_extra_params_public( $this->client, [] ) );
 	}
 
 	public function test_pkce_required_client_is_refused() {
 		$client = $this->create_client( [ 'pkce_required' => true ] );
-		$result = $this->type->gather_extra_params_public( $client, [] );
+		$result = $this->type->validate_extra_params_public( $client, [] );
 
 		$this->assertWPError( $result );
-		$this->assertEquals( 'oauth2.types.implicit.gather_extra_params.pkce_required', $result->get_error_code() );
+		$this->assertEquals( 'oauth2.types.implicit.validate_extra_params.pkce_required', $result->get_error_code() );
 	}
 
 	public function test_error_redirect_url_uses_fragment() {

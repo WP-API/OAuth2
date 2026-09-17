@@ -139,7 +139,7 @@ class Token {
 		$json_params   = (array) $request->get_json_params();
 		$code_verifier = $body_params['code_verifier'] ?? $json_params['code_verifier'] ?? null;
 
-		$is_valid = $auth_code->validate( [ 'code_verifier' => $code_verifier ] );
+		$is_valid = $auth_code->validate( $code_verifier );
 		if ( is_wp_error( $is_valid ) ) {
 			// Invalid request, but code itself exists, so we should delete
 			// (and silently ignore errors).

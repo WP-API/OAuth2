@@ -145,12 +145,10 @@ class Authorization_Code {
 	/**
 	 * Validate the code for use.
 	 *
-	 * @param array $args Other request arguments to validate. {
-	 *     @var string $code_verifier PKCE code verifier, if the client is using PKCE.
-	 * }
+	 * @param string|null $code_verifier PKCE code verifier, if the client is using PKCE.
 	 * @return bool|WP_Error True if valid, error describing problem otherwise.
 	 */
-	public function validate( $args = [] ) {
+	public function validate( $code_verifier = null ) {
 		$expiration = $this->get_expiration();
 		if ( is_wp_error( $expiration ) ) {
 			return $expiration;
@@ -169,7 +167,7 @@ class Authorization_Code {
 			);
 		}
 
-		$verifier_check = $this->validate_code_verifier( $args );
+		$verifier_check = $this->validate_code_verifier( $code_verifier );
 		if ( is_wp_error( $verifier_check ) ) {
 			return $verifier_check;
 		}
@@ -180,13 +178,13 @@ class Authorization_Code {
 	/**
 	 * Validate a PKCE code verifier against the stored code challenge.
 	 *
-	 * @param array $args Request arguments, as passed to validate().
+	 * @param string|null $verifier Code verifier supplied at the token endpoint.
 	 * @return true|WP_Error True if valid (including when this code has no
 	 *                       PKCE challenge and none was supplied), error otherwise.
 	 */
-	protected function validate_code_verifier( $args ) {
+	protected function validate_code_verifier( $verifier ) {
 		$challenge = $this->get_code_challenge();
-		$verifier  = isset( $args['code_verifier'] ) && is_string( $args['code_verifier'] ) ? $args['code_verifier'] : null;
+		$verifier  = is_string( $verifier ) ? $verifier : null;
 
 		if ( null === $challenge ) {
 			if ( null === $verifier ) {

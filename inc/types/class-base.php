@@ -67,11 +67,11 @@ abstract class Base implements Type {
 			return $redirect_uri;
 		}
 
-		// Gather and validate any grant-type-specific parameters (e.g. PKCE).
+		// Validate any grant-type-specific parameters (e.g. PKCE).
 		// This runs after the redirect URI is known to be valid, and before the
 		// login redirect, so a malformed request fails fast and can be reported
 		// back to the client rather than dying with an HTML error page.
-		$extra_params = $this->gather_extra_params( $client, wp_unslash( $_GET ) );
+		$extra_params = $this->validate_extra_params( $client, wp_unslash( $_GET ) );
 		if ( is_wp_error( $extra_params ) ) {
 			$error_data = $extra_params->get_error_data();
 			$error_code = ! empty( $error_data['error'] ) ? $error_data['error'] : 'invalid_request';
@@ -125,7 +125,7 @@ abstract class Base implements Type {
 	}
 
 	/**
-	 * Gather and validate any grant-type-specific parameters from the request.
+	 * Validate any grant-type-specific parameters, and return the ones to keep.
 	 *
 	 * Runs on both the initial GET and the consent-form POST, since the
 	 * authorisation form posts back to the original request URI, so $_GET is
@@ -138,7 +138,7 @@ abstract class Base implements Type {
 	 * @return array|WP_Error Extra data to merge into the $data passed to
 	 *                        handle_authorization_submission(), or an error.
 	 */
-	protected function gather_extra_params( Client $client, array $request ) {
+	protected function validate_extra_params( Client $client, array $request ) {
 		return [];
 	}
 

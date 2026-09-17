@@ -471,7 +471,7 @@ function render_edit_page() {
 				</tr>
 				<tr>
 					<th scope="row">
-						<?php echo esc_html_x( 'Require PKCE (S256)', 'field name', 'oauth2' ); ?>
+						<?php echo esc_html_x( 'Require PKCE', 'field name', 'oauth2' ); ?>
 					</th>
 					<td>
 						<label for="oauth-pkce-required">
@@ -482,10 +482,10 @@ function render_edit_page() {
 								value="1"
 								<?php checked( ! empty( $data['pkce_required'] ) ); ?>
 							/>
-							<?php esc_html_e( 'Require this application to use PKCE with the S256 code_challenge_method for the authorization_code grant.', 'oauth2' ); ?>
+							<?php esc_html_e( 'Require this application to use PKCE.', 'oauth2' ); ?>
 						</label>
 						<p class="description">
-							<?php esc_html_e( 'Recommended for public clients such as single-page apps, desktop apps, and mobile apps, which cannot keep a client secret confidential. Only S256 satisfies this requirement; plain does not.', 'oauth2' ); ?>
+							<?php esc_html_e( 'Recommended for public clients such as single-page apps, desktop apps, and mobile apps, which cannot keep a client secret confidential.', 'oauth2' ); ?>
 						</p>
 					</td>
 				</tr>

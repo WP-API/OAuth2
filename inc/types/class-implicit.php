@@ -32,12 +32,12 @@ class Implicit extends Base {
 	 *
 	 * @param Client $client Client being authorised.
 	 * @param array  $request Unslashed request parameters, from $_GET.
-	 * @return array|WP_Error
+	 * @return array|WP_Error Empty array if the grant is allowed, error otherwise.
 	 */
-	protected function gather_extra_params( Client $client, array $request ) {
+	protected function validate_extra_params( Client $client, array $request ) {
 		if ( $client->is_pkce_required() ) {
 			return new WP_Error(
-				'oauth2.types.implicit.gather_extra_params.pkce_required',
+				'oauth2.types.implicit.validate_extra_params.pkce_required',
 				__( 'This client requires PKCE, which the implicit grant cannot support. Use the authorization_code grant instead.', 'oauth2' ),
 				[ 'error' => 'unauthorized_client' ]
 			);
