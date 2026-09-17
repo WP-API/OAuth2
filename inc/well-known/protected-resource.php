@@ -113,9 +113,10 @@ function resolve_site_by_path_prefix( array $candidate_paths ) {
 
 	$sites = get_sites(
 		[
-			'domain'   => get_site()->domain,
-			'path__in' => $candidate_paths,
-			'number'   => 0,
+			'domain'                 => get_site()->domain,
+			'path__in'               => $candidate_paths,
+			'number'                 => count( $candidate_paths ),
+			'update_site_meta_cache' => false,
 		]
 	);
 

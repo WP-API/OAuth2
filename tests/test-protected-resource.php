@@ -194,6 +194,36 @@ class Test_Protected_Resource extends Test_Case {
 		$this->assertEquals( '/wp-json', $resource['sub_path'] );
 	}
 
+	/**
+	 * WordPress resolves the site from the first path segment, so a request in
+	 * the form RFC 9728 asks for lands on the root site, not the site it is
+	 * asking about. That is why the site is looked up again here.
+	 */
+	public function test_core_resolves_the_root_site_for_the_inserted_path_form() {
+		$this->require_multisite();
+
+		$site_id = $this->factory->blog->create( [ 'path' => '/blog/' ] );
+
+		$landed = get_site_by_path( get_site()->domain, '/.well-known/oauth-protected-resource/blog/wp-json', 1 );
+
+		$this->assertEquals( get_current_blog_id(), (int) $landed->blog_id );
+		$this->assertNotEquals( $site_id, (int) $landed->blog_id );
+	}
+
+	/**
+	 * A subsite asked directly does resolve itself, so no lookup is needed
+	 * for that form.
+	 */
+	public function test_core_resolves_the_subsite_for_its_own_path_form() {
+		$this->require_multisite();
+
+		$site_id = $this->factory->blog->create( [ 'path' => '/blog/' ] );
+
+		$landed = get_site_by_path( get_site()->domain, '/blog/.well-known/oauth-protected-resource/wp-json', 1 );
+
+		$this->assertEquals( $site_id, (int) $landed->blog_id );
+	}
+
 	public function test_split_resource_path_rejects_an_unknown_site() {
 		$this->require_multisite();
 
