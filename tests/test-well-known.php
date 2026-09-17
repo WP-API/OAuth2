@@ -107,6 +107,11 @@ class Test_Well_Known extends Test_Case {
 		$this->assertStringContainsString( 'oauth2/access_token', $metadata['token_endpoint'] );
 	}
 
+	public function test_metadata_advertises_the_pkce_challenge_methods() {
+		$metadata = get_authorization_server_metadata();
+		$this->assertContains( 'S256', $metadata['code_challenge_methods_supported'] );
+	}
+
 	public function test_metadata_is_filterable() {
 		add_filter( 'oauth2.well_known_authorization_server_metadata', function ( $metadata ) {
 			$metadata['service_documentation'] = 'https://example.org/docs';

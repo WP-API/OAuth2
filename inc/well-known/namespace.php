@@ -134,6 +134,7 @@ function get_authorization_server_metadata() {
 		'grant_types_supported'                 => get_grant_types_supported(),
 		'response_types_supported'              => get_response_types_supported(),
 		'token_endpoint_auth_methods_supported' => [ 'none', 'client_secret_post', 'client_secret_basic' ],
+		'code_challenge_methods_supported'      => OAuth2\PKCE::supported_methods(),
 	];
 
 	/**
