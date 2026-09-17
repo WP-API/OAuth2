@@ -11,18 +11,62 @@ use WP\OAuth2;
 
 const AUTHORIZATION_SERVER_DOCUMENT = 'oauth-authorization-server';
 const AUTHORIZATION_SERVER_PATH     = '/.well-known/' . AUTHORIZATION_SERVER_DOCUMENT;
+const PROTECTED_RESOURCE_DOCUMENT   = 'oauth-protected-resource';
+const PROTECTED_RESOURCE_PATH       = '/.well-known/' . PROTECTED_RESOURCE_DOCUMENT;
+
+/**
+ * Gets the discovery documents this plugin serves.
+ *
+ * Keys are well-known document names, values are handlers that receive the
+ * matched request path and either send a document or return.
+ *
+ * @return callable[] Map of document name to handler.
+ */
+function get_documents() {
+	$documents = [
+		AUTHORIZATION_SERVER_DOCUMENT => __NAMESPACE__ . '\\serve_authorization_server_document',
+		PROTECTED_RESOURCE_DOCUMENT   => __NAMESPACE__ . '\\serve_protected_resource_document',
+	];
+
+	/**
+	 * Filter the well-known discovery documents this plugin serves.
+	 *
+	 * @param callable[] $documents Map of document name to handler.
+	 */
+	return apply_filters( 'oauth2.well_known_documents', $documents );
+}
 
 /**
  * Intercepts `.well-known/` requests before WordPress tries to match a
  * post/page, and serves the matching discovery document.
+ *
+ * The request only gets this far if the server sends unknown paths to
+ * WordPress. Pretty permalinks arrange that on Apache; nginx setups usually
+ * do it whatever the permalink setting is.
  */
 function maybe_serve_document() {
-	$site_path = match_well_known_path( $_SERVER['REQUEST_URI'] ?? '' ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
+	$request_uri = $_SERVER['REQUEST_URI'] ?? ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
 
-	if ( null === $site_path ) {
+	foreach ( get_documents() as $document => $handler ) {
+		$matched = match_well_known_path( $request_uri, '/.well-known/' . $document );
+
+		if ( null === $matched ) {
+			continue;
+		}
+
+		// Handlers exit once they have sent a document. Returning lets
+		// WordPress carry on and 404 the request.
+		$handler( $matched );
 		return;
 	}
+}
 
+/**
+ * Serves the RFC 8414 authorization server metadata document.
+ *
+ * @param string $site_path Path of the site being asked about, with a trailing slash.
+ */
+function serve_authorization_server_document( $site_path ) {
 	$site_id = get_site_id_by_path( $site_path );
 
 	if ( null === $site_id ) {
@@ -33,10 +77,10 @@ function maybe_serve_document() {
 }
 
 /**
- * Works out which site, if any, a request URI is asking for metadata about.
+ * Works out which path, if any, a request URI is asking for metadata about.
  *
- * RFC 8414 puts the well-known path in front of the site's own path, so a
- * site at `https://example.com/blog` publishes its metadata at
+ * The well-known path goes in front of the path being described, so a site at
+ * `https://example.com/blog` publishes its metadata at
  * `https://example.com/.well-known/oauth-authorization-server/blog`. On a
  * subdirectory network that request lands on the root site, which then has
  * to answer for the subsite.
@@ -45,23 +89,35 @@ function maybe_serve_document() {
  * clients ask for, and it is the only one a site in a subdirectory can
  * answer without owning the domain root.
  *
+ * The returned path is always measured from the domain root, whichever form
+ * was used, so callers get the same answer either way. What that path means
+ * depends on the document: RFC 8414 describes a site, RFC 9728 a resource.
+ *
  * Tolerates a trailing slash: some hosts redirect extensionless GET paths to
  * their trailing-slash form before WordPress runs, and clients following
  * that redirect must still get the document.
  *
- * @param string $request_uri Raw request URI, as in `$_SERVER['REQUEST_URI']`.
- * @return string|null Path of the site being asked about, or null if this isn't a metadata request.
+ * @param string $request_uri     Raw request URI, as in `$_SERVER['REQUEST_URI']`.
+ * @param string $well_known_path Well-known path to match, e.g. `/.well-known/oauth-authorization-server`.
+ * @return string|null Path being asked about, with a trailing slash, or null if this isn't a metadata request.
  */
-function match_well_known_path( $request_uri ) {
+function match_well_known_path( $request_uri, $well_known_path = AUTHORIZATION_SERVER_PATH ) {
 	$path         = untrailingslashit( (string) wp_parse_url( $request_uri, PHP_URL_PATH ) );
 	$current_path = get_current_site_path();
+	$site_prefix  = untrailingslashit( $current_path ) . $well_known_path;
 
-	if ( untrailingslashit( $current_path ) . AUTHORIZATION_SERVER_PATH === $path ) {
+	// The site's own path, e.g. `/blog/.well-known/oauth-protected-resource`.
+	if ( $site_prefix === $path ) {
 		return $current_path;
 	}
 
-	if ( strpos( $path, AUTHORIZATION_SERVER_PATH . '/' ) === 0 ) {
-		return trailingslashit( substr( $path, strlen( AUTHORIZATION_SERVER_PATH ) ) );
+	if ( strpos( $path, $site_prefix . '/' ) === 0 ) {
+		return trailingslashit( untrailingslashit( $current_path ) . substr( $path, strlen( $site_prefix ) ) );
+	}
+
+	// The domain root, e.g. `/.well-known/oauth-protected-resource/blog`.
+	if ( strpos( $path, $well_known_path . '/' ) === 0 ) {
+		return trailingslashit( substr( $path, strlen( $well_known_path ) ) );
 	}
 
 	return null;
