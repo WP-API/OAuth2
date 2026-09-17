@@ -11,6 +11,7 @@ use WP_Error;
 use WP_Http;
 use WP\OAuth2;
 use WP_REST_Request;
+use WP_REST_Response;
 /**
  * Token endpoint handler.
  */
@@ -74,16 +75,19 @@ class Token {
 
 		// RFC 6749 section 2.3.1: a client may authenticate with HTTP Basic
 		// instead of body parameters. Body parameters take precedence.
-		if ( $request->get_param( 'client_id' ) === null || $request->get_param( 'client_id' ) === '' ) {
-			$basic = $this->get_basic_auth_credentials( $request );
-			if ( is_wp_error( $basic ) ) {
-				return $basic;
-			}
-			if ( null !== $basic ) {
+		$basic = $this->get_basic_auth_credentials( $request );
+		if ( is_wp_error( $basic ) ) {
+			return $basic;
+		}
+		if ( null !== $basic ) {
+			if ( $this->is_param_empty( $request, 'client_id' ) ) {
 				$request->set_param( 'client_id', $basic[0] );
-				if ( $request->get_param( 'client_secret' ) === null || $request->get_param( 'client_secret' ) === '' ) {
-					$request->set_param( 'client_secret', $basic[1] );
-				}
+			}
+
+			// Only accept the header secret for the client it names, so a body
+			// client_id can still be paired with a Basic secret.
+			if ( $this->is_param_empty( $request, 'client_secret' ) && $basic[0] === $request->get_param( 'client_id' ) ) {
+				$request->set_param( 'client_secret', $basic[1] );
 			}
 		}
 
@@ -93,7 +97,7 @@ class Token {
 		// shape matches what WP REST API would produce at the schema layer.
 		$missing = [];
 		foreach ( [ 'client_id', 'code' ] as $required_param ) {
-			if ( $request->get_param( $required_param ) === null || $request->get_param( $required_param ) === '' ) {
+			if ( $this->is_param_empty( $request, $required_param ) ) {
 				$missing[] = $required_param;
 			}
 		}
@@ -120,6 +124,15 @@ class Token {
 					'client_id' => $request['client_id'],
 				]
 			);
+		}
+
+		// RFC 6749 section 4.1.3: the server must authenticate the client when
+		// the client is confidential. Public clients have no secret to check.
+		if ( $client->requires_secret() ) {
+			$client_secret = (string) $request->get_param( 'client_secret' );
+			if ( '' === $client_secret || ! $client->check_secret( $client_secret ) ) {
+				return $this->client_authentication_failed( $request );
+			}
 		}
 
 		$auth_code = $client->get_authorization_code( $request['code'] );
@@ -182,11 +195,7 @@ class Token {
 		$grant_ok = $client && $client->is_client_credentials_enabled();
 
 		if ( ! $creds_ok || ! $grant_ok ) {
-			return new WP_Error(
-				'oauth2.endpoints.token.invalid_client',
-				__( 'Client authentication failed.', 'oauth2' ),
-				[ 'status' => WP_Http::UNAUTHORIZED ]
-			);
+			return $this->client_authentication_failed( $request );
 		}
 
 		$token = OAuth2\Tokens\Access_Token::create_for_client( $client );
@@ -229,6 +238,62 @@ class Token {
 	}
 
 	/**
+	 * Check whether a request parameter is missing or empty.
+	 *
+	 * @param WP_REST_Request $request Request object.
+	 * @param string          $param   Parameter name.
+	 *
+	 * @return bool True if the parameter has no usable value.
+	 */
+	private function is_param_empty( WP_REST_Request $request, $param ) {
+		$value = $request->get_param( $param );
+
+		return null === $value || '' === $value;
+	}
+
+	/**
+	 * Build the response for a failed client authentication.
+	 *
+	 * The reason is never given: telling "unknown client" apart from "wrong
+	 * secret" would confirm a valid client ID and secret pair.
+	 *
+	 * @param WP_REST_Request $request Request object.
+	 *
+	 * @return WP_Error|WP_REST_Response Error, or a response carrying a Basic challenge.
+	 */
+	private function client_authentication_failed( WP_REST_Request $request ) {
+		$error = new WP_Error(
+			'oauth2.endpoints.token.invalid_client',
+			__( 'Client authentication failed.', 'oauth2' ),
+			[ 'status' => WP_Http::UNAUTHORIZED ]
+		);
+
+		if ( ! $this->has_basic_auth_header( $request ) ) {
+			return $error;
+		}
+
+		// RFC 6749 section 5.2: a client that authenticated with the
+		// Authorization header must get a matching challenge back.
+		$response = rest_convert_error_to_response( $error );
+		$response->header( 'WWW-Authenticate', 'Basic realm="OAuth2 token endpoint"' );
+
+		return $response;
+	}
+
+	/**
+	 * Check whether the request carries an HTTP Basic Authorization header.
+	 *
+	 * @param WP_REST_Request $request Request object.
+	 *
+	 * @return bool True if a Basic header is present.
+	 */
+	private function has_basic_auth_header( WP_REST_Request $request ) {
+		$auth_header = $request->get_header( 'authorization' );
+
+		return ! empty( $auth_header ) && stripos( $auth_header, 'Basic ' ) === 0;
+	}
+
+	/**
 	 * Read client credentials from an HTTP Basic Authorization header.
 	 *
 	 * @param WP_REST_Request $request Request object.
@@ -236,13 +301,11 @@ class Token {
 	 *                             header is malformed, or null if there is no Basic header.
 	 */
 	private function get_basic_auth_credentials( WP_REST_Request $request ) {
-		$auth_header = $request->get_header( 'authorization' );
-
-		if ( empty( $auth_header ) || stripos( $auth_header, 'Basic ' ) !== 0 ) {
+		if ( ! $this->has_basic_auth_header( $request ) ) {
 			return null;
 		}
 
-		$encoded = substr( $auth_header, 6 );
+		$encoded = substr( $request->get_header( 'authorization' ), 6 );
 		$decoded = base64_decode( $encoded, true );
 
 		if ( false === $decoded ) {
