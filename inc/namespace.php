@@ -19,6 +19,7 @@ function bootstrap() {
 	add_filter( 'rest_authentication_errors', __NAMESPACE__ . '\\Authentication\\maybe_report_errors' );
 	add_filter( 'rest_index', __NAMESPACE__ . '\\register_in_index' );
 	add_action( 'rest_api_init', __NAMESPACE__ . '\\Endpoints\\register' );
+	add_action( 'parse_request', __NAMESPACE__ . '\\Well_Known\\maybe_serve_document' );
 
 	// Internal default hooks.
 	add_filter( 'oauth2.grant_types', __NAMESPACE__ . '\\register_grant_types', 0 );
