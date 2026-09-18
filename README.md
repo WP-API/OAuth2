@@ -6,6 +6,8 @@ This plugin uses the OAuth 2 protocol to allow delegated authorization; that is,
 
 This plugin only supports WordPress >= 4.8.
 
+Requires PHP 7.4 or higher.
+
 ## Contributors Welcome!
 
 This plugin works and is in use in several production environments, but the user experience and documentation could be substantially improved. We welcome input and contributions to make this tool better!

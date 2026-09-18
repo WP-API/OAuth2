@@ -191,7 +191,7 @@ function validate_parameters( $params ) {
  *
  * @return array|null List of errors. Issues a redirect and exits on success.
  */
-function handle_edit_submit( Client $consumer = null ) {
+function handle_edit_submit( ?Client $consumer = null ) {
 	$messages = [];
 	if ( empty( $consumer ) ) {
 		$did_action = 'add';
