@@ -151,7 +151,7 @@ class Client implements ClientInterface {
 	public function get_token_ttl() {
 		$ttl = get_post_meta( $this->get_post_id(), static::TOKEN_TTL_KEY, true );
 
-		if ( $ttl === '' || $ttl === false ) {
+		if ( '' === $ttl || false === $ttl ) {
 			return null;
 		}
 
@@ -379,7 +379,7 @@ class Client implements ClientInterface {
 			static::CLIENT_CREDENTIALS_ENABLED_KEY => ! empty( $data['meta']['client_credentials_enabled'] ) ? '1' : '',
 		];
 
-		if ( isset( $data['meta']['token_ttl'] ) && $data['meta']['token_ttl'] !== '' ) {
+		if ( isset( $data['meta']['token_ttl'] ) && '' !== $data['meta']['token_ttl'] ) {
 			$meta[ static::TOKEN_TTL_KEY ] = (int) $data['meta']['token_ttl'];
 		}
 
@@ -420,7 +420,7 @@ class Client implements ClientInterface {
 			static::CLIENT_CREDENTIALS_ENABLED_KEY => ! empty( $data['meta']['client_credentials_enabled'] ) ? '1' : '',
 		];
 
-		if ( isset( $data['meta']['token_ttl'] ) && $data['meta']['token_ttl'] !== '' ) {
+		if ( isset( $data['meta']['token_ttl'] ) && '' !== $data['meta']['token_ttl'] ) {
 			$meta[ static::TOKEN_TTL_KEY ] = (int) $data['meta']['token_ttl'];
 		} else {
 			$meta[ static::TOKEN_TTL_KEY ] = '';

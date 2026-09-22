@@ -200,7 +200,7 @@ class Token {
 		];
 
 		$expires = $token->get_expiration_time();
-		if ( $expires !== null ) {
+		if ( null !== $expires ) {
 			$data['expires_in'] = $expires - time();
 		}
 

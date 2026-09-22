@@ -16,8 +16,8 @@ use WP_User;
 use WP_User_Query;
 
 class Access_Token extends Token {
-	const META_PREFIX = '_oauth2_access_';
-	const KEY_LENGTH = 12;
+	const META_PREFIX        = '_oauth2_access_';
+	const KEY_LENGTH         = 12;
 	const CLIENT_META_PREFIX = '_oauth2_client_token_';
 
 	/**
@@ -283,7 +283,7 @@ class Access_Token extends Token {
 			'meta'    => $meta,
 		];
 
-		if ( $ttl !== null ) {
+		if ( null !== $ttl ) {
 			$data['expires'] = time() + $ttl;
 		}
 		$key      = wp_generate_password( static::KEY_LENGTH, false );
