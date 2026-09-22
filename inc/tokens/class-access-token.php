@@ -11,6 +11,7 @@ use WP_Error;
 use WP\OAuth2;
 use WP\OAuth2\Client;
 use WP\OAuth2\ClientInterface;
+use WP_Query;
 use WP_User;
 use WP_User_Query;
 
@@ -52,12 +53,12 @@ class Access_Token extends Token {
 	 * This is used to store additional information on the token itself, such
 	 * as a description for the token.
 	 *
-	 * @param string $key     Meta key to fetch.
-	 * @param mixed  $default Value to return if key is unavailable.
+	 * @param string $key           Meta key to fetch.
+	 * @param mixed  $default_value Value to return if key is unavailable.
 	 *
-	 * @return mixed Value if available, or value of `$default` if not found.
+	 * @return mixed Value if available, or value of `$default_value` if not found.
 	 */
-	public function get_meta( $key, $default = null ) {
+	public function get_meta( $key, $default_value = null ) {
 		if ( empty( $this->value['meta'] ) || ! isset( $this->value['meta'][ $key ] ) ) {
 			return null;
 		}
@@ -189,7 +190,7 @@ class Access_Token extends Token {
 			],
 		];
 
-		$query = new \WP_Query( $args );
+		$query = new WP_Query( $args );
 		if ( empty( $query->posts ) ) {
 			return null;
 		}
@@ -307,7 +308,7 @@ class Access_Token extends Token {
 	 * @return bool True if this is a client token, false otherwise.
 	 */
 	public function is_client_token() {
-		return $this->user === null;
+		return null === $this->user;
 	}
 
 	/**

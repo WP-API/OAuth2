@@ -20,20 +20,21 @@ class Token {
 			'oauth2',
 			'/access_token',
 			[
-				'methods'  => 'POST',
-				'callback' => [ $this, 'exchange_token' ],
-				'args'     => [
-					'grant_type' => [
+				'methods'             => 'POST',
+				'callback'            => [ $this, 'exchange_token' ],
+				'permission_callback' => '__return_true',
+				'args'                => [
+					'grant_type'    => [
 						'required'          => true,
 						'type'              => 'string',
 						'validate_callback' => [ $this, 'validate_grant_type' ],
 					],
-					'client_id'  => [
+					'client_id'     => [
 						'required'          => false,
 						'type'              => 'string',
 						'validate_callback' => 'rest_validate_request_arg',
 					],
-					'code'       => [
+					'code'          => [
 						'required'          => false,
 						'type'              => 'string',
 						'validate_callback' => 'rest_validate_request_arg',
@@ -67,8 +68,23 @@ class Token {
 	 * @return array|WP_Error Token data on success, or error on failure.
 	 */
 	public function exchange_token( WP_REST_Request $request ) {
-		if ( $request['grant_type'] === 'client_credentials' ) {
+		if ( 'client_credentials' === $request['grant_type'] ) {
 			return $this->handle_client_credentials( $request );
+		}
+
+		// RFC 6749 section 2.3.1: a client may authenticate with HTTP Basic
+		// instead of body parameters. Body parameters take precedence.
+		if ( $request->get_param( 'client_id' ) === null || $request->get_param( 'client_id' ) === '' ) {
+			$basic = $this->get_basic_auth_credentials( $request );
+			if ( is_wp_error( $basic ) ) {
+				return $basic;
+			}
+			if ( null !== $basic ) {
+				$request->set_param( 'client_id', $basic[0] );
+				if ( $request->get_param( 'client_secret' ) === null || $request->get_param( 'client_secret' ) === '' ) {
+					$request->set_param( 'client_secret', $basic[1] );
+				}
+			}
 		}
 
 		// The authorization_code grant requires `client_id` and `code`.
@@ -207,30 +223,9 @@ class Token {
 		}
 
 		// Fall back to Basic authentication from Authorization header
-		$auth_header = $request->get_header( 'authorization' );
-
-		if ( ! empty( $auth_header ) && stripos( $auth_header, 'Basic ' ) === 0 ) {
-			$encoded = substr( $auth_header, 6 );
-			$decoded = base64_decode( $encoded, true );
-
-			if ( $decoded === false ) {
-				return new WP_Error(
-					'oauth2.endpoints.token.invalid_request',
-					__( 'Invalid Authorization header.', 'oauth2' ),
-					[ 'status' => WP_Http::BAD_REQUEST ]
-				);
-			}
-
-			$parts = explode( ':', $decoded, 2 );
-			if ( count( $parts ) !== 2 ) {
-				return new WP_Error(
-					'oauth2.endpoints.token.invalid_request',
-					__( 'Invalid Authorization header format.', 'oauth2' ),
-					[ 'status' => WP_Http::BAD_REQUEST ]
-				);
-			}
-
-			return [ trim( $parts[0] ), trim( $parts[1] ) ];
+		$basic = $this->get_basic_auth_credentials( $request );
+		if ( null !== $basic ) {
+			return $basic;
 		}
 
 		return new WP_Error(
@@ -238,5 +233,44 @@ class Token {
 			__( 'Client credentials not provided.', 'oauth2' ),
 			[ 'status' => WP_Http::BAD_REQUEST ]
 		);
+	}
+
+	/**
+	 * Read client credentials from an HTTP Basic Authorization header.
+	 *
+	 * @param WP_REST_Request $request Request object.
+	 * @return array|WP_Error|null Array with client_id and client_secret, error if the
+	 *                             header is malformed, or null if there is no Basic header.
+	 */
+	private function get_basic_auth_credentials( WP_REST_Request $request ) {
+		$auth_header = $request->get_header( 'authorization' );
+
+		if ( empty( $auth_header ) || stripos( $auth_header, 'Basic ' ) !== 0 ) {
+			return null;
+		}
+
+		$encoded = substr( $auth_header, 6 );
+		$decoded = base64_decode( $encoded, true );
+
+		if ( false === $decoded ) {
+			return new WP_Error(
+				'oauth2.endpoints.token.invalid_request',
+				__( 'Invalid Authorization header.', 'oauth2' ),
+				[ 'status' => WP_Http::BAD_REQUEST ]
+			);
+		}
+
+		$parts = explode( ':', $decoded, 2 );
+		if ( count( $parts ) !== 2 ) {
+			return new WP_Error(
+				'oauth2.endpoints.token.invalid_request',
+				__( 'Invalid Authorization header format.', 'oauth2' ),
+				[ 'status' => WP_Http::BAD_REQUEST ]
+			);
+		}
+
+		// RFC 6749 section 2.3.1: both values are form-encoded before they go
+		// into the header, so decode them on the way back out.
+		return [ urldecode( trim( $parts[0] ) ), urldecode( trim( $parts[1] ) ) ];
 	}
 }

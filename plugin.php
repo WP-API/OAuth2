@@ -20,7 +20,7 @@
  * Text Domain: oauth2
  * Domain Path: /languages
  * Requires at least:  4.8
- * Requires PHP: 5.6
+ * Requires PHP: 7.4
  */
 
 namespace WP\OAuth2;
@@ -39,6 +39,8 @@ require __DIR__ . '/inc/authentication/namespace.php';
 require __DIR__ . '/inc/endpoints/namespace.php';
 require __DIR__ . '/inc/endpoints/class-authorization.php';
 require __DIR__ . '/inc/endpoints/class-token.php';
+require __DIR__ . '/inc/well-known/namespace.php';
+require __DIR__ . '/inc/well-known/protected-resource.php';
 require __DIR__ . '/inc/tokens/namespace.php';
 require __DIR__ . '/inc/tokens/class-token.php';
 require __DIR__ . '/inc/tokens/class-access-token.php';

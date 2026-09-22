@@ -128,13 +128,11 @@ abstract class Base implements Type {
 			}
 
 			$redirect_uri = $registered[0];
-		} else {
-			if ( ! $client->check_redirect_uri( $redirect_uri ) ) {
-				return new WP_Error(
-					'oauth2.types.authorization_code.handle_authorisation.invalid_redirect_uri',
-					__( 'Specified redirect URI is not valid for this client.', 'oauth2' )
-				);
-			}
+		} elseif ( ! $client->check_redirect_uri( $redirect_uri ) ) {
+			return new WP_Error(
+				'oauth2.types.authorization_code.handle_authorisation.invalid_redirect_uri',
+				__( 'Specified redirect URI is not valid for this client.', 'oauth2' )
+			);
 		}
 
 		return $redirect_uri;
@@ -146,7 +144,7 @@ abstract class Base implements Type {
 	 * @param Client   $client Client being authorised.
 	 * @param WP_Error $errors Errors to display, if any.
 	 */
-	protected function render_form( Client $client, WP_Error $errors = null ) {
+	protected function render_form( Client $client, ?WP_Error $errors = null ) {
 		$file = locate_template( 'oauth2-authorize.php' );
 		if ( empty( $file ) ) {
 			$file = dirname( dirname( __DIR__ ) ) . '/theme/oauth2-authorize.php';
