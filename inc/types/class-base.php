@@ -144,7 +144,7 @@ abstract class Base implements Type {
 	 * @param Client   $client Client being authorised.
 	 * @param WP_Error $errors Errors to display, if any.
 	 */
-	protected function render_form( Client $client, WP_Error $errors = null ) {
+	protected function render_form( Client $client, ?WP_Error $errors = null ) {
 		$file = locate_template( 'oauth2-authorize.php' );
 		if ( empty( $file ) ) {
 			$file = dirname( dirname( __DIR__ ) ) . '/theme/oauth2-authorize.php';

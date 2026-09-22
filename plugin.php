@@ -20,7 +20,7 @@
  * Text Domain: oauth2
  * Domain Path: /languages
  * Requires at least:  4.8
- * Requires PHP: 5.6
+ * Requires PHP: 7.4
  */
 
 namespace WP\OAuth2;
