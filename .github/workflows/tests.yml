@@ -20,13 +20,14 @@ jobs:
         id: resolve
         run: |
           # stable-check lists every x.y.z release. Reduce to x.y branches and keep the newest five,
-          # so the matrix picks up new majors automatically and drops old ones.
+          # so the matrix picks up new majors automatically and drops old ones. Trunk rides along
+          # as "nightly" so the next release is tested before it ships.
           branches=$(curl -sf https://api.wordpress.org/core/stable-check/1.0/ | python3 -c '
           import json, sys
           versions = json.load(sys.stdin)
           branches = {".".join(v.split(".")[:2]) for v in versions}
           branches = sorted(branches, key=lambda b: tuple(int(n) for n in b.split(".")))
-          print(json.dumps(branches[-5:]))
+          print(json.dumps(branches[-5:] + ["nightly"]))
           ')
           echo "Testing against WordPress: $branches"
           echo "branches=$branches" >> "$GITHUB_OUTPUT"
@@ -36,7 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: wp-versions
     # Trunk is allowed to fail without failing the run.
-    continue-on-error: ${{ matrix.experimental == true }}
+    continue-on-error: ${{ matrix.wp == 'nightly' }}
 
     services:
       mysql:
@@ -57,10 +58,6 @@ jobs:
       matrix:
         php: ['7.4', '8.0', '8.1', '8.2', '8.3', '8.4', '8.5']
         wp: ${{ fromJSON(needs.wp-versions.outputs.branches) }}
-        include:
-          - php: '8.4'
-            wp: nightly
-            experimental: true
 
     steps:
       - uses: actions/checkout@v7
