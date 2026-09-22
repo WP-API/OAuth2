@@ -8,8 +8,10 @@
 namespace WP\OAuth2\Authentication;
 
 use WP_Error;
+use WP_REST_Response;
 use WP_User;
 use WP\OAuth2\Tokens;
+use WP\OAuth2\Well_Known;
 
 /**
  * Get a request header by name, case-insensitively.
@@ -209,8 +211,97 @@ function create_invalid_token_error( $token ) {
 		'oauth2.authentication.attempt_authentication.invalid_token',
 		__( 'Supplied token is invalid.', 'oauth2' ),
 		[
-			'status' => \WP_Http::FORBIDDEN,
+			'status' => \WP_Http::UNAUTHORIZED,
 			'token'  => $token,
 		]
 	);
+}
+
+/**
+ * Adds a `WWW-Authenticate` challenge to unauthorized REST API responses.
+ *
+ * Attached to the rest_post_dispatch filter. WordPress answers an anonymous
+ * request to a protected route with a 401, whoever registered that route, so
+ * this covers the whole REST API rather than this plugin's own endpoints.
+ *
+ * @param WP_REST_Response $response Response about to be sent.
+ * @param mixed            $server   REST server instance.
+ * @param mixed            $request  Request being answered.
+ *
+ * @return WP_REST_Response Response, with a challenge when one applies.
+ */
+function add_www_authenticate_header( $response, $server = null, $request = null ) {
+	if ( ! $response instanceof WP_REST_Response || \WP_Http::UNAUTHORIZED !== $response->get_status() ) {
+		return $response;
+	}
+
+	// This plugin's own endpoints are the authorization server, not a
+	// resource it protects.
+	if ( $request && strpos( '/' . ltrim( (string) $request->get_route(), '/' ), '/oauth2/' ) === 0 ) {
+		return $response;
+	}
+
+	$headers = $response->get_headers();
+
+	if ( isset( $headers['WWW-Authenticate'] ) ) {
+		return $response;
+	}
+
+	$response->header( 'WWW-Authenticate', build_authenticate_challenge() );
+
+	return $response;
+}
+
+/**
+ * Builds the `WWW-Authenticate` challenge sent with unauthorized responses.
+ *
+ * The error parameters are only included when a token was supplied and
+ * rejected. RFC 6750 section 3 leaves them out when the client sent no
+ * credentials at all, since there is nothing yet to report as wrong.
+ *
+ * @return string Challenge header value.
+ */
+function build_authenticate_challenge() {
+	global $oauth2_error;
+
+	$params = [];
+
+	if ( is_wp_error( $oauth2_error ) && strpos( $oauth2_error->get_error_code(), 'oauth2.authentication.' ) === 0 ) {
+		$params['error']             = 'invalid_token';
+		$params['error_description'] = $oauth2_error->get_error_message();
+	}
+
+	$params['resource_metadata'] = Well_Known\get_protected_resource_metadata_url();
+
+	$parts = [];
+
+	foreach ( $params as $key => $value ) {
+		$parts[] = sprintf( '%s="%s"', $key, addcslashes( (string) $value, '"\\' ) );
+	}
+
+	$challenge = 'Bearer ' . implode( ', ', $parts );
+
+	/**
+	 * Filter the WWW-Authenticate challenge sent with unauthorized REST API responses.
+	 *
+	 * @param string $challenge Challenge header value.
+	 * @param array  $params    Challenge parameters used to build it.
+	 */
+	return apply_filters( 'oauth2.www_authenticate_challenge', $challenge, $params );
+}
+
+/**
+ * Lets browsers read the `WWW-Authenticate` challenge on cross-origin requests.
+ *
+ * Without this the header is hidden from JavaScript, so a browser client
+ * cannot follow the challenge to the metadata document.
+ *
+ * @param string[] $headers Headers exposed to CORS requests.
+ *
+ * @return string[] Headers, including the challenge.
+ */
+function expose_authenticate_header( $headers ) {
+	$headers[] = 'WWW-Authenticate';
+
+	return $headers;
 }
