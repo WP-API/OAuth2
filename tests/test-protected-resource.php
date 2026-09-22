@@ -150,6 +150,21 @@ class Test_Protected_Resource extends Test_Case {
 		$this->assertNull( split_resource_path( '/not-wp-json/' ) );
 	}
 
+	/**
+	 * A bare prefix match would also accept `/wp-jsonx`, which is not part of
+	 * the REST API.
+	 */
+	public function test_split_resource_path_requires_a_segment_boundary() {
+		$this->assertNull( split_resource_path( '/wp-jsonx' ) );
+		$this->assertNull( split_resource_path( '/wp-jsonx/mcp' ) );
+		$this->assertNull( split_resource_path( '/wp-json-evil/x' ) );
+	}
+
+	public function test_split_resource_path_still_matches_the_base_itself() {
+		$this->assertEquals( '/wp-json', split_resource_path( '/wp-json' )['sub_path'] );
+		$this->assertEquals( '/wp-json', split_resource_path( '/wp-json/' )['sub_path'] );
+	}
+
 	public function test_split_resource_path_honours_a_filtered_rest_prefix() {
 		add_filter(
 			'rest_url_prefix',
@@ -288,9 +303,24 @@ class Test_Protected_Resource extends Test_Case {
 
 	public function test_metadata_includes_the_site_name() {
 		$this->assertEquals(
-			get_bloginfo( 'name', 'display' ),
+			get_option( 'blogname' ),
 			get_protected_resource_metadata( '/wp-json' )['resource_name']
 		);
+	}
+
+	/**
+	 * The name goes into JSON, so it must not carry HTML escaping or the
+	 * typographic replacements display mode applies.
+	 */
+	public function test_metadata_site_name_is_plain_text() {
+		update_option( 'blogname', 'Tom & Jerry -- "Best" Site...' );
+
+		$name = get_protected_resource_metadata( '/wp-json' )['resource_name'];
+
+		$this->assertEquals( 'Tom & Jerry -- "Best" Site...', $name );
+		$this->assertStringNotContainsString( '&amp;', $name );
+		$this->assertStringNotContainsString( '&quot;', $name );
+		$this->assertStringNotContainsString( "\u{2014}", $name );
 	}
 
 	public function test_metadata_is_filterable() {

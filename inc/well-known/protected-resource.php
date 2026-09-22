@@ -58,7 +58,13 @@ function split_resource_path( $resource_path ) {
 
 		// Plain permalinks put the REST route in a query string, so there is
 		// no REST path for a resource to sit under.
-		if ( '' === $rest_base || strpos( $sub_path, $rest_base ) !== 0 ) {
+		if ( '' === $rest_base ) {
+			return null;
+		}
+
+		// The REST base has to end on a path segment. Matching it as a bare
+		// prefix would also accept `/wp-jsonx`.
+		if ( $sub_path !== $rest_base && strpos( $sub_path, trailingslashit( $rest_base ) ) !== 0 ) {
 			return null;
 		}
 	}
@@ -204,7 +210,10 @@ function get_protected_resource_metadata( $sub_path = '' ) {
 		'bearer_methods_supported' => get_bearer_methods_supported(),
 	];
 
-	$name = get_bloginfo( 'name', 'display' );
+	// The stored name is HTML-escaped, and display mode would texturise it on
+	// top. This document is JSON, so decode it the way core does for other
+	// non-HTML output.
+	$name = wp_specialchars_decode( get_option( 'blogname' ), ENT_QUOTES );
 
 	if ( ! empty( $name ) ) {
 		$metadata['resource_name'] = $name;
