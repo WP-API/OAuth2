@@ -44,7 +44,8 @@ abstract class Base implements Type {
 		$client_id    = sanitize_text_field( wp_unslash( $_GET['client_id'] ) );
 		$redirect_uri = isset( $_GET['redirect_uri'] ) ? sanitize_text_field( wp_unslash( $_GET['redirect_uri'] ) ) : null;
 		$scope        = isset( $_GET['scope'] ) ? sanitize_text_field( wp_unslash( $_GET['scope'] ) ) : null;
-		$state        = isset( $_GET['state'] ) ? sanitize_text_field( wp_unslash( $_GET['state'] ) ) : null;
+		// State is opaque to the server and must be returned to the client unchanged.
+		$state = isset( $_GET['state'] ) && is_string( $_GET['state'] ) ? wp_unslash( $_GET['state'] ) : null; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 
 		$client = Client::get_by_id( $client_id );
 		if ( empty( $client ) ) {
