@@ -176,9 +176,13 @@ function validate_parameters( $params ) {
 	$valid['client_credentials_enabled'] = ! empty( $params['client_credentials_enabled'] );
 
 	if ( isset( $params['token_ttl'] ) && '' !== $params['token_ttl'] ) {
-		$ttl = (int) $params['token_ttl'];
-		if ( $ttl < 0 ) {
-			return new WP_Error( 'rest_oauth2_invalid_ttl', esc_html__( 'Token TTL must be a positive number or empty for no expiry.', 'oauth2' ) );
+		$ttl = filter_var(
+			$params['token_ttl'],
+			FILTER_VALIDATE_INT,
+			[ 'options' => [ 'min_range' => 0 ] ]
+		);
+		if ( false === $ttl ) {
+			return new WP_Error( 'rest_oauth2_invalid_ttl', esc_html__( 'Token TTL must be a non-negative integer or empty for no expiry.', 'oauth2' ) );
 		}
 		$valid['token_ttl'] = $ttl;
 	} else {

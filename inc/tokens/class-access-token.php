@@ -314,8 +314,8 @@ class Access_Token extends Token {
 	/**
 	 * Check if the token has expired.
 	 *
-	 * Tokens without an `expires` timestamp never expire (backwards compat
-	 * for user tokens issued before expiry support was added).
+	 * Tokens without an `expires` timestamp never expire. This includes user
+	 * tokens and client tokens issued for clients without a configured TTL.
 	 *
 	 * @return bool True if the token has expired, false otherwise.
 	 */
