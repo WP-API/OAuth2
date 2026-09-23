@@ -107,9 +107,29 @@ class Test_Well_Known extends Test_Case {
 		$this->assertStringContainsString( 'oauth2/access_token', $metadata['token_endpoint'] );
 	}
 
+	/**
+	 * RFC 8414 section 2: the metadata lists code_challenge_methods_supported.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc8414#section-2
+	 */
 	public function test_metadata_advertises_the_pkce_challenge_methods() {
 		$metadata = get_authorization_server_metadata();
 		$this->assertContains( 'S256', $metadata['code_challenge_methods_supported'] );
+	}
+
+	/**
+	 * RFC 8414 section 2: the metadata lists code_challenge_methods_supported.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc8414#section-2
+	 */
+	public function test_metadata_pkce_methods_follow_the_supported_methods_filter() {
+		add_filter( 'oauth2.pkce.supported_methods', function () {
+			return [ 'S256' ];
+		} );
+
+		$metadata = get_authorization_server_metadata();
+
+		$this->assertSame( [ 'S256' ], $metadata['code_challenge_methods_supported'] );
 	}
 
 	public function test_metadata_is_filterable() {

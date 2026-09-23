@@ -20,10 +20,20 @@ class Test_PKCE extends Test_Case {
 	const RFC_VERIFIER  = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
 	const RFC_CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
 
+	/**
+	 * RFC 7636 Appendix B: the worked S256 example.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc7636#appendix-B
+	 */
 	public function test_derive_challenge_matches_rfc_7636_test_vector() {
 		$this->assertSame( static::RFC_CHALLENGE, PKCE::derive_challenge( static::RFC_VERIFIER, PKCE::METHOD_S256 ) );
 	}
 
+	/**
+	 * RFC 7636 section 4.2: S256 is BASE64URL(SHA256(verifier)) with no padding, and plain is the verifier itself.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc7636#section-4.2
+	 */
 	public function test_s256_challenge_is_unpadded_base64url() {
 		$challenge = PKCE::derive_challenge( static::RFC_VERIFIER, PKCE::METHOD_S256 );
 
@@ -34,26 +44,56 @@ class Test_PKCE extends Test_Case {
 		$this->assertStringNotContainsString( '/', $challenge );
 	}
 
+	/**
+	 * RFC 7636 section 4.2: S256 is BASE64URL(SHA256(verifier)) with no padding, and plain is the verifier itself.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc7636#section-4.2
+	 */
 	public function test_plain_challenge_is_the_verifier_verbatim() {
 		$this->assertSame( static::RFC_VERIFIER, PKCE::derive_challenge( static::RFC_VERIFIER, PKCE::METHOD_PLAIN ) );
 	}
 
+	/**
+	 * RFC 7636 section 4.2: S256 is BASE64URL(SHA256(verifier)) with no padding, and plain is the verifier itself.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc7636#section-4.2
+	 */
 	public function test_derive_challenge_returns_null_for_unknown_method() {
 		$this->assertNull( PKCE::derive_challenge( static::RFC_VERIFIER, 'md5' ) );
 	}
 
+	/**
+	 * RFC 7636 section 4.3: the method is "S256" or "plain", and defaults to "plain" when omitted.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc7636#section-4.3
+	 */
 	public function test_derive_challenge_is_case_sensitive() {
 		$this->assertNull( PKCE::derive_challenge( static::RFC_VERIFIER, 's256' ) );
 	}
 
+	/**
+	 * RFC 7636 section 4.6: the server derives the challenge from the verifier with the stored method and compares.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc7636#section-4.6
+	 */
 	public function test_verify_true_for_matching_s256_pair() {
 		$this->assertTrue( PKCE::verify( static::RFC_VERIFIER, static::RFC_CHALLENGE, PKCE::METHOD_S256 ) );
 	}
 
+	/**
+	 * RFC 7636 section 4.6: a verifier that does not match the stored challenge gets invalid_grant.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc7636#section-4.6
+	 */
 	public function test_verify_false_for_wrong_verifier() {
 		$this->assertFalse( PKCE::verify( 'wrong-verifier-wrong-verifier-wrong-verifier', static::RFC_CHALLENGE, PKCE::METHOD_S256 ) );
 	}
 
+	/**
+	 * RFC 7636 section 4.6: the server derives the challenge from the verifier with the stored method and compares.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc7636#section-4.6
+	 */
 	public function test_verify_true_for_matching_plain_pair() {
 		$this->assertTrue( PKCE::verify( static::RFC_VERIFIER, static::RFC_VERIFIER, PKCE::METHOD_PLAIN ) );
 	}
@@ -70,16 +110,31 @@ class Test_PKCE extends Test_Case {
 		$this->assertFalse( PKCE::verify( static::RFC_VERIFIER, [ 'x' ], PKCE::METHOD_S256 ) );
 	}
 
+	/**
+	 * RFC 7636 section 4.1: a code verifier is 43-128 characters from the unreserved set.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc7636#section-4.1
+	 */
 	public function test_is_valid_verifier_accepts_boundary_lengths() {
 		$this->assertTrue( PKCE::is_valid_verifier( str_repeat( 'a', 43 ) ) );
 		$this->assertTrue( PKCE::is_valid_verifier( str_repeat( 'a', 128 ) ) );
 	}
 
+	/**
+	 * RFC 7636 section 4.1: a code verifier is 43-128 characters from the unreserved set.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc7636#section-4.1
+	 */
 	public function test_is_valid_verifier_rejects_lengths_outside_boundary() {
 		$this->assertFalse( PKCE::is_valid_verifier( str_repeat( 'a', 42 ) ) );
 		$this->assertFalse( PKCE::is_valid_verifier( str_repeat( 'a', 129 ) ) );
 	}
 
+	/**
+	 * RFC 7636 section 4.1: a code verifier is 43-128 characters from the unreserved set.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc7636#section-4.1
+	 */
 	public function test_is_valid_verifier_rejects_disallowed_characters() {
 		$base = str_repeat( 'a', 42 );
 
@@ -90,36 +145,71 @@ class Test_PKCE extends Test_Case {
 		$this->assertFalse( PKCE::is_valid_verifier( $base . '%' ) );
 	}
 
+	/**
+	 * RFC 7636 section 4.1: a code verifier is 43-128 characters from the unreserved set.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc7636#section-4.1
+	 */
 	public function test_is_valid_verifier_rejects_trailing_newline() {
 		// A `$`-anchored regex would accept a trailing newline; `\z` must not.
 		$this->assertFalse( PKCE::is_valid_verifier( str_repeat( 'a', 43 ) . "\n" ) );
 	}
 
+	/**
+	 * RFC 7636 section 4.1: a code verifier is 43-128 characters from the unreserved set.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc7636#section-4.1
+	 */
 	public function test_is_valid_verifier_rejects_non_string() {
 		$this->assertFalse( PKCE::is_valid_verifier( [ 'x' ] ) );
 	}
 
+	/**
+	 * RFC 7636 section 4.2: S256 is BASE64URL(SHA256(verifier)) with no padding, and plain is the verifier itself.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc7636#section-4.2
+	 */
 	public function test_is_valid_challenge_for_s256_requires_exactly_43_characters() {
 		$this->assertFalse( PKCE::is_valid_challenge( str_repeat( 'a', 42 ), PKCE::METHOD_S256 ) );
 		$this->assertTrue( PKCE::is_valid_challenge( str_repeat( 'a', 43 ), PKCE::METHOD_S256 ) );
 		$this->assertFalse( PKCE::is_valid_challenge( str_repeat( 'a', 44 ), PKCE::METHOD_S256 ) );
 	}
 
+	/**
+	 * RFC 7636 section 4.2: S256 is BASE64URL(SHA256(verifier)) with no padding, and plain is the verifier itself.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc7636#section-4.2
+	 */
 	public function test_is_valid_challenge_for_s256_rejects_padding() {
 		$this->assertFalse( PKCE::is_valid_challenge( str_repeat( 'a', 42 ) . '=', PKCE::METHOD_S256 ) );
 	}
 
+	/**
+	 * RFC 7636 section 4.2: S256 is BASE64URL(SHA256(verifier)) with no padding, and plain is the verifier itself.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc7636#section-4.2
+	 */
 	public function test_is_valid_challenge_for_s256_rejects_verifier_only_characters() {
 		// '.' and '~' are valid in a verifier, but not in base64url.
 		$this->assertFalse( PKCE::is_valid_challenge( str_repeat( 'a', 42 ) . '.', PKCE::METHOD_S256 ) );
 		$this->assertFalse( PKCE::is_valid_challenge( str_repeat( 'a', 42 ) . '~', PKCE::METHOD_S256 ) );
 	}
 
+	/**
+	 * RFC 7636 section 4.2: S256 is BASE64URL(SHA256(verifier)) with no padding, and plain is the verifier itself.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc7636#section-4.2
+	 */
 	public function test_is_valid_challenge_for_plain_uses_verifier_rules() {
 		$this->assertTrue( PKCE::is_valid_challenge( static::RFC_VERIFIER, PKCE::METHOD_PLAIN ) );
 		$this->assertFalse( PKCE::is_valid_challenge( str_repeat( 'a', 42 ), PKCE::METHOD_PLAIN ) );
 	}
 
+	/**
+	 * RFC 7636 section 4.2: S256 is BASE64URL(SHA256(verifier)) with no padding, and plain is the verifier itself.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc7636#section-4.2
+	 */
 	public function test_is_valid_challenge_rejects_unknown_method() {
 		$this->assertFalse( PKCE::is_valid_challenge( static::RFC_CHALLENGE, 'md5' ) );
 	}
@@ -150,21 +240,41 @@ class Test_PKCE extends Test_Case {
 		remove_filter( 'oauth2.pkce.supported_methods', $filter );
 	}
 
+	/**
+	 * RFC 7636 section 4.1: a code verifier is 43-128 characters from the unreserved set.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc7636#section-4.1
+	 */
 	public function test_generate_verifier_produces_a_valid_verifier() {
 		$verifier = PKCE::generate_verifier();
 		$this->assertTrue( PKCE::is_valid_verifier( $verifier ) );
 	}
 
+	/**
+	 * RFC 7636 section 4.1: a code verifier is 43-128 characters from the unreserved set.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc7636#section-4.1
+	 */
 	public function test_generate_verifier_respects_requested_length() {
 		$this->assertSame( 64, strlen( PKCE::generate_verifier( 64 ) ) );
 		$this->assertSame( 100, strlen( PKCE::generate_verifier( 100 ) ) );
 	}
 
+	/**
+	 * RFC 7636 section 4.1: a code verifier is 43-128 characters from the unreserved set.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc7636#section-4.1
+	 */
 	public function test_generate_verifier_clamps_to_valid_range() {
 		$this->assertSame( PKCE::VERIFIER_MIN_LENGTH, strlen( PKCE::generate_verifier( 10 ) ) );
 		$this->assertSame( PKCE::VERIFIER_MAX_LENGTH, strlen( PKCE::generate_verifier( 500 ) ) );
 	}
 
+	/**
+	 * RFC 7636 section 7.1: the verifier must have enough entropy to be impractical to guess.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc7636#section-7.1
+	 */
 	public function test_generate_verifier_is_not_deterministic() {
 		$this->assertNotSame( PKCE::generate_verifier(), PKCE::generate_verifier() );
 	}

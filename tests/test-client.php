@@ -286,6 +286,11 @@ class Test_Client extends Test_Case {
 		$this->assertNull( $code->get_code_challenge() );
 	}
 
+	/**
+	 * RFC 7636 section 4.4: the server stores the challenge and method with the authorization code.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc7636#section-4.4
+	 */
 	public function test_generate_authorization_code_stores_pkce_challenge() {
 		$user = $this->factory->user->create_and_get();
 		$pair = $this->make_pkce_pair();
