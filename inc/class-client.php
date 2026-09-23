@@ -124,6 +124,28 @@ class Client implements ClientInterface {
 	}
 
 	/**
+	 * Check whether the client must authenticate with its secret.
+	 *
+	 * Clients declared as private are confidential clients in RFC 6749 terms,
+	 * so they have to prove they hold the secret they were issued.
+	 *
+	 * @link https://tools.ietf.org/html/rfc6749#section-3.2.1
+	 *
+	 * @return bool True if the secret must be verified, false otherwise.
+	 */
+	public function requires_secret() {
+		$requires_secret = ( 'private' === $this->get_type() );
+
+		/**
+		 * Filter whether a client must authenticate with its secret.
+		 *
+		 * @param bool   $requires_secret Whether the secret must be verified.
+		 * @param Client $client          Client being checked.
+		 */
+		return (bool) apply_filters( 'oauth2.client.requires_secret', $requires_secret, $this );
+	}
+
+	/**
 	 * Check if the provided secret matches the client's secret.
 	 *
 	 * @param string $secret Secret to check.
