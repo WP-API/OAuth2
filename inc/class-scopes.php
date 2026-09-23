@@ -9,6 +9,7 @@ namespace WP\OAuth2;
 
 class Scopes {
 	protected $capabilities;
+	protected $scopes = [];
 
 	public function __construct() {
 		$this->capabilities = [];

@@ -12,6 +12,7 @@ require_once __DIR__ . '/class-test-case.php';
 use WP\OAuth2\Client;
 use WP\OAuth2\Endpoints\Token;
 use WP\OAuth2\PersonalClient;
+use WP\OAuth2\Tokens\Access_Token;
 use WP\OAuth2\Tokens\Authorization_Code;
 use WP_REST_Request;
 use WP_REST_Server;
@@ -319,6 +320,80 @@ class Test_Token_Endpoint extends Test_Case {
 		$response = $this->server->dispatch( $request );
 
 		$this->assertEquals( 400, $response->get_status() );
+	}
+
+	// -------------------------------------------------------------------------
+	// Token expiry
+	// -------------------------------------------------------------------------
+
+	/**
+	 * Run the client credentials grant for a client and return the response data.
+	 *
+	 * @param Client $client Client to authenticate as.
+	 *
+	 * @return array Response data.
+	 */
+	protected function request_client_credentials_token( Client $client ) {
+		$request = new WP_REST_Request( 'POST', '/oauth2/access_token' );
+		$request->set_param( 'grant_type', 'client_credentials' );
+		$request->set_param( 'client_id', $client->get_id() );
+		$request->set_param( 'client_secret', $client->get_secret() );
+
+		$response = $this->server->dispatch( $request );
+		$this->assertEquals( 200, $response->get_status() );
+
+		return $response->get_data();
+	}
+
+	public function test_client_credentials_omits_expires_in_without_ttl() {
+		$client = $this->create_client( [ 'client_credentials_enabled' => true ] );
+
+		$data = $this->request_client_credentials_token( $client );
+
+		$this->assertArrayNotHasKey( 'expires_in', $data );
+	}
+
+	public function test_client_credentials_returns_expires_in_with_ttl() {
+		$client = $this->create_client( [
+			'client_credentials_enabled' => true,
+			'token_ttl'                  => 3600,
+		] );
+
+		$data = $this->request_client_credentials_token( $client );
+
+		$this->assertArrayHasKey( 'expires_in', $data );
+		// Allow a second of drift between issuing the token and reading it back.
+		$this->assertEqualsWithDelta( 3600, $data['expires_in'], 1 );
+	}
+
+	public function test_client_credentials_token_expires_after_ttl() {
+		$client = $this->create_client( [
+			'client_credentials_enabled' => true,
+			'token_ttl'                  => 3600,
+		] );
+
+		$data  = $this->request_client_credentials_token( $client );
+		$token = Access_Token::get_by_id( $data['access_token'] );
+
+		$this->assertInstanceOf( Access_Token::class, $token );
+		$this->assertFalse( $token->is_expired() );
+		$this->assertEqualsWithDelta( time() + 3600, $token->get_expiration_time(), 1 );
+	}
+
+	public function test_authorization_code_grant_omits_expires_in() {
+		// User tokens have no TTL, so the response must not claim an expiry.
+		$user = $this->factory->user->create_and_get();
+		$code = Authorization_Code::create( $this->client, $user );
+
+		$request = new WP_REST_Request( 'POST', '/oauth2/access_token' );
+		$request->set_param( 'grant_type', 'authorization_code' );
+		$request->set_param( 'client_id', $this->client->get_id() );
+		$request->set_param( 'code', $code->get_code() );
+
+		$response = $this->server->dispatch( $request );
+
+		$this->assertEquals( 200, $response->get_status() );
+		$this->assertArrayNotHasKey( 'expires_in', $response->get_data() );
 	}
 
 	// -------------------------------------------------------------------------

@@ -29,4 +29,9 @@
 		<exclude name="WordPress.NamingConventions.ValidHookName.UseUnderscores" />
 		<exclude name="WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode" />
 	</rule>
+
+	<!-- Rules: PHP compatibility -->
+	<!-- https://github.com/PHPCompatibility/PHPCompatibilityWP -->
+	<config name="testVersion" value="7.4-"/>
+	<rule ref="PHPCompatibilityWP"/>
 </ruleset>
