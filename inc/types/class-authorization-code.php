@@ -69,10 +69,12 @@ class Authorization_Code extends Base {
 			return [];
 		}
 
-		if ( ! in_array( $code_challenge_method, PKCE::supported_methods(), true ) ) {
+		$supported_methods = PKCE::supported_methods();
+		if ( ! in_array( $code_challenge_method, $supported_methods, true ) ) {
 			return new WP_Error(
 				'oauth2.types.authorization_code.validate_extra_params.unsupported_method',
-				__( 'Unsupported code_challenge_method. Note that this value is case-sensitive; use S256.', 'oauth2' ),
+				/* translators: %s: comma-separated list of code_challenge_method values */
+				sprintf( __( 'Unsupported code_challenge_method. Use one of: %s. This value is case-sensitive.', 'oauth2' ), implode( ', ', $supported_methods ) ),
 				[ 'error' => 'invalid_request' ]
 			);
 		}

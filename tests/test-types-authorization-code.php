@@ -100,6 +100,28 @@ class Test_Types_Authorization_Code extends Test_Case {
 		$this->assertSame( 'invalid_request', $result->get_error_data()['error'] );
 	}
 
+	public function test_unsupported_method_error_names_the_filtered_supported_methods() {
+		$filter = function () {
+			return [ PKCE::METHOD_PLAIN ];
+		};
+		add_filter( 'oauth2.pkce.supported_methods', $filter );
+
+		$pair   = $this->make_pkce_pair( PKCE::METHOD_S256 );
+		$result = $this->type->validate_extra_params_public(
+			$this->client,
+			[
+				'code_challenge'        => $pair['code_challenge'],
+				'code_challenge_method' => 'S256',
+			]
+		);
+
+		remove_filter( 'oauth2.pkce.supported_methods', $filter );
+
+		$this->assertWPError( $result );
+		$this->assertStringContainsString( 'plain', $result->get_error_message() );
+		$this->assertStringNotContainsString( 'S256', $result->get_error_message() );
+	}
+
 	public function test_wrongly_cased_method_is_rejected() {
 		$result = $this->type->validate_extra_params_public(
 			$this->client,
