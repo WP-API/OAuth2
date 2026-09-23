@@ -10,6 +10,7 @@ namespace WP\OAuth2\Tests;
 require_once __DIR__ . '/class-test-case.php';
 
 use WP\OAuth2\Client;
+use WP\OAuth2\PKCE;
 use WP\OAuth2\Tokens\Authorization_Code;
 use WP_User;
 
@@ -103,6 +104,244 @@ class Test_Authorization_Code extends Test_Case {
 		$code         = Authorization_Code::create( $this->client, $this->user );
 
 		$result = Authorization_Code::get_by_code( $other_client, $code->get_code() );
+		$this->assertWPError( $result );
+	}
+
+	// RFC 7636 Appendix B worked example.
+	const RFC_VERIFIER  = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
+	const RFC_CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
+
+	public function test_create_without_pkce_data_stores_no_challenge() {
+		$code = Authorization_Code::create( $this->client, $this->user );
+		$this->assertNull( $code->get_code_challenge() );
+		$this->assertNull( $code->get_code_challenge_method() );
+	}
+
+	/**
+	 * RFC 7636 section 4.4: the server stores the challenge and method with the authorization code.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc7636#section-4.4
+	 */
+	public function test_create_with_pkce_data_stores_challenge_and_method() {
+		$code = Authorization_Code::create(
+			$this->client,
+			$this->user,
+			[
+				'code_challenge'        => static::RFC_CHALLENGE,
+				'code_challenge_method' => 'S256',
+			]
+		);
+
+		$this->assertSame( static::RFC_CHALLENGE, $code->get_code_challenge() );
+		$this->assertSame( 'S256', $code->get_code_challenge_method() );
+	}
+
+	/**
+	 * RFC 7636 section 4.3: the method is "S256" or "plain", and defaults to "plain" when omitted.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc7636#section-4.3
+	 */
+	public function test_create_defaults_challenge_method_to_plain_when_omitted() {
+		$code = Authorization_Code::create(
+			$this->client,
+			$this->user,
+			[ 'code_challenge' => static::RFC_VERIFIER ]
+		);
+
+		$this->assertSame( 'plain', $code->get_code_challenge_method() );
+	}
+
+	public function test_create_data_cannot_override_user_or_expiration() {
+		$code = Authorization_Code::create(
+			$this->client,
+			$this->user,
+			[
+				'user'       => 999999,
+				'expiration' => 1,
+			]
+		);
+
+		$user = $code->get_user();
+		$this->assertInstanceOf( WP_User::class, $user );
+		$this->assertEquals( $this->user->ID, $user->ID );
+		$this->assertGreaterThan( time(), $code->get_expiration() );
+	}
+
+	public function test_validate_with_no_args_still_passes_for_non_pkce_code() {
+		// Back-compat guarantee: existing callers pass no args at all.
+		$code = Authorization_Code::create( $this->client, $this->user );
+		$this->assertTrue( $code->validate() );
+	}
+
+	/**
+	 * RFC 7636 section 4.6: the server derives the challenge from the verifier with the stored method and compares.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc7636#section-4.6
+	 */
+	public function test_validate_passes_with_correct_s256_verifier() {
+		$code = Authorization_Code::create(
+			$this->client,
+			$this->user,
+			[
+				'code_challenge'        => static::RFC_CHALLENGE,
+				'code_challenge_method' => 'S256',
+			]
+		);
+
+		$this->assertTrue( $code->validate( static::RFC_VERIFIER ) );
+	}
+
+	/**
+	 * RFC 7636 section 4.6: the server derives the challenge from the verifier with the stored method and compares.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc7636#section-4.6
+	 */
+	public function test_validate_passes_with_correct_plain_verifier() {
+		$code = Authorization_Code::create(
+			$this->client,
+			$this->user,
+			[
+				'code_challenge'        => static::RFC_VERIFIER,
+				'code_challenge_method' => 'plain',
+			]
+		);
+
+		$this->assertTrue( $code->validate( static::RFC_VERIFIER ) );
+	}
+
+	/**
+	 * RFC 7636 section 4.6: a verifier that does not match the stored challenge gets invalid_grant.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc7636#section-4.6
+	 */
+	public function test_validate_fails_with_wrong_verifier() {
+		$code = Authorization_Code::create(
+			$this->client,
+			$this->user,
+			[
+				'code_challenge'        => static::RFC_CHALLENGE,
+				'code_challenge_method' => 'S256',
+			]
+		);
+
+		$result = $code->validate( 'wrong-verifier-wrong-verifier-wrong-verifier' );
+		$this->assertWPError( $result );
+		$this->assertSame( 'invalid_grant', $result->get_error_data()['error'] );
+	}
+
+	/**
+	 * RFC 7636 section 4.6: the server derives the challenge from the verifier with the stored method and compares.
+	 *
+	 * Sending the S256 challenge itself as the verifier must fail, since the
+	 * server hashes it rather than comparing it as plain.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc7636#section-4.6
+	 */
+	public function test_validate_fails_when_the_s256_challenge_is_sent_as_the_verifier() {
+		$pair = $this->make_pkce_pair( PKCE::METHOD_S256 );
+		$code = Authorization_Code::create( $this->client, $this->user, [
+			'code_challenge'        => $pair['code_challenge'],
+			'code_challenge_method' => PKCE::METHOD_S256,
+		] );
+
+		$result = $code->validate( $pair['code_challenge'] );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'invalid_grant', $result->get_error_data()['error'] );
+	}
+
+	/**
+	 * RFC 7636 section 4.5: the client sends the code_verifier with the token request.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc7636#section-4.5
+	 */
+	public function test_validate_fails_with_missing_verifier() {
+		$code = Authorization_Code::create(
+			$this->client,
+			$this->user,
+			[
+				'code_challenge'        => static::RFC_CHALLENGE,
+				'code_challenge_method' => 'S256',
+			]
+		);
+
+		$result = $code->validate();
+		$this->assertWPError( $result );
+		$this->assertEquals( 'oauth2.tokens.authorization_code.validate.missing_verifier', $result->get_error_code() );
+	}
+
+	/**
+	 * RFC 7636 section 4.1: a code verifier is 43-128 characters from the unreserved set.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc7636#section-4.1
+	 */
+	public function test_validate_fails_with_malformed_verifier() {
+		$code = Authorization_Code::create(
+			$this->client,
+			$this->user,
+			[
+				'code_challenge'        => static::RFC_CHALLENGE,
+				'code_challenge_method' => 'S256',
+			]
+		);
+
+		$result = $code->validate( 'too-short' );
+		$this->assertWPError( $result );
+	}
+
+	/**
+	 * RFC 9700 section 4.8.2: a code_verifier for a code issued without a code_challenge must be rejected.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc9700#section-4.8.2
+	 */
+	public function test_validate_rejects_verifier_for_code_with_no_stored_challenge() {
+		$code   = Authorization_Code::create( $this->client, $this->user );
+		$result = $code->validate( static::RFC_VERIFIER );
+
+		$this->assertWPError( $result );
+		$this->assertEquals( 'oauth2.tokens.authorization_code.validate.unexpected_verifier', $result->get_error_code() );
+	}
+
+	/**
+	 * RFC 9700 section 4.8.2: a code_verifier for a code issued without a code_challenge must be rejected.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc9700#section-4.8.2
+	 */
+	public function test_validate_allows_unexpected_verifier_when_filtered() {
+		$code = Authorization_Code::create( $this->client, $this->user );
+
+		$filter = '__return_false';
+		add_filter( 'oauth2.pkce.reject_unexpected_verifier', $filter );
+		$result = $code->validate( static::RFC_VERIFIER );
+		remove_filter( 'oauth2.pkce.reject_unexpected_verifier', $filter );
+
+		$this->assertTrue( $result );
+	}
+
+	public function test_validate_fails_closed_when_stored_method_is_missing() {
+		$code     = Authorization_Code::create( $this->client, $this->user );
+		$meta_key = Authorization_Code::KEY_PREFIX . $code->get_code();
+
+		// Simulate corrupted meta: a challenge with no method.
+		$value                    = get_post_meta( $this->client->get_post_id(), $meta_key, true );
+		$value['code_challenge']  = static::RFC_CHALLENGE;
+		update_post_meta( $this->client->get_post_id(), $meta_key, $value );
+
+		$result = $code->validate( static::RFC_VERIFIER );
+		$this->assertWPError( $result );
+		$this->assertEquals( 'oauth2.tokens.authorization_code.validate.missing_challenge_method', $result->get_error_code() );
+	}
+
+	public function test_validate_with_malformed_meta_does_not_pass_expiry_check() {
+		$code     = Authorization_Code::create( $this->client, $this->user );
+		$meta_key = Authorization_Code::KEY_PREFIX . $code->get_code();
+
+		// Corrupt the expiration entirely; get_expiration() now returns a WP_Error.
+		$value = get_post_meta( $this->client->get_post_id(), $meta_key, true );
+		unset( $value['expiration'] );
+		update_post_meta( $this->client->get_post_id(), $meta_key, $value );
+
+		$result = $code->validate();
 		$this->assertWPError( $result );
 	}
 }

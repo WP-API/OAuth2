@@ -11,6 +11,7 @@ require_once __DIR__ . '/class-test-case.php';
 
 use WP\OAuth2\Client;
 use WP\OAuth2\Endpoints\Token;
+use WP\OAuth2\PKCE;
 use WP\OAuth2\Tokens\Access_Token;
 use WP\OAuth2\Tokens\Authorization_Code;
 use WP_REST_Request;
@@ -193,6 +194,225 @@ class Test_Token_Endpoint extends Test_Case {
 
 		$reuse = Authorization_Code::get_by_code( $this->client, $code->get_code() );
 		$this->assertWPError( $reuse );
+	}
+
+	// -------------------------------------------------------------------------
+	// Authorization code grant, PKCE
+	// -------------------------------------------------------------------------
+
+	/**
+	 * RFC 7636 section 4.6: the server derives the challenge from the verifier with the stored method and compares.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc7636#section-4.6
+	 */
+	public function test_exchange_token_with_correct_s256_verifier() {
+		$user = $this->factory->user->create_and_get();
+		$pair = $this->make_pkce_pair( PKCE::METHOD_S256 );
+		$code = Authorization_Code::create( $this->client, $user, [
+			'code_challenge'        => $pair['code_challenge'],
+			'code_challenge_method' => $pair['code_challenge_method'],
+		] );
+
+		$request = new WP_REST_Request( 'POST', '/oauth2/access_token' );
+		$request->set_param( 'grant_type', 'authorization_code' );
+		$request->set_param( 'client_id', $this->client->get_id() );
+		$request->set_param( 'code', $code->get_code() );
+		$request->set_param( 'code_verifier', $pair['code_verifier'] );
+
+		$response = $this->server->dispatch( $request );
+
+		$this->assertEquals( 200, $response->get_status() );
+		$data = $response->get_data();
+		$this->assertArrayHasKey( 'access_token', $data );
+	}
+
+	/**
+	 * RFC 7636 section 4.6: the server derives the challenge from the verifier with the stored method and compares.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc7636#section-4.6
+	 */
+	public function test_exchange_token_with_correct_plain_verifier() {
+		$user = $this->factory->user->create_and_get();
+		$pair = $this->make_pkce_pair( PKCE::METHOD_PLAIN );
+		$code = Authorization_Code::create( $this->client, $user, [
+			'code_challenge'        => $pair['code_challenge'],
+			'code_challenge_method' => $pair['code_challenge_method'],
+		] );
+
+		$request = new WP_REST_Request( 'POST', '/oauth2/access_token' );
+		$request->set_param( 'grant_type', 'authorization_code' );
+		$request->set_param( 'client_id', $this->client->get_id() );
+		$request->set_param( 'code', $code->get_code() );
+		$request->set_param( 'code_verifier', $pair['code_verifier'] );
+
+		$response = $this->server->dispatch( $request );
+
+		$this->assertEquals( 200, $response->get_status() );
+	}
+
+	/**
+	 * RFC 7636 section 4.6: a verifier that does not match the stored challenge gets invalid_grant.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc7636#section-4.6
+	 */
+	public function test_exchange_token_with_wrong_verifier_fails_and_burns_code() {
+		$user = $this->factory->user->create_and_get();
+		$pair = $this->make_pkce_pair( PKCE::METHOD_S256 );
+		$code = Authorization_Code::create( $this->client, $user, [
+			'code_challenge'        => $pair['code_challenge'],
+			'code_challenge_method' => $pair['code_challenge_method'],
+		] );
+
+		$request = new WP_REST_Request( 'POST', '/oauth2/access_token' );
+		$request->set_param( 'grant_type', 'authorization_code' );
+		$request->set_param( 'client_id', $this->client->get_id() );
+		$request->set_param( 'code', $code->get_code() );
+		$request->set_param( 'code_verifier', 'wrong-verifier-wrong-verifier-wrong-verifier' );
+
+		$response = $this->server->dispatch( $request );
+		$this->assertEquals( 400, $response->get_status() );
+		$this->assertSame( 'invalid_grant', $response->get_data()['data']['error'] );
+
+		// The code must be consumed, not just rejected once: it's deleted along
+		// with the failed attempt, so re-using it (even with the right verifier
+		// this time) now fails as an unknown code, not as a bad verifier.
+		$retry = new WP_REST_Request( 'POST', '/oauth2/access_token' );
+		$retry->set_param( 'grant_type', 'authorization_code' );
+		$retry->set_param( 'client_id', $this->client->get_id() );
+		$retry->set_param( 'code', $code->get_code() );
+		$retry->set_param( 'code_verifier', $pair['code_verifier'] );
+
+		$retry_response = $this->server->dispatch( $retry );
+		$this->assertEquals( 404, $retry_response->get_status() );
+	}
+
+	/**
+	 * RFC 7636 section 4.5: the client sends the code_verifier with the token request.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc7636#section-4.5
+	 */
+	public function test_exchange_token_missing_verifier_for_pkce_code_fails() {
+		$user = $this->factory->user->create_and_get();
+		$pair = $this->make_pkce_pair( PKCE::METHOD_S256 );
+		$code = Authorization_Code::create( $this->client, $user, [
+			'code_challenge'        => $pair['code_challenge'],
+			'code_challenge_method' => $pair['code_challenge_method'],
+		] );
+
+		$request = new WP_REST_Request( 'POST', '/oauth2/access_token' );
+		$request->set_param( 'grant_type', 'authorization_code' );
+		$request->set_param( 'client_id', $this->client->get_id() );
+		$request->set_param( 'code', $code->get_code() );
+
+		$response = $this->server->dispatch( $request );
+		$this->assertEquals( 400, $response->get_status() );
+		$this->assertSame( 'invalid_grant', $response->get_data()['data']['error'] );
+	}
+
+	/**
+	 * RFC 9700 section 4.8.2: a code_verifier for a code issued without a code_challenge must be rejected.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc9700#section-4.8.2
+	 */
+	public function test_exchange_token_verifier_for_non_pkce_code_fails() {
+		$user = $this->factory->user->create_and_get();
+		$code = Authorization_Code::create( $this->client, $user );
+
+		$request = new WP_REST_Request( 'POST', '/oauth2/access_token' );
+		$request->set_param( 'grant_type', 'authorization_code' );
+		$request->set_param( 'client_id', $this->client->get_id() );
+		$request->set_param( 'code', $code->get_code() );
+		$request->set_param( 'code_verifier', PKCE::generate_verifier() );
+
+		$response = $this->server->dispatch( $request );
+		$this->assertEquals( 400, $response->get_status() );
+		$this->assertSame( 'invalid_grant', $response->get_data()['data']['error'] );
+	}
+
+	/**
+	 * RFC 6749 section 3.2: token requests are POSTed, and a parameter must not be sent more than once.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc6749#section-3.2
+	 */
+	public function test_exchange_token_rejects_array_valued_verifier_via_schema() {
+		$user = $this->factory->user->create_and_get();
+		$pair = $this->make_pkce_pair( PKCE::METHOD_S256 );
+		$code = Authorization_Code::create( $this->client, $user, [
+			'code_challenge'        => $pair['code_challenge'],
+			'code_challenge_method' => $pair['code_challenge_method'],
+		] );
+
+		$request = new WP_REST_Request( 'POST', '/oauth2/access_token' );
+		$request->set_param( 'grant_type', 'authorization_code' );
+		$request->set_param( 'client_id', $this->client->get_id() );
+		$request->set_param( 'code', $code->get_code() );
+		$request->set_param( 'code_verifier', [ 'x' ] );
+
+		$response = $this->server->dispatch( $request );
+		$this->assertEquals( 400, $response->get_status() );
+	}
+
+	public function test_exchange_token_non_pkce_code_with_no_verifier_still_works() {
+		// Back-compat: a code minted without PKCE needs no verifier at all.
+		$user = $this->factory->user->create_and_get();
+		$code = Authorization_Code::create( $this->client, $user );
+
+		$request = new WP_REST_Request( 'POST', '/oauth2/access_token' );
+		$request->set_param( 'grant_type', 'authorization_code' );
+		$request->set_param( 'client_id', $this->client->get_id() );
+		$request->set_param( 'code', $code->get_code() );
+
+		$response = $this->server->dispatch( $request );
+		$this->assertEquals( 200, $response->get_status() );
+	}
+
+	/**
+	 * RFC 6749 section 3.2: token requests are POSTed, so a verifier in the URL query is ignored.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc6749#section-3.2
+	 */
+	public function test_exchange_token_ignores_verifier_in_the_url_query() {
+		$user = $this->factory->user->create_and_get();
+		$pair = $this->make_pkce_pair( PKCE::METHOD_S256 );
+		$code = Authorization_Code::create( $this->client, $user, [
+			'code_challenge'        => $pair['code_challenge'],
+			'code_challenge_method' => $pair['code_challenge_method'],
+		] );
+
+		$request = new WP_REST_Request( 'POST', '/oauth2/access_token' );
+		$request->set_body_params( [
+			'grant_type' => 'authorization_code',
+			'client_id'  => $this->client->get_id(),
+			'code'       => $code->get_code(),
+		] );
+		$request->set_query_params( [ 'code_verifier' => $pair['code_verifier'] ] );
+
+		$response = $this->server->dispatch( $request );
+
+		$this->assertEquals( 400, $response->get_status() );
+		$this->assertSame( 'oauth2.tokens.authorization_code.validate.missing_verifier', $response->get_data()['code'] );
+	}
+
+	public function test_exchange_token_accepts_verifier_in_a_json_body() {
+		$user = $this->factory->user->create_and_get();
+		$pair = $this->make_pkce_pair( PKCE::METHOD_S256 );
+		$code = Authorization_Code::create( $this->client, $user, [
+			'code_challenge'        => $pair['code_challenge'],
+			'code_challenge_method' => $pair['code_challenge_method'],
+		] );
+
+		$request = new WP_REST_Request( 'POST', '/oauth2/access_token' );
+		$request->set_header( 'Content-Type', 'application/json' );
+		$request->set_body( wp_json_encode( [
+			'grant_type'    => 'authorization_code',
+			'client_id'     => $this->client->get_id(),
+			'code'          => $code->get_code(),
+			'code_verifier' => $pair['code_verifier'],
+		] ) );
+
+		$response = $this->server->dispatch( $request );
+
+		$this->assertEquals( 200, $response->get_status() );
 	}
 
 	// -------------------------------------------------------------------------

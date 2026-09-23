@@ -21,6 +21,8 @@ abstract class Base implements Type {
 	 *     @var string $redirect_uri Specified redirection URI.
 	 *     @var string $scope Requested scope.
 	 *     @var string $state State parameter from the client.
+	 *     @var string $code_challenge PKCE code challenge, if supplied. Grant-type specific.
+	 *     @var string $code_challenge_method PKCE code challenge method, if supplied. Grant-type specific.
 	 * }
 	 * @return WP_Error|void Method should output form and exit, or return encountered error.
 	 */
@@ -66,6 +68,19 @@ abstract class Base implements Type {
 			return $redirect_uri;
 		}
 
+		// Validate any grant-type-specific parameters (e.g. PKCE).
+		// This runs after the redirect URI is known to be valid, and before the
+		// login redirect, so a malformed request fails fast and can be reported
+		// back to the client rather than dying with an HTML error page.
+		$extra_params = $this->validate_extra_params( $client, wp_unslash( $_GET ) );
+		if ( is_wp_error( $extra_params ) ) {
+			$error_data = $extra_params->get_error_data();
+			$error_code = ! empty( $error_data['error'] ) ? $error_data['error'] : 'invalid_request';
+			// phpcs:ignore WordPress.Security.SafeRedirect -- Intentionally external redirect, secured via client registration.
+			wp_redirect( $this->get_error_redirect_url( $redirect_uri, $error_code, $extra_params->get_error_message(), $state ) );
+			exit;
+		}
+
 		// Valid parameters, ensure the user is logged in.
 		if ( ! is_user_logged_in() ) {
 			$redirect = '';
@@ -106,8 +121,47 @@ abstract class Base implements Type {
 
 		$submit = sanitize_text_field( wp_unslash( $_POST['wp-submit'] ) );
 
-		$data = compact( 'redirect_uri', 'scope', 'state' );
+		$data = array_merge( compact( 'redirect_uri', 'scope', 'state' ), $extra_params );
 		return $this->handle_authorization_submission( $submit, $client, $data );
+	}
+
+	/**
+	 * Validate any grant-type-specific parameters, and return the ones to keep.
+	 *
+	 * Runs on both the initial GET and the consent-form POST, since the
+	 * authorisation form posts back to the original request URI, so $_GET is
+	 * populated on both passes. The default implementation adds nothing;
+	 * override to add grant-type-specific request parameters (e.g. PKCE's
+	 * code_challenge for the authorization_code grant).
+	 *
+	 * @param Client $client Client being authorised.
+	 * @param array  $request Unslashed request parameters, from $_GET.
+	 * @return array|WP_Error Extra data to merge into the $data passed to
+	 *                        handle_authorization_submission(), or an error.
+	 */
+	protected function validate_extra_params( Client $client, array $request ) {
+		return [];
+	}
+
+	/**
+	 * Build a URL for reporting an authorisation error back to the client.
+	 *
+	 * @param string      $redirect_uri Validated redirect URI for the client.
+	 * @param string      $error Error code, e.g. `invalid_request`.
+	 * @param string      $description Human-readable error description.
+	 * @param string|null $state State parameter from the original request, if any.
+	 * @return string URL to redirect the client to.
+	 */
+	protected function get_error_redirect_url( $redirect_uri, $error, $description, $state = null ) {
+		$args = [
+			'error'             => $error,
+			'error_description' => $description,
+		];
+		if ( null !== $state ) {
+			$args['state'] = $state;
+		}
+
+		return add_query_arg( urlencode_deep( $args ), $redirect_uri );
 	}
 
 	/**
@@ -170,7 +224,10 @@ abstract class Base implements Type {
 	 * @param array   $redirect_args Redirect args.
 	 * @param boolean $authorized True if authorized, false otherwise.
 	 * @param Client  $client Client being authorised.
-	 * @param array   $data Data for the request.
+	 * @param array   $data Data for the request. May include PKCE's
+	 *                      `code_challenge`/`code_challenge_method` for the
+	 *                      authorization_code grant; never `code_verifier`,
+	 *                      which is only ever supplied at the token endpoint.
 	 */
 	protected function filter_redirect_args( $redirect_args, $authorized, Client $client, $data ) {
 		if ( ! $authorized ) {
@@ -179,7 +236,7 @@ abstract class Base implements Type {
 			 *
 			 * @param array $redirect_args Redirect args.
 			 * @param Client $client Client being authorised.
-			 * @param array $data Data for the request.
+			 * @param array $data Data for the request. See filter_redirect_args().
 			 */
 			return apply_filters( 'oauth2.redirect_args.cancelled', $redirect_args, $client, $data );
 		}
@@ -189,7 +246,7 @@ abstract class Base implements Type {
 		 *
 		 * @param array $redirect_args Redirect args.
 		 * @param Client $client Client being authorised.
-		 * @param array $data Data for the request.
+		 * @param array $data Data for the request. See filter_redirect_args().
 		 */
 		return apply_filters( 'oauth2.redirect_args.authorized', $redirect_args, $client, $data );
 	}

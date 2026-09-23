@@ -44,6 +44,11 @@ class Token {
 						'type'              => 'string',
 						'validate_callback' => 'rest_validate_request_arg',
 					],
+					'code_verifier' => [
+						'required'          => false,
+						'type'              => 'string',
+						'validate_callback' => 'rest_validate_request_arg',
+					],
 				],
 			]
 		);
@@ -127,7 +132,14 @@ class Token {
 			return $auth_code;
 		}
 
-		$is_valid = $auth_code->validate();
+		// Read from the body only, not get_param(), which also reads $_GET on a
+		// POST route — a verifier belongs in the body, not the URL, since a URL
+		// is far more likely to end up in access logs or a Referer header.
+		$body_params   = $request->get_body_params();
+		$json_params   = (array) $request->get_json_params();
+		$code_verifier = $body_params['code_verifier'] ?? $json_params['code_verifier'] ?? null;
+
+		$is_valid = $auth_code->validate( $code_verifier );
 		if ( is_wp_error( $is_valid ) ) {
 			// Invalid request, but code itself exists, so we should delete
 			// (and silently ignore errors).
