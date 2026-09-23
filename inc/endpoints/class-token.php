@@ -91,7 +91,9 @@ class Token {
 		$error_data = $response->get_error_data();
 		$status     = is_array( $error_data ) && isset( $error_data['status'] ) ? (int) $error_data['status'] : WP_Http::INTERNAL_SERVER_ERROR;
 
-		if ( 'server_error' !== $error && ! ( 'invalid_client' === $error && WP_Http::UNAUTHORIZED === $status ) ) {
+		if ( 'server_error' === $error ) {
+			$status = WP_Http::INTERNAL_SERVER_ERROR;
+		} elseif ( ! ( 'invalid_client' === $error && WP_Http::UNAUTHORIZED === $status ) ) {
 			$status = WP_Http::BAD_REQUEST;
 		}
 
@@ -115,7 +117,8 @@ class Token {
 	 * Get the RFC 6749 section 5.2 error code for an error.
 	 *
 	 * An `error` key in the error data wins over the built-in map. Unknown
-	 * errors become `server_error`.
+	 * errors become `invalid_request` if they carry a 4xx status, or
+	 * `server_error` otherwise.
 	 *
 	 * @param WP_Error $error Error returned by the endpoint.
 	 * @return string OAuth error code.
@@ -131,7 +134,13 @@ class Token {
 			return 'unsupported_grant_type';
 		}
 
-		return static::OAUTH_ERRORS[ $code ] ?? 'server_error';
+		if ( isset( static::OAUTH_ERRORS[ $code ] ) ) {
+			return static::OAUTH_ERRORS[ $code ];
+		}
+
+		$status = is_array( $data ) && isset( $data['status'] ) ? (int) $data['status'] : WP_Http::INTERNAL_SERVER_ERROR;
+
+		return $status >= 400 && $status < 500 ? 'invalid_request' : 'server_error';
 	}
 
 	/**

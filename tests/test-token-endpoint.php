@@ -548,6 +548,26 @@ class Test_Token_Endpoint extends Test_Case {
 		$this->assertOAuthError( $response, 'server_error', 500 );
 	}
 
+	public function test_unknown_client_error_is_invalid_request() {
+		$handler  = new Token();
+		$request  = new WP_REST_Request( 'POST', '/oauth2/access_token' );
+		$response = $handler->format_error_response( new WP_Error( 'custom', 'Bad.', [ 'status' => 401 ] ), [], $request );
+
+		$this->assertOAuthError( $response, 'invalid_request', 400 );
+	}
+
+	public function test_server_error_is_always_500() {
+		$handler  = new Token();
+		$request  = new WP_REST_Request( 'POST', '/oauth2/access_token' );
+		$response = $handler->format_error_response(
+			new WP_Error( 'custom', 'Broken.', [ 'status' => 400, 'error' => 'server_error' ] ),
+			[],
+			$request
+		);
+
+		$this->assertOAuthError( $response, 'server_error', 500 );
+	}
+
 	public function test_errors_on_other_routes_are_left_alone() {
 		$handler = new Token();
 		$error   = new WP_Error( 'custom', 'Broken.' );
