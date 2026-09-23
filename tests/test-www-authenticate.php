@@ -114,7 +114,7 @@ class Test_WWW_Authenticate extends Test_Case {
 	 * The token endpoint is the authorization server, not a resource it
 	 * protects, so it must not point clients back at resource metadata.
 	 */
-	public function test_challenge_is_not_added_to_the_token_endpoint() {
+	public function test_bearer_challenge_is_not_added_to_the_token_endpoint() {
 		$request = new WP_REST_Request( 'POST', '/oauth2/access_token' );
 		$request->set_param( 'grant_type', 'client_credentials' );
 		$request->set_param( 'client_id', 'nonexistent' );
@@ -123,7 +123,7 @@ class Test_WWW_Authenticate extends Test_Case {
 		$response = $this->dispatch( $request );
 
 		$this->assertEquals( 401, $response->get_status() );
-		$this->assertNull( $this->get_challenge( $response ) );
+		$this->assertEquals( 'Basic realm="oauth2"', $this->get_challenge( $response ) );
 	}
 
 	public function test_an_existing_challenge_is_not_overwritten() {
