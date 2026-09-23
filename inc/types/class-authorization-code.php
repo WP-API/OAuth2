@@ -32,8 +32,27 @@ class Authorization_Code extends Base {
 	 *                        through to the minted code, or an error.
 	 */
 	protected function validate_extra_params( Client $client, array $request ) {
-		$code_challenge        = isset( $request['code_challenge'] ) && is_string( $request['code_challenge'] ) ? $request['code_challenge'] : null;
-		$code_challenge_method = isset( $request['code_challenge_method'] ) && is_string( $request['code_challenge_method'] ) ? $request['code_challenge_method'] : null;
+		foreach ( [ 'code_challenge', 'code_challenge_method' ] as $key ) {
+			if ( isset( $request[ $key ] ) && ! is_string( $request[ $key ] ) ) {
+				return new WP_Error(
+					'oauth2.types.authorization_code.validate_extra_params.malformed',
+					/* translators: %s: request parameter name */
+					sprintf( __( 'The %s parameter must be a single string.', 'oauth2' ), $key ),
+					[ 'error' => 'invalid_request' ]
+				);
+			}
+		}
+
+		$code_challenge        = $request['code_challenge'] ?? null;
+		$code_challenge_method = $request['code_challenge_method'] ?? null;
+
+		if ( null === $code_challenge && null !== $code_challenge_method ) {
+			return new WP_Error(
+				'oauth2.types.authorization_code.validate_extra_params.method_without_challenge',
+				__( 'A code_challenge_method was supplied without a code_challenge.', 'oauth2' ),
+				[ 'error' => 'invalid_request' ]
+			);
+		}
 
 		// The method defaults to 'plain' when a challenge arrives without one,
 		// per RFC 7636 section 4.3.
@@ -108,7 +127,8 @@ class Authorization_Code extends Base {
 		if ( ! in_array( $code_challenge_method, $required_methods, true ) ) {
 			return new WP_Error(
 				'oauth2.types.authorization_code.check_pkce_requirement.weak_method',
-				__( 'This client requires PKCE with the S256 code_challenge_method.', 'oauth2' ),
+				/* translators: %s: comma-separated list of code_challenge_method values */
+				sprintf( __( 'This client requires PKCE with one of these code_challenge_method values: %s.', 'oauth2' ), implode( ', ', $required_methods ) ),
 				[ 'error' => 'invalid_request' ]
 			);
 		}
@@ -137,9 +157,7 @@ class Authorization_Code extends Base {
 					return $code;
 				}
 
-				// Defends against a third-party Client subclass overriding
-				// generate_authorization_code() with the pre-PKCE arity,
-				// which would silently mint a code with no challenge.
+				// Fail closed if the minted code does not carry the requested challenge.
 				if ( ! empty( $data['code_challenge'] ) && $code->get_code_challenge() !== $data['code_challenge'] ) {
 					$code->delete();
 					// phpcs:ignore WordPress.Security.SafeRedirect -- Intentionally external redirect, secured via client registration.
@@ -148,7 +166,7 @@ class Authorization_Code extends Base {
 							$redirect_uri,
 							'server_error',
 							__( 'Could not persist the PKCE challenge for this authorization code.', 'oauth2' ),
-							! empty( $data['state'] ) ? $data['state'] : null
+							$data['state']
 						)
 					);
 					exit;

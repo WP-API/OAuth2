@@ -120,10 +120,10 @@ class Implicit extends Base {
 			'error'             => $error,
 			'error_description' => $description,
 		];
-		if ( ! empty( $state ) ) {
+		if ( null !== $state ) {
 			$args['state'] = $state;
 		}
 
-		return $redirect_uri . '#' . build_query( $args );
+		return $redirect_uri . '#' . build_query( urlencode_deep( $args ) );
 	}
 }

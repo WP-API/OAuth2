@@ -156,7 +156,7 @@ abstract class Base implements Type {
 			'error'             => $error,
 			'error_description' => $description,
 		];
-		if ( ! empty( $state ) ) {
+		if ( null !== $state ) {
 			$args['state'] = $state;
 		}
 

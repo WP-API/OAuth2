@@ -30,12 +30,16 @@ class PKCE {
 		/**
 		 * Filter the PKCE code challenge methods this site accepts.
 		 *
+		 * Only the built-in `S256` and `plain` methods can be enabled; any
+		 * other value is dropped, since no challenge can be derived for it.
 		 * Comparisons against these values are case-sensitive, per RFC 7636
 		 * section 4.3.
 		 *
 		 * @param string[] $methods Supported `code_challenge_method` values.
 		 */
-		return apply_filters( 'oauth2.pkce.supported_methods', [ static::METHOD_S256, static::METHOD_PLAIN ] );
+		$methods = apply_filters( 'oauth2.pkce.supported_methods', [ static::METHOD_S256, static::METHOD_PLAIN ] );
+
+		return array_values( array_intersect( (array) $methods, [ static::METHOD_S256, static::METHOD_PLAIN ] ) );
 	}
 
 	/**

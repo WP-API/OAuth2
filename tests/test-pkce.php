@@ -128,6 +128,17 @@ class Test_PKCE extends Test_Case {
 		$this->assertSame( [ PKCE::METHOD_S256, PKCE::METHOD_PLAIN ], PKCE::supported_methods() );
 	}
 
+	public function test_supported_methods_filter_drops_unknown_methods() {
+		$filter = function ( $methods ) {
+			return array_merge( $methods, [ 'S512' ] );
+		};
+		add_filter( 'oauth2.pkce.supported_methods', $filter );
+
+		$this->assertSame( [ PKCE::METHOD_S256, PKCE::METHOD_PLAIN ], PKCE::supported_methods() );
+
+		remove_filter( 'oauth2.pkce.supported_methods', $filter );
+	}
+
 	public function test_supported_methods_filter_removes_plain() {
 		$filter = function () {
 			return [ PKCE::METHOD_S256 ];

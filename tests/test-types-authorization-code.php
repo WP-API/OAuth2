@@ -124,13 +124,14 @@ class Test_Types_Authorization_Code extends Test_Case {
 		$this->assertWPError( $result );
 	}
 
-	public function test_method_without_challenge_is_ignored() {
+	public function test_method_without_challenge_is_rejected() {
 		$result = $this->type->validate_extra_params_public(
 			$this->client,
 			[ 'code_challenge_method' => 'S256' ]
 		);
 
-		$this->assertSame( [], $result );
+		$this->assertWPError( $result );
+		$this->assertSame( 'invalid_request', $result->get_error_data()['error'] );
 	}
 
 	public function test_omitted_method_normalizes_to_plain() {
@@ -143,13 +144,27 @@ class Test_Types_Authorization_Code extends Test_Case {
 		$this->assertSame( 'plain', $result['code_challenge_method'] );
 	}
 
-	public function test_array_valued_challenge_is_treated_as_absent() {
+	public function test_array_valued_challenge_is_rejected() {
 		$result = $this->type->validate_extra_params_public(
 			$this->client,
 			[ 'code_challenge' => [ 'x' ] ]
 		);
 
-		$this->assertSame( [], $result );
+		$this->assertWPError( $result );
+		$this->assertSame( 'invalid_request', $result->get_error_data()['error'] );
+	}
+
+	public function test_array_valued_method_is_rejected() {
+		$result = $this->type->validate_extra_params_public(
+			$this->client,
+			[
+				'code_challenge'        => str_repeat( 'a', 43 ),
+				'code_challenge_method' => [ 'S256' ],
+			]
+		);
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'invalid_request', $result->get_error_data()['error'] );
 	}
 
 	public function test_pkce_required_client_without_challenge_is_rejected() {
@@ -173,6 +188,29 @@ class Test_Types_Authorization_Code extends Test_Case {
 
 		$this->assertWPError( $result );
 		$this->assertEquals( 'oauth2.types.authorization_code.check_pkce_requirement.weak_method', $result->get_error_code() );
+	}
+
+	public function test_weak_method_error_names_the_filtered_required_methods() {
+		$filter = function () {
+			return [ PKCE::METHOD_PLAIN ];
+		};
+		add_filter( 'oauth2.pkce.required_methods', $filter );
+
+		$client = $this->create_client( [ 'pkce_required' => true ] );
+		$pair   = $this->make_pkce_pair( PKCE::METHOD_S256 );
+		$result = $this->type->validate_extra_params_public(
+			$client,
+			[
+				'code_challenge'        => $pair['code_challenge'],
+				'code_challenge_method' => 'S256',
+			]
+		);
+
+		remove_filter( 'oauth2.pkce.required_methods', $filter );
+
+		$this->assertWPError( $result );
+		$this->assertStringContainsString( 'plain', $result->get_error_message() );
+		$this->assertStringNotContainsString( 'S256', $result->get_error_message() );
 	}
 
 	public function test_pkce_required_client_with_s256_is_accepted() {
@@ -203,6 +241,11 @@ class Test_Types_Authorization_Code extends Test_Case {
 	public function test_error_redirect_url_includes_state_when_present() {
 		$url = $this->type->get_error_redirect_url_public( 'https://example.com/callback', 'invalid_request', 'Bad request.', 'xyz' );
 		$this->assertStringContainsString( 'state=xyz', $url );
+	}
+
+	public function test_error_redirect_url_keeps_zero_state() {
+		$url = $this->type->get_error_redirect_url_public( 'https://example.com/callback', 'invalid_request', 'Bad request.', '0' );
+		$this->assertStringContainsString( 'state=0', $url );
 	}
 
 	/**
@@ -282,5 +325,18 @@ class Test_Types_Implicit extends Test_Case {
 		$url = $this->type->get_error_redirect_url_public( 'https://example.com/callback', 'unauthorized_client', 'Nope.' );
 		$this->assertStringContainsString( '#', $url );
 		$this->assertStringContainsString( 'error=unauthorized_client', $url );
+	}
+
+	public function test_error_redirect_url_encodes_fragment_values() {
+		$url = $this->type->get_error_redirect_url_public( 'https://example.com/callback', 'unauthorized_client', 'A & B #c', 'x&y=z' );
+
+		parse_str( wp_parse_url( $url, PHP_URL_FRAGMENT ), $args );
+		$this->assertSame( 'A & B #c', $args['error_description'] );
+		$this->assertSame( 'x&y=z', $args['state'] );
+	}
+
+	public function test_error_redirect_url_keeps_zero_state() {
+		$url = $this->type->get_error_redirect_url_public( 'https://example.com/callback', 'unauthorized_client', 'Nope.', '0' );
+		$this->assertStringContainsString( 'state=0', $url );
 	}
 }
