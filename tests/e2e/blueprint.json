@@ -1,0 +1,14 @@
+{
+	"$schema": "https://playground.wordpress.net/blueprint-schema.json",
+	"landingPage": "/",
+	"steps": [
+		{
+			"step": "activatePlugin",
+			"pluginPath": "oauth2/plugin.php"
+		},
+		{
+			"step": "runPHP",
+			"code": "<?php require '/wordpress/wp-load.php'; require '/wordpress/wp-content/plugins/oauth2/tests/e2e/setup.php';"
+		}
+	]
+}

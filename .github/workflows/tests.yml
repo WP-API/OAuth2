@@ -110,3 +110,13 @@ jobs:
 
       - name: Run PHPCS
         run: vendor/bin/phpcs
+
+  e2e:
+    name: E2E (Playground)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Run PKCE e2e checks
+        run: bash tests/e2e/run.sh
