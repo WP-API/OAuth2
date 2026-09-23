@@ -13,7 +13,9 @@ use WP\OAuth2\Client;
 use WP\OAuth2\Endpoints\Token;
 use WP\OAuth2\Tokens\Access_Token;
 use WP\OAuth2\Tokens\Authorization_Code;
+use WP_Error;
 use WP_REST_Request;
+use WP_REST_Response;
 use WP_REST_Server;
 
 /**
@@ -414,5 +416,155 @@ class Test_Token_Endpoint extends Test_Case {
 		$this->assertFalse( $handler->validate_grant_type( 'password' ) );
 		$this->assertFalse( $handler->validate_grant_type( 'implicit' ) );
 		$this->assertFalse( $handler->validate_grant_type( '' ) );
+	}
+
+	// -------------------------------------------------------------------------
+	// RFC 6749 section 5.2 error responses
+	// -------------------------------------------------------------------------
+
+	/**
+	 * Dispatch a token request and return the response.
+	 *
+	 * @param array $params Request parameters.
+	 * @return WP_REST_Response
+	 */
+	protected function request_token( array $params ) {
+		$request = new WP_REST_Request( 'POST', '/oauth2/access_token' );
+		foreach ( $params as $key => $value ) {
+			$request->set_param( $key, $value );
+		}
+
+		return $this->server->dispatch( $request );
+	}
+
+	/**
+	 * Assert a response is an RFC 6749 section 5.2 error that keeps the WordPress fields.
+	 *
+	 * @param WP_REST_Response $response Response to check.
+	 * @param string           $error Expected OAuth error code.
+	 * @param int              $status Expected HTTP status.
+	 */
+	protected function assertOAuthError( WP_REST_Response $response, $error, $status ) {
+		$data = $response->get_data();
+
+		$this->assertSame( $status, $response->get_status() );
+		$this->assertSame( $error, $data['error'] );
+		$this->assertSame( $data['message'], $data['error_description'] );
+		$this->assertNotEmpty( $data['code'] );
+	}
+
+	public function test_missing_parameter_is_invalid_request() {
+		$response = $this->request_token( [
+			'grant_type' => 'authorization_code',
+			'code'       => 'somecode',
+		] );
+
+		$this->assertOAuthError( $response, 'invalid_request', 400 );
+		$this->assertSame( 'rest_missing_callback_param', $response->get_data()['code'] );
+	}
+
+	public function test_missing_grant_type_is_invalid_request() {
+		$this->assertOAuthError( $this->request_token( [] ), 'invalid_request', 400 );
+	}
+
+	public function test_unknown_grant_type_is_unsupported_grant_type() {
+		$response = $this->request_token( [ 'grant_type' => 'password' ] );
+
+		$this->assertOAuthError( $response, 'unsupported_grant_type', 400 );
+	}
+
+	public function test_unknown_client_is_invalid_client() {
+		$response = $this->request_token( [
+			'grant_type' => 'authorization_code',
+			'client_id'  => 'nonexistent-client',
+			'code'       => 'anycode',
+		] );
+
+		$this->assertOAuthError( $response, 'invalid_client', 400 );
+	}
+
+	public function test_unknown_code_is_invalid_grant() {
+		$response = $this->request_token( [
+			'grant_type' => 'authorization_code',
+			'client_id'  => $this->client->get_id(),
+			'code'       => 'invalid-code-xyz',
+		] );
+
+		$this->assertOAuthError( $response, 'invalid_grant', 400 );
+	}
+
+	public function test_expired_code_is_invalid_grant() {
+		$user = $this->factory->user->create_and_get();
+		$code = Authorization_Code::create( $this->client, $user );
+
+		$meta_key            = Authorization_Code::KEY_PREFIX . $code->get_code();
+		$value               = get_post_meta( $this->client->get_post_id(), $meta_key, true );
+		$value['expiration'] = time() - 1;
+		update_post_meta( $this->client->get_post_id(), $meta_key, $value );
+
+		$response = $this->request_token( [
+			'grant_type' => 'authorization_code',
+			'client_id'  => $this->client->get_id(),
+			'code'       => $code->get_code(),
+		] );
+
+		$this->assertOAuthError( $response, 'invalid_grant', 400 );
+	}
+
+	public function test_failed_client_authentication_is_invalid_client_with_challenge() {
+		$response = $this->request_token( [
+			'grant_type'    => 'client_credentials',
+			'client_id'     => 'nonexistent',
+			'client_secret' => 'wrong',
+		] );
+
+		$this->assertOAuthError( $response, 'invalid_client', 401 );
+		$this->assertSame( 'Basic realm="oauth2"', $response->get_headers()['WWW-Authenticate'] );
+	}
+
+	public function test_missing_client_credentials_is_invalid_request() {
+		$response = $this->request_token( [ 'grant_type' => 'client_credentials' ] );
+
+		$this->assertOAuthError( $response, 'invalid_request', 400 );
+	}
+
+	public function test_error_data_can_set_the_oauth_error() {
+		$handler  = new Token();
+		$request  = new WP_REST_Request( 'POST', '/oauth2/access_token' );
+		$response = $handler->format_error_response(
+			new WP_Error( 'custom', 'Scope not allowed.', [ 'error' => 'invalid_scope' ] ),
+			[],
+			$request
+		);
+
+		$this->assertOAuthError( $response, 'invalid_scope', 400 );
+	}
+
+	public function test_unknown_error_is_server_error() {
+		$handler  = new Token();
+		$request  = new WP_REST_Request( 'POST', '/oauth2/access_token' );
+		$response = $handler->format_error_response( new WP_Error( 'custom', 'Broken.' ), [], $request );
+
+		$this->assertOAuthError( $response, 'server_error', 500 );
+	}
+
+	public function test_errors_on_other_routes_are_left_alone() {
+		$handler = new Token();
+		$error   = new WP_Error( 'custom', 'Broken.' );
+
+		$this->assertSame( $error, $handler->format_error_response( $error, [], new WP_REST_Request( 'GET', '/wp/v2/posts' ) ) );
+	}
+
+	public function test_successful_response_has_no_error_fields() {
+		$user     = $this->factory->user->create_and_get();
+		$code     = Authorization_Code::create( $this->client, $user );
+		$response = $this->request_token( [
+			'grant_type' => 'authorization_code',
+			'client_id'  => $this->client->get_id(),
+			'code'       => $code->get_code(),
+		] );
+
+		$this->assertSame( 200, $response->get_status() );
+		$this->assertArrayNotHasKey( 'error', $response->get_data() );
 	}
 }

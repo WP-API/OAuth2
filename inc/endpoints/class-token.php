@@ -11,10 +11,32 @@ use WP_Error;
 use WP_Http;
 use WP\OAuth2;
 use WP_REST_Request;
+use WP_REST_Response;
+
 /**
  * Token endpoint handler.
  */
 class Token {
+	const ROUTE = '/oauth2/access_token';
+
+	/**
+	 * RFC 6749 section 5.2 error codes for the errors this endpoint returns.
+	 */
+	const OAUTH_ERRORS = [
+		'rest_missing_callback_param'            => 'invalid_request',
+		'rest_invalid_param'                     => 'invalid_request',
+		'oauth2.endpoints.token.invalid_request' => 'invalid_request',
+		'oauth2.endpoints.token.exchange_token.invalid_client' => 'invalid_client',
+		'oauth2.endpoints.token.invalid_client'  => 'invalid_client',
+		'oauth2.client.check_authorization_code.invalid_code' => 'invalid_grant',
+		'oauth2.tokens.authorization_code.validate.expired' => 'invalid_grant',
+		'oauth2.tokens.authorization_code.get_user.invalid_data' => 'invalid_grant',
+	];
+
+	public function register_hooks() {
+		add_filter( 'rest_request_after_callbacks', [ $this, 'format_error_response' ], 10, 3 );
+	}
+
 	public function register_routes() {
 		register_rest_route(
 			'oauth2',
@@ -47,6 +69,69 @@ class Token {
 				],
 			]
 		);
+	}
+
+	/**
+	 * Add the RFC 6749 section 5.2 error fields to a token endpoint error.
+	 *
+	 * The WordPress `code`, `message` and `data` fields are kept alongside
+	 * `error` and `error_description`.
+	 *
+	 * @param WP_REST_Response|WP_Error|mixed $response Result of the request.
+	 * @param array                           $handler Route handler.
+	 * @param WP_REST_Request                 $request Request object.
+	 * @return WP_REST_Response|mixed Formatted error response, or the original response.
+	 */
+	public function format_error_response( $response, $handler, $request ) {
+		if ( ! is_wp_error( $response ) || ! $request instanceof WP_REST_Request || static::ROUTE !== $request->get_route() ) {
+			return $response;
+		}
+
+		$error      = $this->get_oauth_error( $response );
+		$error_data = $response->get_error_data();
+		$status     = is_array( $error_data ) && isset( $error_data['status'] ) ? (int) $error_data['status'] : WP_Http::INTERNAL_SERVER_ERROR;
+
+		if ( 'server_error' !== $error && ! ( 'invalid_client' === $error && WP_Http::UNAUTHORIZED === $status ) ) {
+			$status = WP_Http::BAD_REQUEST;
+		}
+
+		$formatted = rest_convert_error_to_response( $response );
+		$data      = $formatted->get_data();
+
+		$data['error']             = $error;
+		$data['error_description'] = $response->get_error_message();
+
+		$formatted->set_data( $data );
+		$formatted->set_status( $status );
+
+		if ( WP_Http::UNAUTHORIZED === $status ) {
+			$formatted->header( 'WWW-Authenticate', 'Basic realm="oauth2"' );
+		}
+
+		return $formatted;
+	}
+
+	/**
+	 * Get the RFC 6749 section 5.2 error code for an error.
+	 *
+	 * An `error` key in the error data wins over the built-in map. Unknown
+	 * errors become `server_error`.
+	 *
+	 * @param WP_Error $error Error returned by the endpoint.
+	 * @return string OAuth error code.
+	 */
+	protected function get_oauth_error( WP_Error $error ) {
+		$data = $error->get_error_data();
+		if ( is_array( $data ) && ! empty( $data['error'] ) && is_string( $data['error'] ) ) {
+			return $data['error'];
+		}
+
+		$code = $error->get_error_code();
+		if ( 'rest_invalid_param' === $code && isset( $data['params']['grant_type'] ) ) {
+			return 'unsupported_grant_type';
+		}
+
+		return static::OAUTH_ERRORS[ $code ] ?? 'server_error';
 	}
 
 	/**
