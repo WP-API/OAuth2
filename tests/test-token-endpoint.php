@@ -176,9 +176,26 @@ class Test_Token_Endpoint extends Test_Case {
 
 		$response = $this->server->dispatch( $request );
 
-		$this->assertEquals( 400, $response->get_status() );
+		$this->assertEquals( 401, $response->get_status() );
 		$data = $response->get_data();
-		$this->assertEquals( 'oauth2.endpoints.token.invalid_request', $data['code'] );
+		$this->assertEquals( 'oauth2.endpoints.token.invalid_client', $data['code'] );
+		$this->assertArrayHasKey( 'WWW-Authenticate', $response->get_headers() );
+	}
+
+	public function test_exchange_token_unknown_client_via_basic_auth_header_sends_a_challenge() {
+		$encoded = base64_encode( 'nonexistent-client:secret' );
+
+		$request = new WP_REST_Request( 'POST', '/oauth2/access_token' );
+		$request->set_param( 'grant_type', 'authorization_code' );
+		$request->set_param( 'code', 'anycode' );
+		$request->add_header( 'Authorization', 'Basic ' . $encoded );
+
+		$response = $this->server->dispatch( $request );
+
+		$this->assertEquals( 401, $response->get_status() );
+		$data = $response->get_data();
+		$this->assertEquals( 'oauth2.endpoints.token.invalid_client', $data['code'] );
+		$this->assertArrayHasKey( 'WWW-Authenticate', $response->get_headers() );
 	}
 
 	public function test_exchange_token_deletes_code_after_use() {
@@ -297,7 +314,8 @@ class Test_Token_Endpoint extends Test_Case {
 
 		$response = $this->server->dispatch( $request );
 
-		$this->assertEquals( 400, $response->get_status() );
+		$this->assertEquals( 401, $response->get_status() );
+		$this->assertArrayHasKey( 'WWW-Authenticate', $response->get_headers() );
 	}
 
 	public function test_client_credentials_header_no_colon() {
@@ -310,7 +328,8 @@ class Test_Token_Endpoint extends Test_Case {
 
 		$response = $this->server->dispatch( $request );
 
-		$this->assertEquals( 400, $response->get_status() );
+		$this->assertEquals( 401, $response->get_status() );
+		$this->assertArrayHasKey( 'WWW-Authenticate', $response->get_headers() );
 	}
 
 	public function test_client_credentials_no_credentials_provided() {

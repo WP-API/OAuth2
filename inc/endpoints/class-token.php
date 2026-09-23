@@ -66,7 +66,7 @@ class Token {
 	 *
 	 * @param WP_REST_Request $request Request object.
 	 *
-	 * @return array|WP_Error Token data on success, or error on failure.
+	 * @return array|WP_Error|WP_REST_Response Token data on success, or error on failure.
 	 */
 	public function exchange_token( WP_REST_Request $request ) {
 		if ( 'client_credentials' === $request['grant_type'] ) {
@@ -76,8 +76,8 @@ class Token {
 		// RFC 6749 section 2.3.1: a client may authenticate with HTTP Basic
 		// instead of body parameters. Body parameters take precedence.
 		$basic = $this->get_basic_auth_credentials( $request );
-		if ( is_wp_error( $basic ) ) {
-			return $basic;
+		if ( false === $basic ) {
+			return $this->client_authentication_failed( $request );
 		}
 		if ( null !== $basic ) {
 			if ( $this->is_param_empty( $request, 'client_id' ) ) {
@@ -114,6 +114,9 @@ class Token {
 		}
 
 		$client = OAuth2\get_client( $request['client_id'] );
+		if ( empty( $client ) && null !== $basic ) {
+			return $this->client_authentication_failed( $request );
+		}
 		if ( empty( $client ) ) {
 			return new WP_Error(
 				'oauth2.endpoints.token.exchange_token.invalid_client',
@@ -176,11 +179,11 @@ class Token {
 	 * Handle client credentials grant type.
 	 *
 	 * @param WP_REST_Request $request Request object.
-	 * @return array|WP_Error Token data on success, or error on failure.
+	 * @return array|WP_Error|WP_REST_Response Token data on success, or error on failure.
 	 */
 	private function handle_client_credentials( WP_REST_Request $request ) {
 		$credentials = $this->extract_client_credentials( $request );
-		if ( is_wp_error( $credentials ) ) {
+		if ( is_wp_error( $credentials ) || $credentials instanceof WP_REST_Response ) {
 			return $credentials;
 		}
 
@@ -220,7 +223,7 @@ class Token {
 	 * Extract client credentials from Authorization header or request body.
 	 *
 	 * @param WP_REST_Request $request Request object.
-	 * @return array|WP_Error Array with client_id and client_secret, or error.
+	 * @return array|WP_Error|WP_REST_Response Array with client_id and client_secret, or error.
 	 */
 	private function extract_client_credentials( WP_REST_Request $request ) {
 		// Try from request body first (avoids conflict with proxy/HTTP basic auth headers)
@@ -233,6 +236,9 @@ class Token {
 
 		// Fall back to Basic authentication from Authorization header
 		$basic = $this->get_basic_auth_credentials( $request );
+		if ( false === $basic ) {
+			return $this->client_authentication_failed( $request );
+		}
 		if ( null !== $basic ) {
 			return $basic;
 		}
@@ -304,8 +310,8 @@ class Token {
 	 * Read client credentials from an HTTP Basic Authorization header.
 	 *
 	 * @param WP_REST_Request $request Request object.
-	 * @return array|WP_Error|null Array with client_id and client_secret, error if the
-	 *                             header is malformed, or null if there is no Basic header.
+	 * @return array|false|null Array with client_id and client_secret, false if the
+	 *                          header is malformed, or null if there is no Basic header.
 	 */
 	private function get_basic_auth_credentials( WP_REST_Request $request ) {
 		if ( ! $this->has_basic_auth_header( $request ) ) {
@@ -316,20 +322,12 @@ class Token {
 		$decoded = base64_decode( $encoded, true );
 
 		if ( false === $decoded ) {
-			return new WP_Error(
-				'oauth2.endpoints.token.invalid_request',
-				__( 'Invalid Authorization header.', 'oauth2' ),
-				[ 'status' => WP_Http::BAD_REQUEST ]
-			);
+			return false;
 		}
 
 		$parts = explode( ':', $decoded, 2 );
 		if ( count( $parts ) !== 2 ) {
-			return new WP_Error(
-				'oauth2.endpoints.token.invalid_request',
-				__( 'Invalid Authorization header format.', 'oauth2' ),
-				[ 'status' => WP_Http::BAD_REQUEST ]
-			);
+			return false;
 		}
 
 		// RFC 6749 section 2.3.1: both values are form-encoded before they go
