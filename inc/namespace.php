@@ -18,6 +18,8 @@ function bootstrap() {
 
 	// REST API integration.
 	add_filter( 'rest_authentication_errors', __NAMESPACE__ . '\\Authentication\\maybe_report_errors' );
+	add_filter( 'rest_post_dispatch', __NAMESPACE__ . '\\Authentication\\add_www_authenticate_header', 10, 3 );
+	add_filter( 'rest_exposed_cors_headers', __NAMESPACE__ . '\\Authentication\\expose_authenticate_header' );
 	add_filter( 'rest_index', __NAMESPACE__ . '\\register_in_index' );
 	add_action( 'rest_api_init', __NAMESPACE__ . '\\Endpoints\\register' );
 	add_action( 'parse_request', __NAMESPACE__ . '\\Well_Known\\maybe_serve_document' );

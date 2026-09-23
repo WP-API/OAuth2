@@ -298,4 +298,57 @@ class Test_Client extends Test_Case {
 		$this->assertSame( $pair['code_challenge'], $code->get_code_challenge() );
 		$this->assertSame( $pair['code_challenge_method'], $code->get_code_challenge_method() );
 	}
+
+	// -------------------------------------------------------------------------
+	// Token TTL
+	// -------------------------------------------------------------------------
+
+	public function test_get_token_ttl_null_when_unset() {
+		$this->assertNull( $this->client->get_token_ttl() );
+	}
+
+	public function test_get_token_ttl_null_for_empty_string() {
+		$client = $this->create_client( [ 'token_ttl' => '' ] );
+		$this->assertNull( $client->get_token_ttl() );
+	}
+
+	public function test_create_stores_token_ttl() {
+		$client = $this->create_client( [ 'token_ttl' => 3600 ] );
+		$this->assertSame( 3600, $client->get_token_ttl() );
+	}
+
+	public function test_create_casts_token_ttl_to_int() {
+		$client = $this->create_client( [ 'token_ttl' => '3600' ] );
+		$this->assertSame( 3600, $client->get_token_ttl() );
+	}
+
+	public function test_update_sets_token_ttl() {
+		$updated = $this->client->update( [
+			'name'        => 'Test Client',
+			'description' => 'Test client description.',
+			'meta'        => [
+				'callback'                   => 'https://example.com/callback',
+				'type'                       => 'web',
+				'client_credentials_enabled' => false,
+				'token_ttl'                  => 120,
+			],
+		] );
+		$this->assertSame( 120, $updated->get_token_ttl() );
+	}
+
+	public function test_update_clears_token_ttl() {
+		$client = $this->create_client( [ 'token_ttl' => 3600 ] );
+
+		$updated = $client->update( [
+			'name'        => 'Test Client',
+			'description' => 'Test client description.',
+			'meta'        => [
+				'callback'                   => 'https://example.com/callback',
+				'type'                       => 'web',
+				'client_credentials_enabled' => false,
+				'token_ttl'                  => '',
+			],
+		] );
+		$this->assertNull( $updated->get_token_ttl() );
+	}
 }

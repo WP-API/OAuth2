@@ -120,6 +120,128 @@ class Test_Authentication extends Test_Case {
 	}
 
 	// -------------------------------------------------------------------------
+	// Expired tokens
+	// -------------------------------------------------------------------------
+
+	/**
+	 * Issue a client credentials token and backdate its stored expiry.
+	 *
+	 * @param Client $client Client to issue the token for.
+	 *
+	 * @return Access_Token Expired token.
+	 */
+	protected function create_expired_client_token( Client $client ) {
+		$token = Access_Token::create_for_client( $client );
+
+		$meta_key         = Access_Token::CLIENT_META_PREFIX . $token->get_key();
+		$value            = get_post_meta( $client->get_post_id(), $meta_key, true );
+		$value['expires'] = time() - 1;
+		update_post_meta( $client->get_post_id(), $meta_key, $value );
+
+		return $token;
+	}
+
+	public function test_attempt_authentication_rejects_expired_token() {
+		$client = $this->create_client( [
+			'client_credentials_enabled' => true,
+			'token_ttl'                  => 3600,
+		] );
+		$token  = $this->create_expired_client_token( $client );
+
+		$_SERVER['HTTP_AUTHORIZATION'] = 'Bearer ' . $token->get_key();
+		$result                        = attempt_authentication();
+
+		$this->assertNull( $result );
+	}
+
+	public function test_attempt_authentication_sets_error_for_expired_token() {
+		global $oauth2_error;
+		$client = $this->create_client( [
+			'client_credentials_enabled' => true,
+			'token_ttl'                  => 3600,
+		] );
+		$token  = $this->create_expired_client_token( $client );
+
+		$_SERVER['HTTP_AUTHORIZATION'] = 'Bearer ' . $token->get_key();
+		attempt_authentication();
+
+		$this->assertWPError( $oauth2_error );
+		$this->assertEquals( 'oauth2.authentication.token_expired', $oauth2_error->get_error_code() );
+	}
+
+	public function test_expired_token_error_has_unauthorized_status() {
+		global $oauth2_error;
+		$client = $this->create_client( [
+			'client_credentials_enabled' => true,
+			'token_ttl'                  => 3600,
+		] );
+		$token  = $this->create_expired_client_token( $client );
+
+		$_SERVER['HTTP_AUTHORIZATION'] = 'Bearer ' . $token->get_key();
+		attempt_authentication();
+
+		$data = $oauth2_error->get_error_data();
+		$this->assertEquals( 401, $data['status'] );
+	}
+
+	public function test_expired_token_error_is_reported_to_rest_api() {
+		$client = $this->create_client( [
+			'client_credentials_enabled' => true,
+			'token_ttl'                  => 3600,
+		] );
+		$token  = $this->create_expired_client_token( $client );
+
+		$_SERVER['HTTP_AUTHORIZATION'] = 'Bearer ' . $token->get_key();
+		attempt_authentication();
+
+		$error = maybe_report_errors();
+		$this->assertWPError( $error );
+		$this->assertEquals( 'oauth2.authentication.token_expired', $error->get_error_code() );
+	}
+
+	public function test_attempt_authentication_accepts_token_within_ttl() {
+		$client = $this->create_client( [
+			'client_credentials_enabled' => true,
+			'token_ttl'                  => 3600,
+		] );
+		$token  = Access_Token::create_for_client( $client );
+
+		$_SERVER['HTTP_AUTHORIZATION'] = 'Bearer ' . $token->get_key();
+		$result                        = attempt_authentication();
+
+		$this->assertEquals( 0, $result );
+	}
+
+	public function test_attempt_authentication_does_not_expire_tokens_without_ttl() {
+		// Clients with no TTL keep issuing tokens that never expire.
+		$client = $this->create_client( [ 'client_credentials_enabled' => true ] );
+		$token  = Access_Token::create_for_client( $client );
+
+		$_SERVER['HTTP_AUTHORIZATION'] = 'Bearer ' . $token->get_key();
+		$result                        = attempt_authentication();
+
+		$this->assertEquals( 0, $result );
+	}
+
+	public function test_expired_token_repeats_rejection_on_second_attempt() {
+		// The token lookup lock is a static, so a rejected request must not
+		// leave it set and break the next one.
+		global $oauth2_error;
+		$client = $this->create_client( [
+			'client_credentials_enabled' => true,
+			'token_ttl'                  => 3600,
+		] );
+		$token  = $this->create_expired_client_token( $client );
+
+		$_SERVER['HTTP_AUTHORIZATION'] = 'Bearer ' . $token->get_key();
+		attempt_authentication();
+		attempt_authentication();
+
+		$this->assertWPError( $oauth2_error );
+		$this->assertEquals( 'oauth2.authentication.token_expired', $oauth2_error->get_error_code() );
+	}
+
+	// -------------------------------------------------------------------------
 	// get_authorization_header
 	// -------------------------------------------------------------------------
 

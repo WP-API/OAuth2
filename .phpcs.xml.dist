@@ -30,4 +30,9 @@
 		<exclude name="WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode" />
 		<exclude name="WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode" />
 	</rule>
+
+	<!-- Rules: PHP compatibility -->
+	<!-- https://github.com/PHPCompatibility/PHPCompatibilityWP -->
+	<config name="testVersion" value="7.4-"/>
+	<rule ref="PHPCompatibilityWP"/>
 </ruleset>

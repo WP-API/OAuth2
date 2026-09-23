@@ -21,6 +21,7 @@ class Client implements ClientInterface {
 	const REDIRECT_URI_KEY               = '_oauth2_redirect_uri';
 	const CLIENT_CREDENTIALS_ENABLED_KEY = '_oauth2_client_credentials_enabled';
 	const PKCE_REQUIRED_KEY              = '_oauth2_pkce_required';
+	const TOKEN_TTL_KEY                  = '_oauth2_client_token_ttl';
 	const AUTH_CODE_KEY_PREFIX           = '_oauth2_authcode_';
 	const AUTH_CODE_LENGTH               = 12;
 	const CLIENT_ID_LENGTH               = 12;
@@ -158,6 +159,21 @@ class Client implements ClientInterface {
 		 * @param Client $client Client being checked.
 		 */
 		return apply_filters( 'oauth2.pkce.required', $required, $this );
+	}
+
+	/**
+	 * Get the token TTL for client credentials tokens.
+	 *
+	 * @return int|null TTL in seconds, or null if tokens should not expire.
+	 */
+	public function get_token_ttl() {
+		$ttl = get_post_meta( $this->get_post_id(), static::TOKEN_TTL_KEY, true );
+
+		if ( '' === $ttl || false === $ttl ) {
+			return null;
+		}
+
+		return (int) $ttl;
 	}
 
 	/**
@@ -384,6 +400,10 @@ class Client implements ClientInterface {
 			static::PKCE_REQUIRED_KEY              => ! empty( $data['meta']['pkce_required'] ) ? '1' : '',
 		];
 
+		if ( isset( $data['meta']['token_ttl'] ) && '' !== $data['meta']['token_ttl'] ) {
+			$meta[ static::TOKEN_TTL_KEY ] = (int) $data['meta']['token_ttl'];
+		}
+
 		foreach ( $meta as $key => $value ) {
 			$result = update_post_meta( $post_id, wp_slash( $key ), wp_slash( $value ) );
 			if ( ! $result ) {
@@ -423,6 +443,7 @@ class Client implements ClientInterface {
 			static::TYPE_KEY                       => 'type',
 			static::CLIENT_CREDENTIALS_ENABLED_KEY => 'client_credentials_enabled',
 			static::PKCE_REQUIRED_KEY              => 'pkce_required',
+			static::TOKEN_TTL_KEY                  => 'token_ttl',
 		];
 		$boolean_fields = [ static::CLIENT_CREDENTIALS_ENABLED_KEY, static::PKCE_REQUIRED_KEY ];
 
@@ -434,6 +455,8 @@ class Client implements ClientInterface {
 			$value = $data['meta'][ $data_key ];
 			if ( in_array( $meta_key, $boolean_fields, true ) ) {
 				$value = ! empty( $value ) ? '1' : '';
+			} elseif ( static::TOKEN_TTL_KEY === $meta_key ) {
+				$value = ( null === $value || '' === $value ) ? '' : (int) $value;
 			}
 
 			update_post_meta( $post_id, wp_slash( $meta_key ), wp_slash( $value ) );

@@ -2,6 +2,7 @@
 Contributors: rmccue, rachelbaker, danielbachhuber, joehoyle
 Tags: json, rest, api, rest-api
 Requires at least: 4.8
+Requires PHP: 7.4
 Tested up to: 4.8
 Stable tag: {{TAG}}
 License: GPLv2 or later

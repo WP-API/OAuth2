@@ -176,6 +176,20 @@ function validate_parameters( $params ) {
 	$valid['client_credentials_enabled'] = ! empty( $params['client_credentials_enabled'] );
 	$valid['pkce_required']              = ! empty( $params['pkce_required'] );
 
+	if ( isset( $params['token_ttl'] ) && '' !== $params['token_ttl'] ) {
+		$ttl = filter_var(
+			$params['token_ttl'],
+			FILTER_VALIDATE_INT,
+			[ 'options' => [ 'min_range' => 0 ] ]
+		);
+		if ( false === $ttl ) {
+			return new WP_Error( 'rest_oauth2_invalid_ttl', esc_html__( 'Token TTL must be a non-negative integer or empty for no expiry.', 'oauth2' ) );
+		}
+		$valid['token_ttl'] = $ttl;
+	} else {
+		$valid['token_ttl'] = '';
+	}
+
 	// Callback is required unless this client only uses client_credentials.
 	if ( empty( $params['callback'] ) && ! $valid['client_credentials_enabled'] ) {
 		return new WP_Error( 'rest_oauth2_missing_callback', esc_html__( 'Client callback is required and must be a valid URL.', 'oauth2' ) );
@@ -192,7 +206,7 @@ function validate_parameters( $params ) {
  *
  * @return array|null List of errors. Issues a redirect and exits on success.
  */
-function handle_edit_submit( Client $consumer = null ) {
+function handle_edit_submit( ?Client $consumer = null ) {
 	$messages = [];
 	if ( empty( $consumer ) ) {
 		$did_action = 'add';
@@ -221,6 +235,7 @@ function handle_edit_submit( Client $consumer = null ) {
 				'callback'                   => $params['callback'],
 				'client_credentials_enabled' => $params['client_credentials_enabled'],
 				'pkce_required'              => $params['pkce_required'],
+				'token_ttl'                  => $params['token_ttl'],
 			],
 		];
 
@@ -236,6 +251,7 @@ function handle_edit_submit( Client $consumer = null ) {
 				'callback'                   => $params['callback'],
 				'client_credentials_enabled' => $params['client_credentials_enabled'],
 				'pkce_required'              => $params['pkce_required'],
+				'token_ttl'                  => $params['token_ttl'],
 			],
 		];
 
@@ -329,6 +345,7 @@ function render_edit_page() {
 			$data[ $key ] = empty( $form_data[ $key ] ) ? '' : $form_data[ $key ];
 		}
 		$data['client_credentials_enabled'] = ! empty( $form_data['client_credentials_enabled'] );
+		$data['token_ttl']                  = isset( $form_data['token_ttl'] ) ? $form_data['token_ttl'] : '';
 
 		if ( empty( $consumer ) && empty( $form_data ) ) {
 			// A genuinely fresh "Add Application" page, not a failed submission
@@ -344,6 +361,7 @@ function render_edit_page() {
 		$data['callback']                   = $consumer->get_redirect_uris();
 		$data['client_credentials_enabled'] = $consumer->is_client_credentials_enabled();
 		$data['pkce_required']              = $consumer->is_pkce_required();
+		$data['token_ttl']                  = $consumer->get_token_ttl();
 
 		if ( is_array( $data['callback'] ) ) {
 			$data['callback'] = implode( ',', $data['callback'] );
@@ -487,6 +505,15 @@ function render_edit_page() {
 						<p class="description">
 							<?php esc_html_e( 'Recommended for public clients such as single-page apps, desktop apps, and mobile apps, which cannot keep a client secret confidential.', 'oauth2' ); ?>
 						</p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row">
+						<label for="oauth-token-ttl"><?php echo esc_html_x( 'Token TTL (seconds)', 'field name', 'oauth2' ); ?></label>
+					</th>
+					<td>
+						<input type="number" class="regular-text" name="token_ttl" id="oauth-token-ttl" value="<?php echo esc_attr( $data['token_ttl'] ); ?>" min="0" />
+						<p class="description"><?php esc_html_e( 'Time-to-live for client credentials tokens in seconds. Leave empty for tokens that do not expire.', 'oauth2' ); ?></p>
 					</td>
 				</tr>
 			</table>

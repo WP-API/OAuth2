@@ -6,6 +6,8 @@ This plugin uses the OAuth 2 protocol to allow delegated authorization; that is,
 
 This plugin only supports WordPress >= 4.8.
 
+Requires PHP 7.4 or higher.
+
 ## Proof Key for Code Exchange (PKCE)
 
 The plugin supports PKCE ([RFC 7636](https://tools.ietf.org/html/rfc7636)) for
