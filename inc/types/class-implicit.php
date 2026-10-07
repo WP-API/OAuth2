@@ -62,7 +62,7 @@ class Implicit extends Base {
 				);
 		}
 
-		if ( ! empty( $data['state'] ) ) {
+		if ( isset( $data['state'] ) ) {
 			$redirect_args['state'] = $data['state'];
 		}
 
@@ -73,7 +73,7 @@ class Implicit extends Base {
 			$data
 		);
 
-		$fragment           = build_query( $redirect_args );
+		$fragment           = build_query( urlencode_deep( $redirect_args ) );
 		$generated_redirect = $redirect_uri . '#' . $fragment;
 		wp_safe_redirect( $generated_redirect );
 		exit;

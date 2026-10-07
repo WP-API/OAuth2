@@ -61,7 +61,7 @@ class Authorization_Code extends Base {
 				);
 		}
 
-		if ( ! empty( $data['state'] ) ) {
+		if ( isset( $data['state'] ) ) {
 			$redirect_args['state'] = $data['state'];
 		}
 

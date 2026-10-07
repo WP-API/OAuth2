@@ -12,10 +12,31 @@ use WP_Http;
 use WP\OAuth2;
 use WP_REST_Request;
 use WP_REST_Response;
+
 /**
  * Token endpoint handler.
  */
 class Token {
+	const ROUTE = '/oauth2/access_token';
+
+	/**
+	 * RFC 6749 section 5.2 error codes for the errors this endpoint returns.
+	 */
+	const OAUTH_ERRORS = [
+		'rest_missing_callback_param'            => 'invalid_request',
+		'rest_invalid_param'                     => 'invalid_request',
+		'oauth2.endpoints.token.invalid_request' => 'invalid_request',
+		'oauth2.endpoints.token.exchange_token.invalid_client' => 'invalid_client',
+		'oauth2.endpoints.token.invalid_client'  => 'invalid_client',
+		'oauth2.client.check_authorization_code.invalid_code' => 'invalid_grant',
+		'oauth2.tokens.authorization_code.validate.expired' => 'invalid_grant',
+		'oauth2.tokens.authorization_code.get_user.invalid_data' => 'invalid_grant',
+	];
+
+	public function register_hooks() {
+		add_filter( 'rest_request_after_callbacks', [ $this, 'format_error_response' ], 10, 3 );
+	}
+
 	public function register_routes() {
 		register_rest_route(
 			'oauth2',
@@ -51,6 +72,78 @@ class Token {
 	}
 
 	/**
+	 * Add the RFC 6749 section 5.2 error fields to a token endpoint error.
+	 *
+	 * The WordPress `code`, `message` and `data` fields are kept alongside
+	 * `error` and `error_description`.
+	 *
+	 * @param WP_REST_Response|WP_Error|mixed $response Result of the request.
+	 * @param array                           $handler Route handler.
+	 * @param WP_REST_Request                 $request Request object.
+	 * @return WP_REST_Response|mixed Formatted error response, or the original response.
+	 */
+	public function format_error_response( $response, $handler, $request ) {
+		if ( ! is_wp_error( $response ) || ! $request instanceof WP_REST_Request || static::ROUTE !== $request->get_route() ) {
+			return $response;
+		}
+
+		$error      = $this->get_oauth_error( $response );
+		$error_data = $response->get_error_data();
+		$status     = is_array( $error_data ) && isset( $error_data['status'] ) ? (int) $error_data['status'] : WP_Http::INTERNAL_SERVER_ERROR;
+
+		if ( 'server_error' === $error ) {
+			$status = WP_Http::INTERNAL_SERVER_ERROR;
+		} elseif ( ! ( 'invalid_client' === $error && WP_Http::UNAUTHORIZED === $status ) ) {
+			$status = WP_Http::BAD_REQUEST;
+		}
+
+		$formatted = rest_convert_error_to_response( $response );
+		$data      = $formatted->get_data();
+
+		$data['error']             = $error;
+		$data['error_description'] = $response->get_error_message();
+
+		$formatted->set_data( $data );
+		$formatted->set_status( $status );
+
+		if ( WP_Http::UNAUTHORIZED === $status ) {
+			$formatted->header( 'WWW-Authenticate', 'Basic realm="oauth2"' );
+		}
+
+		return $formatted;
+	}
+
+	/**
+	 * Get the RFC 6749 section 5.2 error code for an error.
+	 *
+	 * An `error` key in the error data wins over the built-in map. Unknown
+	 * errors become `invalid_request` if they carry a 4xx status, or
+	 * `server_error` otherwise.
+	 *
+	 * @param WP_Error $error Error returned by the endpoint.
+	 * @return string OAuth error code.
+	 */
+	protected function get_oauth_error( WP_Error $error ) {
+		$data = $error->get_error_data();
+		if ( is_array( $data ) && ! empty( $data['error'] ) && is_string( $data['error'] ) ) {
+			return $data['error'];
+		}
+
+		$code = $error->get_error_code();
+		if ( 'rest_invalid_param' === $code && isset( $data['params']['grant_type'] ) ) {
+			return 'unsupported_grant_type';
+		}
+
+		if ( isset( static::OAUTH_ERRORS[ $code ] ) ) {
+			return static::OAUTH_ERRORS[ $code ];
+		}
+
+		$status = is_array( $data ) && isset( $data['status'] ) ? (int) $data['status'] : WP_Http::INTERNAL_SERVER_ERROR;
+
+		return $status >= 400 && $status < 500 ? 'invalid_request' : 'server_error';
+	}
+
+	/**
 	 * Validates the given grant type.
 	 *
 	 * @param string $type Grant type.
@@ -66,7 +159,7 @@ class Token {
 	 *
 	 * @param WP_REST_Request $request Request object.
 	 *
-	 * @return array|WP_Error|WP_REST_Response Token data on success, or error on failure.
+	 * @return array|WP_Error Token data on success, or error on failure.
 	 */
 	public function exchange_token( WP_REST_Request $request ) {
 		if ( 'client_credentials' === $request['grant_type'] ) {
@@ -77,7 +170,7 @@ class Token {
 		// instead of body parameters. Body parameters take precedence.
 		$basic = $this->get_basic_auth_credentials( $request );
 		if ( false === $basic ) {
-			return $this->client_authentication_failed( $request );
+			return $this->client_authentication_failed();
 		}
 		if ( null !== $basic ) {
 			if ( $this->is_param_empty( $request, 'client_id' ) ) {
@@ -115,7 +208,7 @@ class Token {
 
 		$client = OAuth2\get_client( $request['client_id'] );
 		if ( empty( $client ) && null !== $basic ) {
-			return $this->client_authentication_failed( $request );
+			return $this->client_authentication_failed();
 		}
 		if ( empty( $client ) ) {
 			return new WP_Error(
@@ -134,7 +227,7 @@ class Token {
 		if ( $client->requires_secret() ) {
 			$client_secret = (string) $request->get_param( 'client_secret' );
 			if ( '' === $client_secret || ! $client->check_secret( $client_secret ) ) {
-				return $this->client_authentication_failed( $request );
+				return $this->client_authentication_failed();
 			}
 		}
 
@@ -179,11 +272,11 @@ class Token {
 	 * Handle client credentials grant type.
 	 *
 	 * @param WP_REST_Request $request Request object.
-	 * @return array|WP_Error|WP_REST_Response Token data on success, or error on failure.
+	 * @return array|WP_Error Token data on success, or error on failure.
 	 */
 	private function handle_client_credentials( WP_REST_Request $request ) {
 		$credentials = $this->extract_client_credentials( $request );
-		if ( is_wp_error( $credentials ) || $credentials instanceof WP_REST_Response ) {
+		if ( is_wp_error( $credentials ) ) {
 			return $credentials;
 		}
 
@@ -198,7 +291,7 @@ class Token {
 		$grant_ok = $client && $client->is_client_credentials_enabled();
 
 		if ( ! $creds_ok || ! $grant_ok ) {
-			return $this->client_authentication_failed( $request );
+			return $this->client_authentication_failed();
 		}
 
 		$token = OAuth2\Tokens\Access_Token::create_for_client( $client );
@@ -223,7 +316,7 @@ class Token {
 	 * Extract client credentials from Authorization header or request body.
 	 *
 	 * @param WP_REST_Request $request Request object.
-	 * @return array|WP_Error|WP_REST_Response Array with client_id and client_secret, or error.
+	 * @return array|WP_Error Array with client_id and client_secret, or error.
 	 */
 	private function extract_client_credentials( WP_REST_Request $request ) {
 		// Try from request body first (avoids conflict with proxy/HTTP basic auth headers)
@@ -237,7 +330,7 @@ class Token {
 		// Fall back to Basic authentication from Authorization header
 		$basic = $this->get_basic_auth_credentials( $request );
 		if ( false === $basic ) {
-			return $this->client_authentication_failed( $request );
+			return $this->client_authentication_failed();
 		}
 		if ( null !== $basic ) {
 			return $basic;
@@ -265,32 +358,19 @@ class Token {
 	}
 
 	/**
-	 * Build the response for a failed client authentication.
+	 * Build the error for a failed client authentication.
 	 *
 	 * The reason is never given: telling "unknown client" apart from "wrong
 	 * secret" would confirm a valid client ID and secret pair.
 	 *
-	 * @param WP_REST_Request $request Request object.
-	 *
-	 * @return WP_Error|WP_REST_Response Error, or a response carrying a Basic challenge.
+	 * @return WP_Error Client authentication error.
 	 */
-	private function client_authentication_failed( WP_REST_Request $request ) {
-		$error = new WP_Error(
+	private function client_authentication_failed() {
+		return new WP_Error(
 			'oauth2.endpoints.token.invalid_client',
 			__( 'Client authentication failed.', 'oauth2' ),
 			[ 'status' => WP_Http::UNAUTHORIZED ]
 		);
-
-		if ( ! $this->has_basic_auth_header( $request ) ) {
-			return $error;
-		}
-
-		// RFC 6749 section 5.2: a client that authenticated with the
-		// Authorization header must get a matching challenge back.
-		$response = rest_convert_error_to_response( $error );
-		$response->header( 'WWW-Authenticate', 'Basic realm="OAuth2 token endpoint"' );
-
-		return $response;
 	}
 
 	/**
