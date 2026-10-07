@@ -17,6 +17,7 @@ use WP_REST_Response;
 function register() {
 	$token_endpoint = new Token();
 	$token_endpoint->register_routes();
+	$token_endpoint->register_hooks();
 
 	// Register convenience URL.
 	register_rest_route(
