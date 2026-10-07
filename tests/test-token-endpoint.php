@@ -351,7 +351,7 @@ class Test_Token_Endpoint extends Test_Case {
 		$request->set_param( 'code_verifier', [ 'x' ] );
 
 		$response = $this->server->dispatch( $request );
-		$this->assertEquals( 400, $response->get_status() );
+		$this->assertOAuthError( $response, 'invalid_request', 400 );
 	}
 
 	public function test_exchange_token_non_pkce_code_with_no_verifier_still_works() {

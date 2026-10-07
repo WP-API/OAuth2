@@ -330,6 +330,7 @@ class Test_Authorization_Code extends Test_Case {
 		$result = $code->validate( static::RFC_VERIFIER );
 		$this->assertWPError( $result );
 		$this->assertEquals( 'oauth2.tokens.authorization_code.validate.missing_challenge_method', $result->get_error_code() );
+		$this->assertSame( 'invalid_grant', $result->get_error_data()['error'] );
 	}
 
 	public function test_validate_with_malformed_meta_does_not_pass_expiry_check() {

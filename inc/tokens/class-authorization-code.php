@@ -221,7 +221,10 @@ class Authorization_Code {
 			return new WP_Error(
 				'oauth2.tokens.authorization_code.validate.missing_challenge_method',
 				__( 'Authorization code data is not valid.', 'oauth2' ),
-				[ 'status' => WP_Http::BAD_REQUEST ]
+				[
+					'status' => WP_Http::BAD_REQUEST,
+					'error'  => 'invalid_grant',
+				]
 			);
 		}
 
