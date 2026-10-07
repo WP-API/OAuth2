@@ -20,6 +20,7 @@ class Client implements ClientInterface {
 	const TYPE_KEY                       = '_oauth2_client_type';
 	const REDIRECT_URI_KEY               = '_oauth2_redirect_uri';
 	const CLIENT_CREDENTIALS_ENABLED_KEY = '_oauth2_client_credentials_enabled';
+	const PKCE_REQUIRED_KEY              = '_oauth2_pkce_required';
 	const TOKEN_TTL_KEY                  = '_oauth2_client_token_ttl';
 	const AUTH_CODE_KEY_PREFIX           = '_oauth2_authcode_';
 	const AUTH_CODE_LENGTH               = 12;
@@ -144,6 +145,23 @@ class Client implements ClientInterface {
 	}
 
 	/**
+	 * Check whether this client requires PKCE for the authorization_code grant.
+	 *
+	 * @return bool True if PKCE is required, false otherwise.
+	 */
+	public function is_pkce_required() {
+		$required = (bool) get_post_meta( $this->get_post_id(), static::PKCE_REQUIRED_KEY, true );
+
+		/**
+		 * Filter whether PKCE is required for a client.
+		 *
+		 * @param bool   $required True if PKCE is required for this client.
+		 * @param Client $client Client being checked.
+		 */
+		return apply_filters( 'oauth2.pkce.required', $required, $this );
+	}
+
+	/**
 	 * Get the token TTL for client credentials tokens.
 	 *
 	 * @return int|null TTL in seconds, or null if tokens should not expire.
@@ -265,11 +283,13 @@ class Client implements ClientInterface {
 
 	/**
 	 * @param WP_User $user
+	 * @param array   $data Optional extra data for the code, e.g. PKCE `code_challenge`
+	 *                      and `code_challenge_method`. See Authorization_Code::create().
 	 *
 	 * @return Authorization_Code|WP_Error
 	 */
-	public function generate_authorization_code( WP_User $user ) {
-		return Authorization_Code::create( $this, $user );
+	public function generate_authorization_code( WP_User $user, array $data = [] ) {
+		return Authorization_Code::create( $this, $user, $data );
 	}
 
 	/**
@@ -377,6 +397,7 @@ class Client implements ClientInterface {
 			static::TYPE_KEY                       => $data['meta']['type'],
 			static::CLIENT_SECRET_KEY              => wp_generate_password( static::CLIENT_SECRET_LENGTH, false ),
 			static::CLIENT_CREDENTIALS_ENABLED_KEY => ! empty( $data['meta']['client_credentials_enabled'] ) ? '1' : '',
+			static::PKCE_REQUIRED_KEY              => ! empty( $data['meta']['pkce_required'] ) ? '1' : '',
 		];
 
 		if ( isset( $data['meta']['token_ttl'] ) && '' !== $data['meta']['token_ttl'] ) {
@@ -414,20 +435,31 @@ class Client implements ClientInterface {
 			return $post_id;
 		}
 
-		$meta = [
-			static::REDIRECT_URI_KEY               => $data['meta']['callback'],
-			static::TYPE_KEY                       => $data['meta']['type'],
-			static::CLIENT_CREDENTIALS_ENABLED_KEY => ! empty( $data['meta']['client_credentials_enabled'] ) ? '1' : '',
+		// Map of meta key => data key. Built this way, rather than as a fixed
+		// array of values, so that a caller omitting a key leaves the existing
+		// meta value untouched instead of silently resetting it to empty/false.
+		$fields         = [
+			static::REDIRECT_URI_KEY               => 'callback',
+			static::TYPE_KEY                       => 'type',
+			static::CLIENT_CREDENTIALS_ENABLED_KEY => 'client_credentials_enabled',
+			static::PKCE_REQUIRED_KEY              => 'pkce_required',
+			static::TOKEN_TTL_KEY                  => 'token_ttl',
 		];
+		$boolean_fields = [ static::CLIENT_CREDENTIALS_ENABLED_KEY, static::PKCE_REQUIRED_KEY ];
 
-		if ( isset( $data['meta']['token_ttl'] ) && '' !== $data['meta']['token_ttl'] ) {
-			$meta[ static::TOKEN_TTL_KEY ] = (int) $data['meta']['token_ttl'];
-		} else {
-			$meta[ static::TOKEN_TTL_KEY ] = '';
-		}
+		foreach ( $fields as $meta_key => $data_key ) {
+			if ( ! array_key_exists( $data_key, $data['meta'] ) ) {
+				continue;
+			}
 
-		foreach ( $meta as $key => $value ) {
-			update_post_meta( $post_id, wp_slash( $key ), wp_slash( $value ) );
+			$value = $data['meta'][ $data_key ];
+			if ( in_array( $meta_key, $boolean_fields, true ) ) {
+				$value = ! empty( $value ) ? '1' : '';
+			} elseif ( static::TOKEN_TTL_KEY === $meta_key ) {
+				$value = ( null === $value || '' === $value ) ? '' : (int) $value;
+			}
+
+			update_post_meta( $post_id, wp_slash( $meta_key ), wp_slash( $value ) );
 		}
 
 		$post = get_post( $post_id );
