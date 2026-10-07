@@ -285,7 +285,8 @@ class Test_Token_Endpoint extends Test_Case {
 		$retry->set_param( 'code_verifier', $pair['code_verifier'] );
 
 		$retry_response = $this->server->dispatch( $retry );
-		$this->assertEquals( 404, $retry_response->get_status() );
+		$this->assertOAuthError( $retry_response, 'invalid_grant', 400 );
+		$this->assertSame( 'oauth2.client.check_authorization_code.invalid_code', $retry_response->get_data()['code'] );
 	}
 
 	/**
