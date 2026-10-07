@@ -153,6 +153,33 @@ class Test_Client extends Test_Case {
 		$this->assertFalse( $this->client->check_secret( 'wrongsecret' ) );
 	}
 
+	public function test_requires_secret_true_for_private_client() {
+		$client = $this->create_client( [ 'type' => 'private' ] );
+		$this->assertTrue( $client->requires_secret() );
+	}
+
+	public function test_requires_secret_false_for_public_client() {
+		$client = $this->create_client( [ 'type' => 'public' ] );
+		$this->assertFalse( $client->requires_secret() );
+	}
+
+	public function test_requires_secret_false_for_other_type() {
+		$this->assertFalse( $this->client->requires_secret() );
+	}
+
+	public function test_requires_secret_false_without_a_stored_type() {
+		delete_post_meta( $this->client->get_post_id(), Client::TYPE_KEY );
+		$this->assertFalse( $this->client->requires_secret() );
+	}
+
+	public function test_requires_secret_can_be_filtered() {
+		add_filter( 'oauth2.client.requires_secret', '__return_true' );
+		$requires = $this->client->requires_secret();
+		remove_filter( 'oauth2.client.requires_secret', '__return_true' );
+
+		$this->assertTrue( $requires );
+	}
+
 	public function test_update_changes_name() {
 		$updated = $this->client->update( [
 			'name'        => 'Updated Name',
