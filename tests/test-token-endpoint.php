@@ -200,6 +200,51 @@ class Test_Token_Endpoint extends Test_Case {
 		$this->assertArrayHasKey( 'WWW-Authenticate', $response->get_headers() );
 	}
 
+	public function test_basic_auth_client_credentials_are_not_treated_as_an_application_password() {
+		$result = $this->check_authentication_with_basic_header( Token::ROUTE );
+
+		$this->assertNotWPError( $result );
+	}
+
+	public function test_basic_auth_on_other_routes_is_still_treated_as_an_application_password() {
+		$result = $this->check_authentication_with_basic_header( '/wp/v2/users/me' );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'invalid_username', $result->get_error_code() );
+	}
+
+	/**
+	 * Run core's REST authentication for a Basic header carrying client credentials.
+	 *
+	 * Sets up what core needs to try the header as an application password:
+	 * passwords available and in use, and the request treated as an API request.
+	 *
+	 * @param string $route REST route the request is for.
+	 * @return mixed Result of WP_REST_Server::check_authentication().
+	 */
+	private function check_authentication_with_basic_header( $route ) {
+		global $wp, $wp_rest_application_password_status;
+
+		add_filter( 'wp_is_application_passwords_available', '__return_true' );
+		add_filter( 'application_password_is_api_request', '__return_true' );
+		\WP_Application_Passwords::create_new_application_password( $this->factory->user->create(), [ 'name' => 'Test' ] );
+
+		$wp_rest_application_password_status = null;
+		$previous_route                       = $wp->query_vars['rest_route'] ?? null;
+		$wp->query_vars['rest_route']         = $route;
+		$_SERVER['PHP_AUTH_USER']             = 'not-a-user-login';
+		$_SERVER['PHP_AUTH_PW']               = 'any-secret';
+
+		try {
+			wp_validate_application_password( 0 );
+			return $this->server->check_authentication();
+		} finally {
+			unset( $_SERVER['PHP_AUTH_USER'], $_SERVER['PHP_AUTH_PW'] );
+			$wp->query_vars['rest_route']         = $previous_route;
+			$wp_rest_application_password_status = null;
+		}
+	}
+
 	public function test_exchange_token_deletes_code_after_use() {
 		$user = $this->factory->user->create_and_get();
 		$code = Authorization_Code::create( $this->client, $user );

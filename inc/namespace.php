@@ -14,6 +14,7 @@ function bootstrap() {
 	// Core authentication hooks.
 	add_action( 'init', __NAMESPACE__ . '\\Client::register_type' );
 	add_filter( 'determine_current_user', __NAMESPACE__ . '\\Authentication\\attempt_authentication', 11 );
+	add_filter( 'application_password_is_api_request', __NAMESPACE__ . '\\Authentication\\exclude_token_endpoint_from_application_passwords', 100 );
 
 	// REST API integration.
 	add_filter( 'rest_authentication_errors', __NAMESPACE__ . '\\Authentication\\maybe_report_errors' );
