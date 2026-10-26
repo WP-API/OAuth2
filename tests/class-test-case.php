@@ -8,6 +8,7 @@
 namespace WP\OAuth2\Tests;
 
 use WP\OAuth2\Client;
+use WP\OAuth2\PKCE;
 use WP_UnitTestCase;
 
 /**
@@ -31,8 +32,9 @@ abstract class Test_Case extends WP_UnitTestCase {
 			'meta'        => array_merge(
 				[
 					'callback'                   => 'https://example.com/callback',
-					'type'                       => 'web',
+					'type'                       => 'public',
 					'client_credentials_enabled' => false,
+					'pkce_required'              => false,
 				],
 				$meta_overrides
 			),
@@ -45,5 +47,26 @@ abstract class Test_Case extends WP_UnitTestCase {
 		}
 
 		return $client;
+	}
+
+	/**
+	 * Generate a matching PKCE verifier/challenge pair for use in tests.
+	 *
+	 * @param string $method Challenge method, `S256` or `plain`. Default `S256`.
+	 *
+	 * @return array {
+	 *     @var string $code_verifier Code verifier.
+	 *     @var string $code_challenge Derived code challenge.
+	 *     @var string $code_challenge_method Method used to derive the challenge.
+	 * }
+	 */
+	protected function make_pkce_pair( $method = PKCE::METHOD_S256 ) {
+		$verifier = PKCE::generate_verifier();
+
+		return [
+			'code_verifier'         => $verifier,
+			'code_challenge'        => PKCE::derive_challenge( $verifier, $method ),
+			'code_challenge_method' => $method,
+		];
 	}
 }

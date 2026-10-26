@@ -12,6 +12,7 @@ require_once __DIR__ . '/class-test-case.php';
 use WP\OAuth2\Client;
 use WP\OAuth2\ClientInterface;
 use WP\OAuth2\PersonalClient;
+use WP\OAuth2\PKCE;
 use WP\OAuth2\Types\Type;
 use WP_REST_Response;
 use WP_REST_Server;
@@ -117,5 +118,31 @@ class Test_Namespace extends Test_Case {
 		$data = $response->get_data();
 		$this->assertArrayHasKey( 'grant_types', $data['authentication']['oauth2'] );
 		$this->assertContains( 'authorization_code', $data['authentication']['oauth2']['grant_types'] );
+	}
+
+	public function test_register_in_index_lists_pkce_methods() {
+		$response = new WP_REST_Response( [] );
+		$response = register_in_index( $response );
+
+		$data = $response->get_data();
+		$this->assertSame(
+			[ PKCE::METHOD_S256, PKCE::METHOD_PLAIN ],
+			$data['authentication']['oauth2']['code_challenge_methods_supported']
+		);
+	}
+
+	public function test_register_in_index_tracks_pkce_methods_filter() {
+		$filter = function () {
+			return [ PKCE::METHOD_S256 ];
+		};
+		add_filter( 'oauth2.pkce.supported_methods', $filter );
+
+		$response = new WP_REST_Response( [] );
+		$response = register_in_index( $response );
+		$data     = $response->get_data();
+
+		remove_filter( 'oauth2.pkce.supported_methods', $filter );
+
+		$this->assertSame( [ PKCE::METHOD_S256 ], $data['authentication']['oauth2']['code_challenge_methods_supported'] );
 	}
 }

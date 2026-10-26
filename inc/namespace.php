@@ -8,6 +8,7 @@
 namespace WP\OAuth2;
 
 use WP\OAuth2\Types\Type;
+use WP_CLI;
 use WP_REST_Response;
 
 function bootstrap() {
@@ -30,6 +31,11 @@ function bootstrap() {
 	add_action( 'init', __NAMESPACE__ . '\\rest_oauth2_load_authorize_page' );
 	add_action( 'admin_menu', __NAMESPACE__ . '\\Admin\\register' );
 	Admin\Profile\bootstrap();
+
+	// WP-CLI.
+	if ( class_exists( __NAMESPACE__ . '\\Utilities\\Command' ) ) {
+		WP_CLI::add_command( 'oauth2', __NAMESPACE__ . '\\Utilities\\Command' );
+	}
 }
 
 /**
@@ -100,11 +106,12 @@ function register_in_index( WP_REST_Response $response ) {
 	$data = $response->get_data();
 
 	$data['authentication']['oauth2'] = [
-		'endpoints'   => [
+		'endpoints'                        => [
 			'authorization' => get_authorization_url(),
 			'token'         => get_token_url(),
 		],
-		'grant_types' => array_keys( get_grant_types() ),
+		'grant_types'                      => array_keys( get_grant_types() ),
+		'code_challenge_methods_supported' => PKCE::supported_methods(),
 	];
 
 	$response->set_data( $data );
