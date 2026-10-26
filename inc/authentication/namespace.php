@@ -11,6 +11,7 @@ use WP_Error;
 use WP_Http;
 use WP_REST_Response;
 use WP_User;
+use WP\OAuth2\Endpoints\Token;
 use WP\OAuth2\Tokens;
 use WP\OAuth2\Well_Known;
 
@@ -192,6 +193,25 @@ function attempt_authentication( $user = null ) {
 
 	// Token found, authenticate as the user.
 	return $token->get_user_id();
+}
+
+/**
+ * Stop core Application Passwords from reading Basic auth on the token endpoint.
+ *
+ * Clients send their client ID and secret in a Basic header there, which core
+ * would otherwise try as a username and application password.
+ *
+ * Attached to the application_password_is_api_request filter.
+ *
+ * @param bool $is_api_request Whether Application Passwords may be used on this request.
+ * @return bool
+ */
+function exclude_token_endpoint_from_application_passwords( $is_api_request ) {
+	if ( ! $is_api_request || empty( $GLOBALS['wp']->query_vars['rest_route'] ) ) {
+		return $is_api_request;
+	}
+
+	return Token::ROUTE !== untrailingslashit( $GLOBALS['wp']->query_vars['rest_route'] );
 }
 
 /**

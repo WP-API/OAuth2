@@ -48,6 +48,31 @@ interface ClientInterface {
 	public function get_secret();
 
 	/**
+	 * Check whether the client must authenticate with its secret.
+	 *
+	 * @link https://tools.ietf.org/html/rfc6749#section-3.2.1
+	 *
+	 * @return bool True if the secret must be verified, false otherwise.
+	 */
+	public function requires_secret();
+
+	/**
+	 * Check if the provided secret matches the client's secret.
+	 *
+	 * @param string $secret Secret to check.
+	 *
+	 * @return bool True if the secret matches, false otherwise.
+	 */
+	public function check_secret( $secret );
+
+	/**
+	 * Check whether the client_credentials grant is enabled for this client.
+	 *
+	 * @return bool True if enabled, false otherwise.
+	 */
+	public function is_client_credentials_enabled();
+
+	/**
 	 * Get registered URI for the client.
 	 *
 	 * @return array List of valid redirect URIs.
