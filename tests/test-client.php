@@ -97,6 +97,25 @@ class Test_Client extends Test_Case {
 		$this->assertNull( $result );
 	}
 
+	public function test_get_unapproved_by_id_finds_draft_client() {
+		$draft_client = $this->create_unapproved_client();
+
+		$found = Client::get_unapproved_by_id( $draft_client->get_id() );
+		$this->assertInstanceOf( Client::class, $found );
+		$this->assertEquals( $draft_client->get_id(), $found->get_id() );
+	}
+
+	public function test_get_unapproved_by_id_returns_null_for_published_client() {
+		$this->assertNull( Client::get_unapproved_by_id( $this->client->get_id() ) );
+	}
+
+	public function test_get_unapproved_by_id_returns_null_for_trashed_client() {
+		$draft_client = $this->create_unapproved_client();
+		wp_trash_post( $draft_client->get_post_id() );
+
+		$this->assertNull( Client::get_unapproved_by_id( $draft_client->get_id() ) );
+	}
+
 	public function test_get_by_post_id_finds_client() {
 		$found = Client::get_by_post_id( $this->client->get_post_id() );
 		$this->assertInstanceOf( Client::class, $found );
