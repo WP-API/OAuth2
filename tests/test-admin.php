@@ -10,6 +10,7 @@ namespace WP\OAuth2\Tests;
 require_once __DIR__ . '/class-test-case.php';
 
 use WP\OAuth2\Admin\ListTable;
+use function WP\OAuth2\Admin\handle_approve;
 use function WP\OAuth2\Admin\render_approval_status;
 use function WP\OAuth2\Admin\validate_parameters;
 
@@ -17,6 +18,12 @@ use function WP\OAuth2\Admin\validate_parameters;
  * Test cases for the client admin screens.
  */
 class Test_Admin extends Test_Case {
+
+	public function tear_down() {
+		$_GET     = [];
+		$_REQUEST = [];
+		parent::tear_down();
+	}
 
 	/**
 	 * Build a valid set of submitted client parameters.
@@ -186,5 +193,34 @@ class Test_Admin extends Test_Case {
 		);
 
 		$this->assertSame( '', trim( $this->get_approval_status( $client ) ) );
+	}
+
+	public function test_handle_approve_refuses_trashed_client() {
+		$user_id = self::factory()->user->create( [ 'role' => 'administrator' ] );
+		if ( is_multisite() ) {
+			grant_super_admin( $user_id );
+		}
+		wp_set_current_user( $user_id );
+
+		$client = $this->create_unapproved_client();
+		$id     = $client->get_post_id();
+		wp_update_post(
+			[
+				'ID'          => $id,
+				'post_status' => 'trash',
+			]
+		);
+
+		$nonce                = wp_create_nonce( 'rest-oauth2-approve:' . $id );
+		$_GET['id']           = $id;
+		$_GET['_wpnonce']     = $nonce;
+		$_REQUEST['_wpnonce'] = $nonce;
+
+		$this->expectException( \WPDieException::class );
+		try {
+			handle_approve();
+		} finally {
+			$this->assertSame( 'trash', get_post_status( $id ) );
+		}
 	}
 }

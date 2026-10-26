@@ -104,7 +104,7 @@ class ListTable extends WP_List_Table {
 		];
 
 		$post_type_object = get_post_type_object( $item->post_type );
-		if ( current_user_can( $post_type_object->cap->publish_posts ) && 'publish' !== $item->post_status ) {
+		if ( current_user_can( $post_type_object->cap->publish_posts ) && in_array( $item->post_status, Client::UNAPPROVED_STATUSES, true ) ) {
 			$publish_link           = get_approve_url( $item );
 			$actions['app-approve'] = sprintf(
 				'<a href="%s">%s</a>',
