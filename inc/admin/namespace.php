@@ -295,6 +295,38 @@ function handle_edit_submit( ?Client $consumer = null ) {
 }
 
 /**
+ * Output the approval status notice for a client, with an approve button where allowed.
+ *
+ * @param WP_Post|int $client_post Client post or post ID.
+ */
+function render_approval_status( $client_post ) {
+	$client_post = get_post( $client_post );
+	if ( ! $client_post ) {
+		return;
+	}
+
+	$is_approved = 'publish' === $client_post->post_status;
+	if ( $is_approved ) {
+		echo '<div class="notice notice-success inline"><p>' . esc_html__( 'This application is approved.', 'oauth2' ) . '</p></div>';
+		return;
+	}
+
+	$post_type_object = get_post_type_object( Client::POST_TYPE );
+	?>
+	<div class="notice notice-warning inline">
+		<p><?php esc_html_e( 'This application is not approved yet. It cannot be used to authorize users until it is approved.', 'oauth2' ); ?></p>
+		<p>
+			<?php if ( current_user_can( $post_type_object->cap->publish_posts ) ) : ?>
+				<a href="<?php echo esc_url( get_approve_url( $client_post, [ 'return' => 'edit' ] ) ); ?>" class="button button-primary"><?php esc_html_e( 'Approve', 'oauth2' ); ?></a>
+			<?php else : ?>
+				<?php esc_html_e( 'Ask an administrator to approve it.', 'oauth2' ); ?>
+			<?php endif; ?>
+		</p>
+	</div>
+	<?php
+}
+
+/**
  * Output alias editing page
  */
 function render_edit_page() {
@@ -350,6 +382,10 @@ function render_edit_page() {
 				$messages[] = esc_html__( 'Regenerated secret.', 'oauth2' );
 				break;
 
+			case 'approve':
+				$messages[] = esc_html__( 'Application approved.', 'oauth2' );
+				break;
+
 			default:
 				$messages[] = esc_html__( 'Successfully created application.', 'oauth2' );
 				break;
@@ -396,6 +432,12 @@ function render_edit_page() {
 			foreach ( $messages as $msg ) {
 				echo '<div id="message" class="updated"><p>' . esc_html( $msg ) . '</p></div>';
 			}
+		}
+		?>
+
+		<?php
+		if ( $consumer ) {
+			render_approval_status( get_post( $consumer->get_post_id() ) );
 		}
 		?>
 
@@ -618,6 +660,19 @@ function handle_approve() {
 	$did_approve = $client->approve();
 	if ( is_wp_error( $did_approve ) ) {
 		wp_die( $did_approve ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+	}
+
+	if ( isset( $_GET['return'] ) && 'edit' === $_GET['return'] ) {
+		wp_safe_redirect(
+			get_url(
+				[
+					'action'     => 'edit',
+					'id'         => $id,
+					'did_action' => 'approve',
+				]
+			)
+		);
+		exit;
 	}
 
 	wp_safe_redirect( get_url( 'approved=1' ) );
