@@ -51,9 +51,40 @@ class Authorization {
 		}
 
 		if ( is_wp_error( $result ) ) {
-			// TODO: Handle it.
-			wp_die( esc_html( $result->get_error_message() ) );
+			$this->render_error( $result );
 		}
+		exit;
+	}
+
+	/**
+	 * Get the HTTP status for an error.
+	 *
+	 * @param WP_Error $error Error to read the `status` error data from.
+	 * @return int Status code, 400 if the error does not set one.
+	 */
+	public function get_error_status( WP_Error $error ) {
+		$data = $error->get_error_data();
+
+		return is_array( $data ) && ! empty( $data['status'] ) ? (int) $data['status'] : 400;
+	}
+
+	/**
+	 * Render an authorization error on the login screen, then exit.
+	 *
+	 * @param WP_Error $error Error to display. The `status` error data sets the HTTP status.
+	 */
+	protected function render_error( WP_Error $error ) {
+		// login_header() prints error messages as HTML, so escape them first.
+		$escaped = new WP_Error();
+		foreach ( $error->get_error_codes() as $code ) {
+			foreach ( $error->get_error_messages( $code ) as $message ) {
+				$escaped->add( $code, esc_html( $message ) );
+			}
+		}
+
+		status_header( $this->get_error_status( $error ) );
+		login_header( __( 'Authorization error', 'oauth2' ), '', $escaped );
+		login_footer();
 		exit;
 	}
 }

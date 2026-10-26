@@ -9,6 +9,7 @@ namespace WP\OAuth2\Admin;
 
 use WP\OAuth2\Client;
 use WP_Error;
+use WP_Post;
 
 const BASE_SLUG = 'rest-oauth2-apps';
 
@@ -44,6 +45,26 @@ function get_url( $params = [] ) {
 	$params = [ 'page' => BASE_SLUG ] + wp_parse_args( $params );
 
 	return add_query_arg( urlencode_deep( $params ), $url );
+}
+
+/**
+ * Get the URL that approves a client.
+ *
+ * @param WP_Post|int  $client_post Client post or post ID.
+ * @param array|string $params      Extra query parameters, such as `return=edit`.
+ *
+ * @return string Approve URL including the nonce.
+ */
+function get_approve_url( $client_post, $params = [] ) {
+	$id  = $client_post instanceof WP_Post ? $client_post->ID : absint( $client_post );
+	$url = get_url(
+		[
+			'action' => 'approve',
+			'id'     => $id,
+		] + wp_parse_args( $params )
+	);
+
+	return wp_nonce_url( $url, 'rest-oauth2-approve:' . $id );
 }
 
 /**
@@ -274,6 +295,41 @@ function handle_edit_submit( ?Client $consumer = null ) {
 }
 
 /**
+ * Output the approval status notice for a client, with an approve button where allowed.
+ *
+ * @param WP_Post|int $client_post Client post or post ID.
+ */
+function render_approval_status( $client_post ) {
+	$client_post = get_post( $client_post );
+	if ( ! $client_post ) {
+		return;
+	}
+
+	if ( 'publish' === $client_post->post_status ) {
+		echo '<div class="notice notice-success inline"><p>' . esc_html__( 'This application is approved.', 'oauth2' ) . '</p></div>';
+		return;
+	}
+
+	if ( ! in_array( $client_post->post_status, Client::UNAPPROVED_STATUSES, true ) ) {
+		return;
+	}
+
+	$post_type_object = get_post_type_object( Client::POST_TYPE );
+	?>
+	<div class="notice notice-warning inline">
+		<p><?php esc_html_e( 'This application is not approved yet. It cannot be used to authorize users until it is approved.', 'oauth2' ); ?></p>
+		<p>
+			<?php if ( current_user_can( $post_type_object->cap->publish_posts ) ) : ?>
+				<a href="<?php echo esc_url( get_approve_url( $client_post, [ 'return' => 'edit' ] ) ); ?>" class="button button-primary"><?php esc_html_e( 'Approve', 'oauth2' ); ?></a>
+			<?php else : ?>
+				<?php esc_html_e( 'Ask an administrator to approve it.', 'oauth2' ); ?>
+			<?php endif; ?>
+		</p>
+	</div>
+	<?php
+}
+
+/**
  * Output alias editing page
  */
 function render_edit_page() {
@@ -288,7 +344,7 @@ function render_edit_page() {
 	if ( ! empty( $_REQUEST['id'] ) ) {
 		$id       = absint( $_REQUEST['id'] );
 		$consumer = Client::get_by_post_id( $id );
-		if ( is_wp_error( $consumer ) || empty( $consumer ) ) {
+		if ( is_wp_error( $consumer ) || empty( $consumer ) || get_post_type( $id ) !== Client::POST_TYPE ) {
 			wp_die( esc_html__( 'Invalid client ID.', 'oauth2' ) );
 		}
 
@@ -375,6 +431,12 @@ function render_edit_page() {
 			foreach ( $messages as $msg ) {
 				echo '<div id="message" class="updated"><p>' . esc_html( $msg ) . '</p></div>';
 			}
+		}
+		?>
+
+		<?php
+		if ( $consumer ) {
+			render_approval_status( get_post( $consumer->get_post_id() ) );
 		}
 		?>
 
@@ -589,6 +651,11 @@ function handle_approve() {
 		);
 	}
 
+	$post = get_post( $id );
+	if ( ! $post || Client::POST_TYPE !== $post->post_type || ! in_array( $post->post_status, Client::UNAPPROVED_STATUSES, true ) ) {
+		wp_die( esc_html__( 'This application cannot be approved.', 'oauth2' ), '', [ 'response' => 400 ] );
+	}
+
 	$client = Client::get_by_post_id( $id );
 	if ( is_wp_error( $client ) ) {
 		wp_die( $client ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -597,6 +664,18 @@ function handle_approve() {
 	$did_approve = $client->approve();
 	if ( is_wp_error( $did_approve ) ) {
 		wp_die( $did_approve ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+	}
+
+	if ( isset( $_GET['return'] ) && 'edit' === $_GET['return'] ) {
+		wp_safe_redirect(
+			get_url(
+				[
+					'action' => 'edit',
+					'id'     => $id,
+				]
+			)
+		);
+		exit;
 	}
 
 	wp_safe_redirect( get_url( 'approved=1' ) );

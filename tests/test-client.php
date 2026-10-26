@@ -97,6 +97,35 @@ class Test_Client extends Test_Case {
 		$this->assertNull( $result );
 	}
 
+	public function test_get_by_id_with_unapproved_finds_draft_client() {
+		$draft_client = $this->create_client( [], 'Test Client', false );
+
+		$found = Client::get_by_id( $draft_client->get_id(), true );
+		$this->assertInstanceOf( Client::class, $found );
+		$this->assertEquals( $draft_client->get_id(), $found->get_id() );
+	}
+
+	public function test_get_by_id_with_unapproved_returns_null_for_trashed_client() {
+		$draft_client = $this->create_client( [], 'Test Client', false );
+		wp_update_post(
+			[
+				'ID'          => $draft_client->get_post_id(),
+				'post_status' => 'trash',
+			]
+		);
+
+		$this->assertSame( 'trash', get_post_status( $draft_client->get_post_id() ) );
+		$this->assertNull( Client::get_by_id( $draft_client->get_id(), true ) );
+	}
+
+	public function test_is_approved_is_true_for_published_client() {
+		$this->assertTrue( $this->client->is_approved() );
+	}
+
+	public function test_is_approved_is_false_for_draft_client() {
+		$this->assertFalse( $this->create_client( [], 'Test Client', false )->is_approved() );
+	}
+
 	public function test_get_by_post_id_finds_client() {
 		$found = Client::get_by_post_id( $this->client->get_post_id() );
 		$this->assertInstanceOf( Client::class, $found );

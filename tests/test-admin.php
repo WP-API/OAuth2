@@ -9,12 +9,21 @@ namespace WP\OAuth2\Tests;
 
 require_once __DIR__ . '/class-test-case.php';
 
+use WP\OAuth2\Admin\ListTable;
+use function WP\OAuth2\Admin\handle_approve;
+use function WP\OAuth2\Admin\render_approval_status;
 use function WP\OAuth2\Admin\validate_parameters;
 
 /**
  * Test cases for the client admin screens.
  */
 class Test_Admin extends Test_Case {
+
+	public function tear_down() {
+		$_GET     = [];
+		$_REQUEST = [];
+		parent::tear_down();
+	}
 
 	/**
 	 * Build a valid set of submitted client parameters.
@@ -76,5 +85,142 @@ class Test_Admin extends Test_Case {
 
 		$this->assertWPError( $result );
 		$this->assertEquals( 'rest_oauth2_invalid_ttl', $result->get_error_code() );
+	}
+
+	/**
+	 * Get a list table instance.
+	 *
+	 * @return ListTable
+	 */
+	protected function get_list_table() {
+		set_current_screen( 'users_page_rest-oauth2-apps' );
+		require_once ABSPATH . 'wp-admin/includes/class-wp-list-table.php';
+		require_once dirname( __DIR__ ) . '/inc/admin/class-listtable.php';
+
+		return new ListTable( [ 'screen' => 'users_page_rest-oauth2-apps' ] );
+	}
+
+	/**
+	 * Capture the output of the approved column for a client.
+	 *
+	 * @param \WP\OAuth2\Client $client Client to print the column for.
+	 *
+	 * @return string Column output.
+	 */
+	protected function get_approved_column( $client ) {
+		ob_start();
+		$this->get_list_table()->column_approved( get_post( $client->get_post_id() ) );
+
+		return ob_get_clean();
+	}
+
+	/**
+	 * Capture the output of the approval status for a client.
+	 *
+	 * @param \WP\OAuth2\Client $client Client to print the status for.
+	 *
+	 * @return string Notice markup.
+	 */
+	protected function get_approval_status( $client ) {
+		ob_start();
+		render_approval_status( get_post( $client->get_post_id() ) );
+
+		return ob_get_clean();
+	}
+
+	public function test_list_table_has_approved_column() {
+		$this->assertArrayHasKey( 'approved', $this->get_list_table()->get_columns() );
+	}
+
+	public function test_approved_column_prints_yes_for_published_client() {
+		$this->assertSame( 'Yes', $this->get_approved_column( $this->create_client() ) );
+	}
+
+	public function test_approved_column_prints_no_for_unapproved_client() {
+		$this->assertSame( 'No', $this->get_approved_column( $this->create_client( [], 'Test Client', false ) ) );
+	}
+
+	public function test_approval_status_shows_warning_and_button_for_admin() {
+		$user_id = self::factory()->user->create( [ 'role' => 'administrator' ] );
+		if ( is_multisite() ) {
+			grant_super_admin( $user_id );
+		}
+		wp_set_current_user( $user_id );
+
+		$output = $this->get_approval_status( $this->create_client( [], 'Test Client', false ) );
+
+		$this->assertStringContainsString( 'notice-warning', $output );
+		$this->assertStringContainsString( 'This application is not approved yet.', $output );
+		$this->assertStringContainsString( 'button button-primary', $output );
+		$this->assertStringContainsString( 'action=approve', $output );
+		$this->assertStringContainsString( 'return=edit', $output );
+		$this->assertStringNotContainsString( 'Ask an administrator', $output );
+	}
+
+	public function test_approval_status_asks_for_administrator_without_capability() {
+		wp_set_current_user( self::factory()->user->create( [ 'role' => 'subscriber' ] ) );
+
+		$output = $this->get_approval_status( $this->create_client( [], 'Test Client', false ) );
+
+		$this->assertStringContainsString( 'notice-warning', $output );
+		$this->assertStringContainsString( 'Ask an administrator to approve it.', $output );
+		$this->assertStringNotContainsString( 'button-primary', $output );
+	}
+
+	public function test_approval_status_shows_success_for_published_client() {
+		wp_set_current_user( self::factory()->user->create( [ 'role' => 'administrator' ] ) );
+
+		$output = $this->get_approval_status( $this->create_client() );
+
+		$this->assertStringContainsString( 'notice-success', $output );
+		$this->assertStringContainsString( 'This application is approved.', $output );
+		$this->assertStringNotContainsString( 'button-primary', $output );
+	}
+
+	public function test_approval_status_prints_nothing_for_trashed_client() {
+		$user_id = self::factory()->user->create( [ 'role' => 'administrator' ] );
+		if ( is_multisite() ) {
+			grant_super_admin( $user_id );
+		}
+		wp_set_current_user( $user_id );
+
+		$client = $this->create_client( [], 'Test Client', false );
+		wp_update_post(
+			[
+				'ID'          => $client->get_post_id(),
+				'post_status' => 'trash',
+			]
+		);
+
+		$this->assertSame( '', trim( $this->get_approval_status( $client ) ) );
+	}
+
+	public function test_handle_approve_refuses_trashed_client() {
+		$user_id = self::factory()->user->create( [ 'role' => 'administrator' ] );
+		if ( is_multisite() ) {
+			grant_super_admin( $user_id );
+		}
+		wp_set_current_user( $user_id );
+
+		$client = $this->create_client( [], 'Test Client', false );
+		$id     = $client->get_post_id();
+		wp_update_post(
+			[
+				'ID'          => $id,
+				'post_status' => 'trash',
+			]
+		);
+
+		$nonce                = wp_create_nonce( 'rest-oauth2-approve:' . $id );
+		$_GET['id']           = $id;
+		$_GET['_wpnonce']     = $nonce;
+		$_REQUEST['_wpnonce'] = $nonce;
+
+		$this->expectException( \WPDieException::class );
+		try {
+			handle_approve();
+		} finally {
+			$this->assertSame( 'trash', get_post_status( $id ) );
+		}
 	}
 }

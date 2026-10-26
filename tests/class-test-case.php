@@ -16,14 +16,15 @@ use WP_UnitTestCase;
 abstract class Test_Case extends WP_UnitTestCase {
 
 	/**
-	 * Create and approve a test client.
+	 * Create and optionally approve a test client.
 	 *
 	 * @param array  $meta_overrides  Optional overrides for the client meta.
 	 * @param string $name            Client name.
+	 * @param bool   $approve         Whether to approve the client.
 	 *
 	 * @return Client
 	 */
-	protected function create_client( array $meta_overrides = [], $name = 'Test Client' ) {
+	protected function create_client( array $meta_overrides = [], $name = 'Test Client', $approve = true ) {
 		$data = [
 			'name'        => $name,
 			'description' => 'Test client description.',
@@ -39,7 +40,9 @@ abstract class Test_Case extends WP_UnitTestCase {
 
 		$client = Client::create( $data );
 		$this->assertInstanceOf( Client::class, $client, 'create_client helper: Client::create() must return a Client instance.' );
-		$client->approve();
+		if ( $approve ) {
+			$client->approve();
+		}
 
 		return $client;
 	}

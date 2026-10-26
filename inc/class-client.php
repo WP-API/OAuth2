@@ -16,6 +16,7 @@ use WP_User;
 
 class Client implements ClientInterface {
 	const POST_TYPE                      = 'oauth2_client';
+	const UNAPPROVED_STATUSES            = [ 'draft', 'pending' ];
 	const CLIENT_SECRET_KEY              = '_oauth2_client_secret';
 	const TYPE_KEY                       = '_oauth2_client_type';
 	const REDIRECT_URI_KEY               = '_oauth2_redirect_uri';
@@ -59,6 +60,15 @@ class Client implements ClientInterface {
 	 */
 	public function get_post_id() {
 		return $this->post->ID;
+	}
+
+	/**
+	 * Check whether the client is approved.
+	 *
+	 * @return bool True if the client is published.
+	 */
+	public function is_approved() {
+		return 'publish' === $this->post->post_status;
 	}
 
 	/**
@@ -310,14 +320,20 @@ class Client implements ClientInterface {
 	/**
 	 * Get a client by ID.
 	 *
-	 * @param string $id Client ID.
+	 * @param string $id                 Client ID.
+	 * @param bool   $include_unapproved Whether to also match draft and pending clients. Trashed clients never match.
 	 *
-	 * @return static|null Token if ID is found, null otherwise.
+	 * @return static|null Client if ID is found, null otherwise.
 	 */
-	public static function get_by_id( $id ) {
+	public static function get_by_id( $id, $include_unapproved = false ) {
+		$statuses = [ 'publish' ];
+		if ( $include_unapproved ) {
+			$statuses = array_merge( $statuses, static::UNAPPROVED_STATUSES );
+		}
+
 		$args  = [
 			'post_type'      => static::POST_TYPE,
-			'post_status'    => 'publish',
+			'post_status'    => $statuses,
 			'posts_per_page' => 1,
 			'no_found_rows'  => true,
 
@@ -455,8 +471,13 @@ class Client implements ClientInterface {
 			'post_status' => 'publish',
 		];
 		$result = wp_update_post( wp_slash( $data ), true );
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
 
-		return is_wp_error( $result ) ? $result : true;
+		$this->post = get_post( $this->get_post_id() );
+
+		return true;
 	}
 
 	/**

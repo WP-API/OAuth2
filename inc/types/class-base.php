@@ -47,7 +47,7 @@ abstract class Base implements Type {
 		// State is opaque to the server and must be returned to the client unchanged.
 		$state = isset( $_GET['state'] ) && is_string( $_GET['state'] ) ? wp_unslash( $_GET['state'] ) : null; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 
-		$client = Client::get_by_id( $client_id );
+		$client = Client::get_by_id( $client_id, true );
 		if ( empty( $client ) ) {
 			return new WP_Error(
 				'oauth2.types.authorization_code.handle_authorisation.invalid_client_id',
@@ -55,6 +55,17 @@ abstract class Base implements Type {
 				sprintf( __( 'Client ID %s is invalid.', 'oauth2' ), $client_id ),
 				[
 					'status'    => WP_Http::BAD_REQUEST,
+					'client_id' => $client_id,
+				]
+			);
+		}
+
+		if ( ! $client->is_approved() ) {
+			return new WP_Error(
+				'oauth2.types.authorization_code.handle_authorisation.unapproved_client',
+				__( 'This application is not currently approved. Ask the site administrator to approve it.', 'oauth2' ),
+				[
+					'status'    => WP_Http::FORBIDDEN,
 					'client_id' => $client_id,
 				]
 			);
