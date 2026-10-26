@@ -49,6 +49,7 @@ class ListTable extends WP_List_Table {
 		$c = [
 			'cb'          => '<input type="checkbox" />',
 			'name'        => __( 'Name', 'oauth2' ),
+			'approved'    => __( 'Approved', 'oauth2' ),
 			'description' => __( 'Description', 'oauth2' ),
 		];
 
@@ -104,16 +105,7 @@ class ListTable extends WP_List_Table {
 
 		$post_type_object = get_post_type_object( $item->post_type );
 		if ( current_user_can( $post_type_object->cap->publish_posts ) && 'publish' !== $item->post_status ) {
-			$publish_link = add_query_arg(
-				[
-					'page'   => 'rest-oauth2-apps',
-					'action' => 'approve',
-					'id'     => $item->ID,
-				],
-				admin_url( 'users.php' )
-			);
-
-			$publish_link           = wp_nonce_url( $publish_link, 'rest-oauth2-approve:' . $item->ID );
+			$publish_link           = get_approve_url( $item );
 			$actions['app-approve'] = sprintf(
 				'<a href="%s">%s</a>',
 				esc_url( $publish_link ),
@@ -128,12 +120,25 @@ class ListTable extends WP_List_Table {
 		_post_states( $item );
 		$title = sprintf(
 			'<strong><a href="%s">%s</a>%s</strong>',
-			$edit_link,
+			esc_url( $edit_link ),
 			$title,
 			ob_get_clean()
 		);
 
 		return $title . ' ' . $action_html;
+	}
+
+	/**
+	 * Print whether the client is approved.
+	 *
+	 * @param \WP_Post $item Post object.
+	 */
+	public function column_approved( $item ) {
+		if ( 'publish' === $item->post_status ) {
+			esc_html_e( 'Yes', 'oauth2' );
+		} else {
+			esc_html_e( 'No', 'oauth2' );
+		}
 	}
 
 	/**

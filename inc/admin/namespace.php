@@ -9,6 +9,7 @@ namespace WP\OAuth2\Admin;
 
 use WP\OAuth2\Client;
 use WP_Error;
+use WP_Post;
 
 const BASE_SLUG = 'rest-oauth2-apps';
 
@@ -44,6 +45,26 @@ function get_url( $params = [] ) {
 	$params = [ 'page' => BASE_SLUG ] + wp_parse_args( $params );
 
 	return add_query_arg( urlencode_deep( $params ), $url );
+}
+
+/**
+ * Get the URL that approves a client.
+ *
+ * @param WP_Post|int  $client_post Client post or post ID.
+ * @param array|string $params      Extra query parameters, such as `return=edit`.
+ *
+ * @return string Approve URL including the nonce.
+ */
+function get_approve_url( $client_post, $params = [] ) {
+	$id  = $client_post instanceof WP_Post ? $client_post->ID : absint( $client_post );
+	$url = get_url(
+		[
+			'action' => 'approve',
+			'id'     => $id,
+		] + wp_parse_args( $params )
+	);
+
+	return wp_nonce_url( $url, 'rest-oauth2-approve:' . $id );
 }
 
 /**
