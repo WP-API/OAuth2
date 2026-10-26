@@ -63,6 +63,15 @@ class Client implements ClientInterface {
 	}
 
 	/**
+	 * Check whether the client is approved.
+	 *
+	 * @return bool True if the client is published.
+	 */
+	public function is_approved() {
+		return 'publish' === $this->post->post_status;
+	}
+
+	/**
 	 * Get the client's name.
 	 *
 	 * @return string HTML string.
@@ -311,36 +320,17 @@ class Client implements ClientInterface {
 	/**
 	 * Get a client by ID.
 	 *
-	 * @param string $id Client ID.
+	 * @param string $id                 Client ID.
+	 * @param bool   $include_unapproved Whether to also match draft and pending clients. Trashed clients never match.
 	 *
-	 * @return static|null Token if ID is found, null otherwise.
+	 * @return static|null Client if ID is found, null otherwise.
 	 */
-	public static function get_by_id( $id ) {
-		return static::get_by_slug_and_status( $id, [ 'publish' ] );
-	}
+	public static function get_by_id( $id, $include_unapproved = false ) {
+		$statuses = [ 'publish' ];
+		if ( $include_unapproved ) {
+			$statuses = array_merge( $statuses, static::UNAPPROVED_STATUSES );
+		}
 
-	/**
-	 * Get an unapproved client by ID.
-	 *
-	 * Only draft and pending clients match, trashed clients never do.
-	 *
-	 * @param string $id Client ID.
-	 *
-	 * @return static|null Client if an unapproved client is found, null otherwise.
-	 */
-	public static function get_unapproved_by_id( $id ) {
-		return static::get_by_slug_and_status( $id, static::UNAPPROVED_STATUSES );
-	}
-
-	/**
-	 * Get a client by ID, limited to the given post statuses.
-	 *
-	 * @param string   $id       Client ID.
-	 * @param string[] $statuses Post statuses to match.
-	 *
-	 * @return static|null Client if found, null otherwise.
-	 */
-	private static function get_by_slug_and_status( $id, array $statuses ) {
 		$args  = [
 			'post_type'      => static::POST_TYPE,
 			'post_status'    => $statuses,
@@ -481,8 +471,13 @@ class Client implements ClientInterface {
 			'post_status' => 'publish',
 		];
 		$result = wp_update_post( wp_slash( $data ), true );
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
 
-		return is_wp_error( $result ) ? $result : true;
+		$this->post = get_post( $this->get_post_id() );
+
+		return true;
 	}
 
 	/**
