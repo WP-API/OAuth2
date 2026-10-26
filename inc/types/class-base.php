@@ -48,6 +48,16 @@ abstract class Base implements Type {
 		$state = isset( $_GET['state'] ) && is_string( $_GET['state'] ) ? wp_unslash( $_GET['state'] ) : null; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 
 		$client = Client::get_by_id( $client_id );
+		if ( empty( $client ) && Client::get_unapproved_by_id( $client_id ) ) {
+			return new WP_Error(
+				'oauth2.types.authorization_code.handle_authorisation.unapproved_client',
+				__( 'This application is not currently approved. Ask the site administrator to approve it.', 'oauth2' ),
+				[
+					'status'    => WP_Http::FORBIDDEN,
+					'client_id' => $client_id,
+				]
+			);
+		}
 		if ( empty( $client ) ) {
 			return new WP_Error(
 				'oauth2.types.authorization_code.handle_authorisation.invalid_client_id',

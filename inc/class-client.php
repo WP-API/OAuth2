@@ -315,9 +315,34 @@ class Client implements ClientInterface {
 	 * @return static|null Token if ID is found, null otherwise.
 	 */
 	public static function get_by_id( $id ) {
+		return static::get_by_slug_and_status( $id, [ 'publish' ] );
+	}
+
+	/**
+	 * Get an unapproved client by ID.
+	 *
+	 * Only draft and pending clients match, trashed clients never do.
+	 *
+	 * @param string $id Client ID.
+	 *
+	 * @return static|null Client if an unapproved client is found, null otherwise.
+	 */
+	public static function get_unapproved_by_id( $id ) {
+		return static::get_by_slug_and_status( $id, [ 'draft', 'pending' ] );
+	}
+
+	/**
+	 * Get a client by ID, limited to the given post statuses.
+	 *
+	 * @param string   $id       Client ID.
+	 * @param string[] $statuses Post statuses to match.
+	 *
+	 * @return static|null Client if found, null otherwise.
+	 */
+	private static function get_by_slug_and_status( $id, array $statuses ) {
 		$args  = [
 			'post_type'      => static::POST_TYPE,
-			'post_status'    => 'publish',
+			'post_status'    => $statuses,
 			'posts_per_page' => 1,
 			'no_found_rows'  => true,
 
