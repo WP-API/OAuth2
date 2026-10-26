@@ -111,7 +111,14 @@ class Test_Client extends Test_Case {
 
 	public function test_get_unapproved_by_id_returns_null_for_trashed_client() {
 		$draft_client = $this->create_unapproved_client();
-		wp_trash_post( $draft_client->get_post_id() );
+		wp_update_post(
+			[
+				'ID'          => $draft_client->get_post_id(),
+				'post_status' => 'trash',
+			]
+		);
+
+		$this->assertSame( 'trash', get_post_status( $draft_client->get_post_id() ) );
 
 		$this->assertNull( Client::get_unapproved_by_id( $draft_client->get_id() ) );
 	}

@@ -9,7 +9,9 @@ namespace WP\OAuth2\Tests;
 
 require_once __DIR__ . '/class-test-case.php';
 
+use WP\OAuth2\Endpoints\Authorization;
 use WP\OAuth2\Types\Authorization_Code;
+use WP_Error;
 
 /**
  * Test cases for authorize errors.
@@ -40,5 +42,17 @@ class Test_Authorize_Errors extends Test_Case {
 		$this->assertWPError( $result );
 		$this->assertSame( 'oauth2.types.authorization_code.handle_authorisation.invalid_client_id', $result->get_error_code() );
 		$this->assertSame( 400, $result->get_error_data()['status'] );
+	}
+
+	public function test_error_status_is_forbidden_for_unapproved_client() {
+		$client = $this->create_unapproved_client();
+		$_GET   = [ 'client_id' => $client->get_id() ];
+		$result = ( new Authorization_Code() )->handle_authorisation();
+
+		$this->assertSame( 403, ( new Authorization() )->get_error_status( $result ) );
+	}
+
+	public function test_error_status_defaults_to_bad_request() {
+		$this->assertSame( 400, ( new Authorization() )->get_error_status( new WP_Error( 'some_code', 'Message.' ) ) );
 	}
 }

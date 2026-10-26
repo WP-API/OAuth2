@@ -134,7 +134,11 @@ class Test_Admin extends Test_Case {
 	}
 
 	public function test_approval_status_shows_warning_and_button_for_admin() {
-		wp_set_current_user( self::factory()->user->create( [ 'role' => 'administrator' ] ) );
+		$user_id = self::factory()->user->create( [ 'role' => 'administrator' ] );
+		if ( is_multisite() ) {
+			grant_super_admin( $user_id );
+		}
+		wp_set_current_user( $user_id );
 
 		$output = $this->get_approval_status( $this->create_unapproved_client() );
 
@@ -164,5 +168,23 @@ class Test_Admin extends Test_Case {
 		$this->assertStringContainsString( 'notice-success', $output );
 		$this->assertStringContainsString( 'This application is approved.', $output );
 		$this->assertStringNotContainsString( 'button-primary', $output );
+	}
+
+	public function test_approval_status_prints_nothing_for_trashed_client() {
+		$user_id = self::factory()->user->create( [ 'role' => 'administrator' ] );
+		if ( is_multisite() ) {
+			grant_super_admin( $user_id );
+		}
+		wp_set_current_user( $user_id );
+
+		$client = $this->create_unapproved_client();
+		wp_update_post(
+			[
+				'ID'          => $client->get_post_id(),
+				'post_status' => 'trash',
+			]
+		);
+
+		$this->assertSame( '', trim( $this->get_approval_status( $client ) ) );
 	}
 }
