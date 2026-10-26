@@ -137,7 +137,7 @@ class Test_Admin extends Test_Case {
 	}
 
 	public function test_approved_column_prints_no_for_unapproved_client() {
-		$this->assertSame( 'No', $this->get_approved_column( $this->create_unapproved_client() ) );
+		$this->assertSame( 'No', $this->get_approved_column( $this->create_client( [], 'Test Client', false ) ) );
 	}
 
 	public function test_approval_status_shows_warning_and_button_for_admin() {
@@ -147,7 +147,7 @@ class Test_Admin extends Test_Case {
 		}
 		wp_set_current_user( $user_id );
 
-		$output = $this->get_approval_status( $this->create_unapproved_client() );
+		$output = $this->get_approval_status( $this->create_client( [], 'Test Client', false ) );
 
 		$this->assertStringContainsString( 'notice-warning', $output );
 		$this->assertStringContainsString( 'This application is not approved yet.', $output );
@@ -160,7 +160,7 @@ class Test_Admin extends Test_Case {
 	public function test_approval_status_asks_for_administrator_without_capability() {
 		wp_set_current_user( self::factory()->user->create( [ 'role' => 'subscriber' ] ) );
 
-		$output = $this->get_approval_status( $this->create_unapproved_client() );
+		$output = $this->get_approval_status( $this->create_client( [], 'Test Client', false ) );
 
 		$this->assertStringContainsString( 'notice-warning', $output );
 		$this->assertStringContainsString( 'Ask an administrator to approve it.', $output );
@@ -184,7 +184,7 @@ class Test_Admin extends Test_Case {
 		}
 		wp_set_current_user( $user_id );
 
-		$client = $this->create_unapproved_client();
+		$client = $this->create_client( [], 'Test Client', false );
 		wp_update_post(
 			[
 				'ID'          => $client->get_post_id(),
@@ -202,7 +202,7 @@ class Test_Admin extends Test_Case {
 		}
 		wp_set_current_user( $user_id );
 
-		$client = $this->create_unapproved_client();
+		$client = $this->create_client( [], 'Test Client', false );
 		$id     = $client->get_post_id();
 		wp_update_post(
 			[

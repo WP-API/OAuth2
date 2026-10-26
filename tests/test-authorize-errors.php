@@ -24,7 +24,7 @@ class Test_Authorize_Errors extends Test_Case {
 	}
 
 	public function test_unapproved_client_returns_forbidden_error() {
-		$client = $this->create_unapproved_client();
+		$client = $this->create_client( [], 'Test Client', false );
 		$_GET   = [ 'client_id' => $client->get_id() ];
 
 		$result = ( new Authorization_Code() )->handle_authorisation();
@@ -45,7 +45,7 @@ class Test_Authorize_Errors extends Test_Case {
 	}
 
 	public function test_error_status_is_forbidden_for_unapproved_client() {
-		$client = $this->create_unapproved_client();
+		$client = $this->create_client( [], 'Test Client', false );
 		$_GET   = [ 'client_id' => $client->get_id() ];
 		$result = ( new Authorization_Code() )->handle_authorisation();
 
