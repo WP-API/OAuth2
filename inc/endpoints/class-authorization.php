@@ -51,9 +51,29 @@ class Authorization {
 		}
 
 		if ( is_wp_error( $result ) ) {
-			// TODO: Handle it.
-			wp_die( esc_html( $result->get_error_message() ) );
+			$this->render_error( $result );
 		}
+		exit;
+	}
+
+	/**
+	 * Render an authorization error on the login screen, then exit.
+	 *
+	 * @param WP_Error $error Error to display. The `status` error data sets the HTTP status.
+	 */
+	protected function render_error( WP_Error $error ) {
+		$data   = $error->get_error_data();
+		$status = is_array( $data ) && ! empty( $data['status'] ) ? (int) $data['status'] : 400;
+
+		status_header( $status );
+		login_header( __( 'Authorization error', 'oauth2' ), '', $error );
+		printf(
+			'<p id="backtoblog"><a href="%s">%s</a></p>',
+			esc_url( home_url( '/' ) ),
+			/* translators: %s: site name */
+			esc_html( sprintf( __( 'Go to %s', 'oauth2' ), get_bloginfo( 'name', 'display' ) ) )
+		);
+		login_footer();
 		exit;
 	}
 }
