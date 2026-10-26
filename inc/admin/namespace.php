@@ -305,9 +305,12 @@ function render_approval_status( $client_post ) {
 		return;
 	}
 
-	$is_approved = 'publish' === $client_post->post_status;
-	if ( $is_approved ) {
+	if ( 'publish' === $client_post->post_status ) {
 		echo '<div class="notice notice-success inline"><p>' . esc_html__( 'This application is approved.', 'oauth2' ) . '</p></div>';
+		return;
+	}
+
+	if ( ! in_array( $client_post->post_status, Client::UNAPPROVED_STATUSES, true ) ) {
 		return;
 	}
 
@@ -341,7 +344,7 @@ function render_edit_page() {
 	if ( ! empty( $_REQUEST['id'] ) ) {
 		$id       = absint( $_REQUEST['id'] );
 		$consumer = Client::get_by_post_id( $id );
-		if ( is_wp_error( $consumer ) || empty( $consumer ) ) {
+		if ( is_wp_error( $consumer ) || empty( $consumer ) || get_post_type( $id ) !== Client::POST_TYPE ) {
 			wp_die( esc_html__( 'Invalid client ID.', 'oauth2' ) );
 		}
 
@@ -380,10 +383,6 @@ function render_edit_page() {
 
 			case 'regenerate':
 				$messages[] = esc_html__( 'Regenerated secret.', 'oauth2' );
-				break;
-
-			case 'approve':
-				$messages[] = esc_html__( 'Application approved.', 'oauth2' );
 				break;
 
 			default:
@@ -652,6 +651,11 @@ function handle_approve() {
 		);
 	}
 
+	$post = get_post( $id );
+	if ( ! $post || Client::POST_TYPE !== $post->post_type || ! in_array( $post->post_status, Client::UNAPPROVED_STATUSES, true ) ) {
+		wp_die( esc_html__( 'This application cannot be approved.', 'oauth2' ), '', [ 'response' => 400 ] );
+	}
+
 	$client = Client::get_by_post_id( $id );
 	if ( is_wp_error( $client ) ) {
 		wp_die( $client ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -666,9 +670,8 @@ function handle_approve() {
 		wp_safe_redirect(
 			get_url(
 				[
-					'action'     => 'edit',
-					'id'         => $id,
-					'did_action' => 'approve',
+					'action' => 'edit',
+					'id'     => $id,
 				]
 			)
 		);

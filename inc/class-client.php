@@ -16,6 +16,7 @@ use WP_User;
 
 class Client implements ClientInterface {
 	const POST_TYPE                      = 'oauth2_client';
+	const UNAPPROVED_STATUSES            = [ 'draft', 'pending' ];
 	const CLIENT_SECRET_KEY              = '_oauth2_client_secret';
 	const TYPE_KEY                       = '_oauth2_client_type';
 	const REDIRECT_URI_KEY               = '_oauth2_redirect_uri';
@@ -328,7 +329,7 @@ class Client implements ClientInterface {
 	 * @return static|null Client if an unapproved client is found, null otherwise.
 	 */
 	public static function get_unapproved_by_id( $id ) {
-		return static::get_by_slug_and_status( $id, [ 'draft', 'pending' ] );
+		return static::get_by_slug_and_status( $id, static::UNAPPROVED_STATUSES );
 	}
 
 	/**
