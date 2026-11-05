@@ -2691,6 +2691,14 @@ class Test_CIMD_Consent extends CIMD_Clients_Test_Case {
 		$this->assertStringNotContainsString( 'run on this device', $html );
 	}
 
+	public function test_the_notice_leaves_space_before_the_buttons() {
+		$client = $this->store( 'publish', null, [ 'redirect_uris' => [ 'http://localhost:8080/cb' ] ] );
+
+		$html = $this->notice( $client, 'http://localhost:8080/cb' );
+
+		$this->assertSame( 3, substr_count( $html, 'style="margin-bottom: 16px;"' ) );
+	}
+
 	public function test_the_notice_shows_a_different_redirect_host() {
 		$client = $this->store( 'publish', null, [ 'redirect_uris' => [ 'https://app.example.net/callback' ] ] );
 

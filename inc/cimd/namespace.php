@@ -816,7 +816,7 @@ function render_origin_notice( Client $client, $redirect_uri = null ) {
 	$client_host = (string) wp_parse_url( $client->get_id(), PHP_URL_HOST );
 	if ( '' !== $client_host ) {
 		printf(
-			'<p class="login-origin">%s</p>',
+			'<p class="login-origin" style="margin-bottom: 16px;">%s</p>',
 			wp_kses(
 				sprintf(
 					/* translators: %s: host name of the client ID URL */
@@ -834,7 +834,7 @@ function render_origin_notice( Client $client, $redirect_uri = null ) {
 	}
 
 	printf(
-		'<p class="login-origin">%s</p>',
+		'<p class="login-origin" style="margin-bottom: 16px;">%s</p>',
 		wp_kses(
 			sprintf(
 				/* translators: %s: host name of the redirect URI */
@@ -847,7 +847,7 @@ function render_origin_notice( Client $client, $redirect_uri = null ) {
 
 	if ( is_loopback_host( $redirect_host ) ) {
 		printf(
-			'<p class="login-origin login-origin-warning"><strong>%s</strong></p>',
+			'<p class="login-origin login-origin-warning" style="margin-bottom: 16px;"><strong>%s</strong></p>',
 			esc_html__( 'This app will run on this device. Only continue if you started it yourself.', 'oauth2' )
 		);
 	}
