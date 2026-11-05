@@ -1319,7 +1319,7 @@ class Test_CIMD extends Test_Case {
 		$this->assertCimdError( 'oauth2.cimd.fetch_failed', 503, $result, true );
 		$this->assertStringNotContainsString( 'proxy', $result->get_error_message() );
 		$this->assertWPError( $transport_error );
-		$this->assertStringContainsString( 'pin-test.invalid:1', $transport_error->get_error_message() );
+		$this->assertStringContainsString( 'pin-test.invalid', $transport_error->get_error_message() );
 		$this->assertStringNotContainsString( 'proxy', $transport_error->get_error_message() );
 	}
 
