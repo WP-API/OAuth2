@@ -14,7 +14,7 @@ use WP\OAuth2\CIMD;
 use WP\OAuth2\Client;
 
 use function WP\OAuth2\CIMD\is_cimd_client_id;
-use function WP\OAuth2\Well_Known\get_issuer;
+use function WP\OAuth2\Well_Known\get_published_issuer;
 
 abstract class Base implements Type {
 	/**
@@ -206,7 +206,7 @@ abstract class Base implements Type {
 		if ( null !== $state ) {
 			$args['state'] = $state;
 		}
-		$args['iss'] = get_issuer();
+		$args['iss'] = get_published_issuer();
 
 		return add_query_arg( urlencode_deep( $args ), $redirect_uri );
 	}
@@ -289,7 +289,7 @@ abstract class Base implements Type {
 	 */
 	protected function filter_redirect_args( $redirect_args, $authorized, Client $client, $data ) {
 		// RFC 9207: identify the issuer in every authorization response.
-		$redirect_args['iss'] = get_issuer();
+		$redirect_args['iss'] = get_published_issuer();
 
 		if ( ! $authorized ) {
 			/**

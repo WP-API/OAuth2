@@ -180,13 +180,32 @@ function get_metadata_for_site( $site_id ) {
 /**
  * Gets the issuer identifier of the current site.
  *
- * It is the `issuer` of the authorization server metadata and the `iss`
- * parameter of authorization responses.
+ * It is the `issuer` of the authorization server metadata and the
+ * `authorization_servers` entry of the protected resource metadata.
  *
  * @return string Issuer identifier.
  */
 function get_issuer() {
-	return home_url();
+	/**
+	 * Filter the issuer identifier of the authorization server.
+	 *
+	 * @param string $issuer Issuer identifier, the site URL by default.
+	 */
+	return apply_filters( 'oauth2.issuer', home_url() );
+}
+
+/**
+ * Gets the issuer as published in the authorization server metadata.
+ *
+ * This is the value for the `iss` parameter of authorization responses
+ * (RFC 9207), which must match the metadata `issuer`.
+ *
+ * @return string Issuer identifier.
+ */
+function get_published_issuer() {
+	$metadata = get_authorization_server_metadata();
+
+	return is_array( $metadata ) && isset( $metadata['issuer'] ) ? (string) $metadata['issuer'] : get_issuer();
 }
 
 /**

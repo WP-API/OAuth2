@@ -15,6 +15,8 @@ use WP\OAuth2\Types\Authorization_Code;
 use WP\OAuth2\Types\Implicit;
 
 use function WP\OAuth2\Well_Known\get_authorization_server_metadata;
+use function WP\OAuth2\Well_Known\get_metadata_for_site;
+use function WP\OAuth2\Well_Known\get_protected_resource_metadata;
 
 /**
  * Thrown from a 'wp_redirect' filter to capture the final redirect location
@@ -599,6 +601,50 @@ class Test_Types_Authorization_Code extends Test_Case {
 		parse_str( wp_parse_url( $this->submit_consent( $this->client, 'authorize' ), PHP_URL_QUERY ), $args );
 
 		$this->assertSame( 'https://issuer.example.com', $args['iss'] );
+	}
+
+	public function test_the_metadata_filter_changes_the_issuer_of_the_response() {
+		add_filter( 'oauth2.well_known_authorization_server_metadata', function ( $metadata ) {
+			$metadata['issuer'] = 'https://metadata-issuer.example.com';
+			return $metadata;
+		} );
+
+		parse_str( wp_parse_url( $this->submit_consent( $this->client, 'cancel' ), PHP_URL_QUERY ), $args );
+
+		$this->assertSame( 'https://metadata-issuer.example.com', $args['iss'] );
+	}
+
+	public function test_the_issuer_filter_changes_the_metadata_the_protected_resource_and_the_response() {
+		add_filter( 'oauth2.issuer', function () {
+			return 'https://issuer.example.com/custom';
+		} );
+
+		parse_str( wp_parse_url( $this->submit_consent( $this->client, 'cancel' ), PHP_URL_QUERY ), $args );
+
+		$this->assertSame( 'https://issuer.example.com/custom', get_authorization_server_metadata()['issuer'] );
+		$this->assertSame( [ 'https://issuer.example.com/custom' ], get_protected_resource_metadata()['authorization_servers'] );
+		$this->assertSame( 'https://issuer.example.com/custom', $args['iss'] );
+	}
+
+	public function test_a_subsite_response_carries_the_issuer_of_that_subsite() {
+		if ( ! is_multisite() ) {
+			$this->markTestSkipped( 'Requires a multisite install.' );
+		}
+
+		$site_id = $this->factory->blog->create( [ 'path' => '/blog/' ] );
+		switch_to_blog( $site_id );
+		try {
+			$client   = $this->create_client();
+			$location = $this->submit_consent( $client, 'authorize' );
+		} finally {
+			restore_current_blog();
+		}
+
+		parse_str( wp_parse_url( $location, PHP_URL_QUERY ), $args );
+
+		$this->assertSame( get_metadata_for_site( $site_id )['issuer'], $args['iss'] );
+		$this->assertSame( get_home_url( $site_id ), $args['iss'] );
+		$this->assertNotSame( home_url(), $args['iss'] );
 	}
 
 	public function test_redirect_args_filter_sees_the_issuer() {
