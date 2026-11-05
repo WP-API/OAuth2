@@ -10,6 +10,10 @@ namespace WP\OAuth2\Tests;
 require_once __DIR__ . '/class-test-case.php';
 
 use WP_Error;
+use WpOrg\Requests\Capability;
+use WpOrg\Requests\Exception as RequestsException;
+use WpOrg\Requests\Requests;
+use WpOrg\Requests\Transport\Fsockopen;
 
 use function WP\OAuth2\CIMD\fetch_document;
 use function WP\OAuth2\CIMD\is_cimd_client_id;
@@ -170,7 +174,9 @@ class Test_CIMD extends Test_Case {
 
 	public function test_validate_client_id_url_accepts_valid_url() {
 		$this->assertTrue( validate_client_id_url( static::URL ) );
-		$this->assertTrue( validate_client_id_url( 'https://client.example.com:8443/a/b' ) );
+		$this->assertTrue( validate_client_id_url( 'https://client.example.com:8080/a/b' ) );
+		$this->assertTrue( validate_client_id_url( 'https://client.example.com:443/a/b' ) );
+		$this->assertTrue( validate_client_id_url( 'https://Client-1.Example.com/a/b' ) );
 		$this->assertTrue( validate_client_id_url( 'https://client.example.com/a/..b/c.' ) );
 	}
 
@@ -193,6 +199,12 @@ class Test_CIMD extends Test_Case {
 			'legacy slug'         => [ 'abcdefghijkl' ],
 			'no host'             => [ 'https:///id' ],
 			'unparseable'         => [ 'https://:/id' ],
+			'percent-encoded host' => [ 'https://a%2eexample.com/id' ],
+			'idn host'            => [ 'https://bücher.example/id' ],
+			'ipv6 literal'        => [ 'https://[::1]/id' ],
+			'underscore host'     => [ 'https://a_b.example.com/id' ],
+			'disallowed port'     => [ 'https://client.example.com:8443/id' ],
+			'ssh port'            => [ 'https://client.example.com:22/id' ],
 			'user'                => [ 'https://user@client.example.com/id' ],
 			'user and pass'       => [ 'https://user:pass@client.example.com/id' ],
 			'fragment'            => [ 'https://client.example.com/id#frag' ],
@@ -207,6 +219,27 @@ class Test_CIMD extends Test_Case {
 			'encoded double dots' => [ 'https://client.example.com/a/%2E%2e/b' ],
 			'trailing dot'        => [ 'https://client.example.com/a/..' ],
 		];
+	}
+
+	public function test_validate_client_id_url_port_allowlist_is_filterable() {
+		$seen = [];
+		add_filter(
+			'http_allowed_safe_ports',
+			function ( $ports, $host, $url ) use ( &$seen ) {
+				$seen = [ $ports, $host, $url ];
+				return [ 443, 8443 ];
+			},
+			10,
+			3
+		);
+
+		$this->assertTrue( validate_client_id_url( 'https://client.example.com:8443/id' ) );
+		$this->assertSame( [ 80, 443, 8080 ], $seen[0] );
+		$this->assertSame( 'client.example.com', $seen[1] );
+		$this->assertSame( 'https://client.example.com:8443/id', $seen[2] );
+		$this->assertCimdError( 'oauth2.cimd.invalid_client_id', 400, validate_client_id_url( 'https://client.example.com:8080/id' ) );
+
+		remove_all_filters( 'http_allowed_safe_ports' );
 	}
 
 	public function test_validate_client_id_url_accepts_exactly_2048_bytes() {
@@ -281,6 +314,11 @@ class Test_CIMD extends Test_Case {
 			'240.0.0.0/4'      => [ '250.0.0.1' ],
 			'255.255.255.255'  => [ '255.255.255.255' ],
 			'::/128'           => [ '::' ],
+			'::/96'            => [ '::808:808' ],
+			'fec0::/10'        => [ 'fec0::1' ],
+			'3fff::/20'        => [ '3fff::1' ],
+			'3fff::/20 end'    => [ '3fff:0fff:ffff::1' ],
+			'5f00::/16'        => [ '5f00::1' ],
 			'::1/128'          => [ '::1' ],
 			'::ffff:0:0/96'    => [ '::ffff:127.0.0.1' ],
 			'::ffff public v4' => [ '::ffff:93.184.216.34' ],
@@ -318,6 +356,8 @@ class Test_CIMD extends Test_Case {
 			'just outside /15'   => [ '198.20.0.1' ],
 			'just outside 2001'  => [ '2001:200::1' ],
 			'8.8.8.8'            => [ '8.8.8.8' ],
+			'just outside 3fff'  => [ '3fff:1000::1' ],
+			'just outside 5f00'  => [ '5f01::1' ],
 		];
 	}
 
@@ -418,6 +458,52 @@ class Test_CIMD extends Test_Case {
 		$this->mock_http( $this->http_response( '', [ 'location' => 'https://other.example.com/' ], 302 ) );
 
 		$this->assertCimdError( 'oauth2.cimd.fetch_failed', 400, fetch_document( static::URL ), false );
+	}
+
+	/**
+	 * @dataProvider transient_status_provider
+	 *
+	 * @param int $code Status code from the document server.
+	 */
+	public function test_fetch_document_server_errors_are_transient( $code ) {
+		$this->mock_dns();
+		$this->mock_http( $this->http_response( '', [], $code ) );
+
+		$this->assertCimdError( 'oauth2.cimd.fetch_failed', 503, fetch_document( static::URL ), true );
+	}
+
+	public function transient_status_provider() {
+		return [
+			'429' => [ 429 ],
+			'500' => [ 500 ],
+			'502' => [ 502 ],
+			'503' => [ 503 ],
+			'599' => [ 599 ],
+		];
+	}
+
+	/**
+	 * @dataProvider terminal_status_provider
+	 *
+	 * @param int $code Status code from the document server.
+	 */
+	public function test_fetch_document_other_statuses_are_terminal( $code ) {
+		$this->mock_dns();
+		$this->mock_http( $this->http_response( '{"a":1}', [], $code ) );
+
+		$this->assertCimdError( 'oauth2.cimd.fetch_failed', 400, fetch_document( static::URL ), false );
+	}
+
+	public function terminal_status_provider() {
+		return [
+			'201' => [ 201 ],
+			'301' => [ 301 ],
+			'400' => [ 400 ],
+			'401' => [ 401 ],
+			'403' => [ 403 ],
+			'410' => [ 410 ],
+			'499' => [ 499 ],
+		];
 	}
 
 	public function test_fetch_document_404_is_terminal() {
@@ -575,7 +661,7 @@ class Test_CIMD extends Test_Case {
 		$this->assertSame( 5121, $this->request_args['limit_response_size'] );
 		$this->assertSame( 5, $this->request_args['timeout'] );
 		$this->assertTrue( $this->request_args['sslverify'] );
-		$this->assertTrue( $this->request_args['reject_unsafe_urls'] );
+		$this->assertFalse( $this->request_args['reject_unsafe_urls'] );
 		$this->assertSame( [], $this->request_args['cookies'] );
 		$this->assertSame( 'application/json', $this->request_args['headers']['Accept'] );
 	}
@@ -638,7 +724,12 @@ class Test_CIMD extends Test_Case {
 		$this->assertFalse( has_action( 'http_api_curl' ) );
 	}
 
-	public function test_fetch_document_pin_ignores_other_urls() {
+	/**
+	 * Fetch while capturing the pin callback that is registered for the request.
+	 *
+	 * @return callable
+	 */
+	protected function capture_pin() {
 		$pin = null;
 		$this->mock_dns( [ '2606:2800:220:1::1' ] );
 		add_filter(
@@ -651,10 +742,88 @@ class Test_CIMD extends Test_Case {
 		);
 
 		fetch_document( static::URL );
+		$this->assertIsCallable( $pin );
 
+		return $pin;
+	}
+
+	public function test_pin_callback_accepts_the_request_url() {
+		$pin    = $this->capture_pin();
 		$handle = curl_init();
-		$this->assertNull( $pin( $handle, [], 'https://other.example.com/id' ) );
+
 		$this->assertNull( $pin( $handle, [], static::URL ) );
+	}
+
+	public function test_pin_callback_throws_for_another_url() {
+		$pin    = $this->capture_pin();
+		$handle = curl_init();
+
+		$this->expectException( RequestsException::class );
+		$pin( $handle, [], 'https://other.example.com/id' );
+	}
+
+	public function test_fetch_document_maps_a_pin_failure_to_unsafe_transport() {
+		$this->mock_dns();
+		add_filter(
+			'pre_http_request',
+			function () {
+				$handle = curl_init();
+				try {
+					do_action_ref_array( 'http_api_curl', [ &$handle, [], 'https://other.example.com/id' ] );
+				} catch ( RequestsException $e ) {
+					return new WP_Error( 'http_request_failed', $e->getMessage() );
+				}
+
+				return $this->http_response( '{"a":1}' );
+			}
+		);
+
+		$this->assertCimdError( 'oauth2.cimd.unsafe_transport', 500, fetch_document( static::URL ), false );
+		$this->assertFalse( has_action( 'http_api_curl' ) );
+	}
+
+	public function test_fetch_document_fails_closed_without_the_curl_transport() {
+		$this->mock_dns();
+		$this->mock_http( $this->http_response( '{"a":1}' ) );
+
+		$key = serialize( [ Capability::SSL => true ] );
+		Requests::has_capabilities( [ Capability::SSL => true ] );
+		$original = Requests::$transport[ $key ];
+
+		Requests::$transport[ $key ] = Fsockopen::class;
+		try {
+			$result = fetch_document( static::URL );
+		} finally {
+			Requests::$transport[ $key ] = $original;
+		}
+
+		$this->assertCimdError( 'oauth2.cimd.unsafe_transport', 500, $result, false );
+		$this->assertSame( 0, $this->request_count );
+	}
+
+	public function test_fetch_document_fails_closed_when_no_transport_is_available() {
+		$this->mock_dns();
+		$this->mock_http( $this->http_response( '{"a":1}' ) );
+
+		$key = serialize( [ Capability::SSL => true ] );
+		Requests::has_capabilities( [ Capability::SSL => true ] );
+		$original = Requests::$transport[ $key ];
+
+		Requests::$transport[ $key ] = '';
+		try {
+			$result = fetch_document( static::URL );
+		} finally {
+			Requests::$transport[ $key ] = $original;
+		}
+
+		$this->assertCimdError( 'oauth2.cimd.unsafe_transport', 500, $result, false );
+	}
+
+	public function test_fetch_document_uses_curl_transport_in_this_environment() {
+		$this->mock_dns();
+		$this->mock_http( $this->http_response( '{"a":1}' ) );
+
+		$this->assertIsArray( fetch_document( static::URL ) );
 	}
 
 	// validate_document().
@@ -665,8 +834,8 @@ class Test_CIMD extends Test_Case {
 				[
 					'client_name'                => '  <b>Example</b> Client ',
 					'redirect_uris'              => [
-						3 => 'https://client.example.com/callback',
-						7 => 'http://localhost:8080/cb',
+						'https://client.example.com/callback',
+						'http://localhost:8080/cb',
 					],
 					'grant_types'                => [ 'refresh_token', 'authorization_code' ],
 					'response_types'             => [ 'code', 'token' ],
@@ -744,6 +913,10 @@ class Test_CIMD extends Test_Case {
 			'http lookalike'     => [ [ 'http://localhost.example.com/callback' ] ],
 			'custom scheme'      => [ [ 'com.example.app:/callback' ] ],
 			'javascript'         => [ [ 'javascript://localhost/%0aalert(1)' ] ],
+			'object'             => [ [ 'named' => 'https://client.example.com/callback' ] ],
+			'null'               => [ null ],
+			'number'             => [ 5 ],
+			'sparse list'        => [ [ 1 => 'https://client.example.com/callback' ] ],
 			'one bad of several' => [ [ 'https://client.example.com/callback', 'http://client.example.com/callback' ] ],
 		];
 	}
@@ -771,6 +944,29 @@ class Test_CIMD extends Test_Case {
 			'localhost' => [ 'http://localhost/cb' ],
 			'127.0.0.1' => [ 'http://127.0.0.1:3000/cb' ],
 			'[::1]'     => [ 'http://[::1]:3000/cb' ],
+			'127.8.9.10' => [ 'http://127.8.9.10/cb' ],
+			'127.255.255.255' => [ 'http://127.255.255.255/cb' ],
+		];
+	}
+
+	/**
+	 * @dataProvider non_loopback_http_redirect_provider
+	 *
+	 * @param string $redirect_uri Non-loopback http redirect URI.
+	 */
+	public function test_validate_document_rejects_http_redirects_outside_loopback( $redirect_uri ) {
+		$result = validate_document( $this->document( [ 'redirect_uris' => [ $redirect_uri ] ] ), static::URL );
+
+		$this->assertCimdError( 'oauth2.cimd.invalid_document', 400, $result, false );
+	}
+
+	public function non_loopback_http_redirect_provider() {
+		return [
+			'126.255.255.255' => [ 'http://126.255.255.255/cb' ],
+			'128.0.0.1'       => [ 'http://128.0.0.1/cb' ],
+			'127.1 shorthand' => [ 'http://127.1/cb' ],
+			'::2'             => [ 'http://[::2]/cb' ],
+			'0.0.0.0'         => [ 'http://0.0.0.0/cb' ],
 		];
 	}
 
@@ -835,6 +1031,44 @@ class Test_CIMD extends Test_Case {
 		$this->assertCimdError( 'oauth2.cimd.unsupported_auth_method', 400, $empty, false );
 	}
 
+	/**
+	 * Fields whose wrong types must be rejected rather than defaulted.
+	 *
+	 * @dataProvider wrongly_typed_field_provider
+	 *
+	 * @param string $field Document field.
+	 * @param mixed  $value Wrongly typed value.
+	 * @param array  $extra Other fields to set.
+	 */
+	public function test_validate_document_rejects_wrongly_typed_fields( $field, $value, array $extra = [] ) {
+		$result = validate_document( $this->document( array_merge( $extra, [ $field => $value ] ) ), static::URL );
+
+		$this->assertCimdError( 'oauth2.cimd.invalid_document', 400, $result, false );
+	}
+
+	public function wrongly_typed_field_provider() {
+		$cases = [
+			'singular array'                  => [ 'token_endpoint_auth_method', [ 'client_secret_basic' ] ],
+			'singular null'                   => [ 'token_endpoint_auth_method', null ],
+			'singular number'                 => [ 'token_endpoint_auth_method', 5 ],
+			'plural string'                   => [ 'token_endpoint_auth_methods_supported', 'client_secret_post' ],
+			'plural with non-string'          => [ 'token_endpoint_auth_methods_supported', [ 1 ], [ 'token_endpoint_auth_method' => 'none' ] ],
+			'plural with non-string and none' => [ 'token_endpoint_auth_methods_supported', [ 'none', 1 ] ],
+		];
+
+		foreach ( [ 'token_endpoint_auth_methods_supported', 'grant_types', 'response_types' ] as $field ) {
+			$cases[ $field . ' null' ]   = [ $field, null ];
+			$cases[ $field . ' scalar' ] = [ $field, 'none' ];
+			$cases[ $field . ' number' ] = [ $field, 5 ];
+			$cases[ $field . ' bool' ]   = [ $field, true ];
+			$cases[ $field . ' object' ] = [ $field, [ 'named' => 'none' ] ];
+			$cases[ $field . ' sparse' ] = [ $field, [ 1 => 'none' ] ];
+			$cases[ $field . ' nested' ] = [ $field, [ [ 'none' ] ] ];
+		}
+
+		return $cases;
+	}
+
 	public function test_validate_document_rejects_jwks_and_jwks_uri_together() {
 		$result = validate_document(
 			$this->document(
@@ -854,6 +1088,72 @@ class Test_CIMD extends Test_Case {
 			$this->document( [ 'jwks' => [ 'keys' => [ [ 'kty' => 'RSA', 'n' => 'abc', 'e' => 'AQAB' ] ] ] ] ),
 			static::URL
 		);
+
+		$this->assertIsArray( $result );
+	}
+
+	/**
+	 * @dataProvider invalid_jwks_provider
+	 *
+	 * @param mixed $jwks Invalid jwks value.
+	 */
+	public function test_validate_document_rejects_invalid_jwks( $jwks ) {
+		$result = validate_document( $this->document( [ 'jwks' => $jwks ] ), static::URL );
+
+		$this->assertCimdError( 'oauth2.cimd.invalid_document', 400, $result, false );
+	}
+
+	public function invalid_jwks_provider() {
+		$public = [
+			'kty' => 'RSA',
+			'n'   => 'abc',
+			'e'   => 'AQAB',
+		];
+
+		return [
+			'null'               => [ null ],
+			'string'             => [ 'keys' ],
+			'list'               => [ [ $public ] ],
+			'empty object'       => [ [] ],
+			'no keys'            => [ [ 'other' => 1 ] ],
+			'keys null'          => [ [ 'keys' => null ] ],
+			'keys object'        => [ [ 'keys' => [ 'a' => $public ] ] ],
+			'keys string'        => [ [ 'keys' => 'x' ] ],
+			'key not an object'  => [ [ 'keys' => [ 'x' ] ] ],
+			'key is a list'      => [ [ 'keys' => [ [ 'RSA' ] ] ] ],
+			'private d'          => [ [ 'keys' => [ array_merge( $public, [ 'd' => 'x' ] ) ] ] ],
+			'private p'          => [ [ 'keys' => [ array_merge( $public, [ 'p' => 'x' ] ) ] ] ],
+			'private q'          => [ [ 'keys' => [ array_merge( $public, [ 'q' => 'x' ] ) ] ] ],
+			'private dp'         => [ [ 'keys' => [ array_merge( $public, [ 'dp' => 'x' ] ) ] ] ],
+			'private dq'         => [ [ 'keys' => [ array_merge( $public, [ 'dq' => 'x' ] ) ] ] ],
+			'private qi'         => [ [ 'keys' => [ array_merge( $public, [ 'qi' => 'x' ] ) ] ] ],
+			'symmetric k'        => [ [ 'keys' => [ [ 'kty' => 'oct', 'k' => 'c2VjcmV0' ] ] ] ],
+			'oct without k'      => [ [ 'keys' => [ [ 'kty' => 'oct' ] ] ] ],
+		];
+	}
+
+	/**
+	 * @dataProvider invalid_jwks_uri_provider
+	 *
+	 * @param mixed $jwks_uri Invalid jwks_uri value.
+	 */
+	public function test_validate_document_rejects_invalid_jwks_uri( $jwks_uri ) {
+		$result = validate_document( $this->document( [ 'jwks_uri' => $jwks_uri ] ), static::URL );
+
+		$this->assertCimdError( 'oauth2.cimd.invalid_document', 400, $result, false );
+	}
+
+	public function invalid_jwks_uri_provider() {
+		return [
+			'null'   => [ null ],
+			'array'  => [ [ 'https://client.example.com/jwks.json' ] ],
+			'http'   => [ 'http://client.example.com/jwks.json' ],
+			'relative' => [ '/jwks.json' ],
+		];
+	}
+
+	public function test_validate_document_accepts_https_jwks_uri() {
+		$result = validate_document( $this->document( [ 'jwks_uri' => 'https://client.example.com/jwks.json' ] ), static::URL );
 
 		$this->assertIsArray( $result );
 	}
@@ -905,5 +1205,38 @@ class Test_CIMD extends Test_Case {
 		$result = validate_document( $this->document( [ 'client_name' => str_repeat( 'é', 250 ) ] ), static::URL );
 
 		$this->assertSame( 200, mb_strlen( $result['client_name'], 'UTF-8' ) );
+	}
+
+	/**
+	 * Defines the proxy constants, so it runs in its own process.
+	 *
+	 * @runInSeparateProcess
+	 * @preserveGlobalState disabled
+	 */
+	public function test_fetch_document_fails_closed_when_the_request_would_use_a_proxy() {
+		define( 'WP_PROXY_HOST', 'proxy.example.net' );
+		define( 'WP_PROXY_PORT', '3128' );
+
+		$this->mock_dns();
+		$this->mock_http( $this->http_response( '{"a":1}' ) );
+
+		$this->assertCimdError( 'oauth2.cimd.unsafe_transport', 500, fetch_document( static::URL ), false );
+		$this->assertSame( 0, $this->request_count );
+	}
+
+	/**
+	 * @runInSeparateProcess
+	 * @preserveGlobalState disabled
+	 */
+	public function test_fetch_document_allows_a_request_that_bypasses_the_configured_proxy() {
+		define( 'WP_PROXY_HOST', 'proxy.example.net' );
+		define( 'WP_PROXY_PORT', '3128' );
+		add_filter( 'pre_http_send_through_proxy', '__return_false' );
+
+		$this->mock_dns();
+		$this->mock_http( $this->http_response( '{"a":1}' ) );
+
+		$this->assertIsArray( fetch_document( static::URL ) );
+		remove_all_filters( 'pre_http_send_through_proxy' );
 	}
 }
