@@ -9,6 +9,7 @@
 namespace WP\OAuth2\CIMD;
 
 use WP\OAuth2\Client;
+use WP\OAuth2\Well_Known;
 use WP_Error;
 use WpOrg\Requests\Capability;
 use WpOrg\Requests\Exception as RequestsException;
@@ -155,7 +156,8 @@ function validate_client_id_url( $url ) {
 		}
 	}
 
-	if ( home_url() === $url || trailingslashit( home_url() ) === $url ) {
+	$issuer = Well_Known\get_issuer();
+	if ( in_array( $url, [ home_url(), trailingslashit( home_url() ), $issuer, trailingslashit( $issuer ) ], true ) ) {
 		return make_error( 'invalid_client_id', __( 'The client ID URL must not be this site\'s issuer.', 'oauth2' ), 400 );
 	}
 
