@@ -9,6 +9,10 @@
 namespace WP\OAuth2\CIMD;
 
 use WP_Error;
+use WpOrg\Requests\Capability;
+use WpOrg\Requests\Exception as RequestsException;
+use WpOrg\Requests\Requests;
+use WpOrg\Requests\Transport\Curl;
 
 const MAX_URL_LENGTH     = 2048;
 const MAX_DOCUMENT_BYTES = 5120;
@@ -36,6 +40,7 @@ const IPV4_BLOCKLIST = [
 
 const IPV6_BLOCKLIST = [
 	'::/128',
+	'::/96',
 	'::1/128',
 	'::ffff:0:0/96',
 	'64:ff9b::/96',
@@ -46,7 +51,10 @@ const IPV6_BLOCKLIST = [
 	'2002::/16',
 	'fc00::/7',
 	'fe80::/10',
+	'fec0::/10',
 	'ff00::/8',
+	'3fff::/20',
+	'5f00::/16',
 ];
 
 /**
@@ -95,6 +103,16 @@ function validate_client_id_url( $url ) {
 	$parts = wp_parse_url( $url );
 	if ( ! is_array( $parts ) || empty( $parts['host'] ) ) {
 		return make_error( 'invalid_client_id', __( 'The client ID URL could not be parsed or has no host.', 'oauth2' ), 400 );
+	}
+
+	if ( ! preg_match( '/^[a-z0-9.-]+$/i', $parts['host'] ) ) {
+		return make_error( 'invalid_client_id', __( 'The client ID URL host must be a plain ASCII host name or IPv4 address.', 'oauth2' ), 400 );
+	}
+
+	/** This filter is documented in wp-includes/http.php */
+	$allowed_ports = apply_filters( 'http_allowed_safe_ports', [ 80, 443, 8080 ], $parts['host'], $url );
+	if ( ! is_array( $allowed_ports ) || ! in_array( $parts['port'] ?? 443, $allowed_ports, true ) ) {
+		return make_error( 'invalid_client_id', __( 'The client ID URL port is not allowed.', 'oauth2' ), 400 );
 	}
 
 	if ( isset( $parts['user'] ) || isset( $parts['pass'] ) ) {
@@ -254,6 +272,22 @@ function resolve_host( $host ) {
 }
 
 /**
+ * Check whether HTTPS requests will be sent with the curl transport.
+ *
+ * Only the curl transport runs the `http_api_curl` action used to pin the connection.
+ *
+ * @return bool
+ */
+function is_curl_transport_in_use() {
+	$capabilities = [ Capability::SSL => true ];
+
+	Requests::has_capabilities( $capabilities );
+
+	// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize -- Matches the cache key used by Requests.
+	return Curl::class === ( Requests::$transport[ serialize( $capabilities ) ] ?? '' );
+}
+
+/**
  * Work out how many seconds a fetched document may be cached for.
  *
  * @param string $cache_control Cache-Control header value.
@@ -316,26 +350,35 @@ function fetch_document( $url ) {
 		}
 	}
 
-	$ip  = false !== strpos( $ips[0], ':' ) ? '[' . $ips[0] . ']' : $ips[0];
-	$pin = static function ( $handle, $args, $request_url ) use ( $url, $host, $port, $ip ) {
-		if ( $request_url !== $url ) {
-			return;
-		}
+	if ( ! is_curl_transport_in_use() ) {
+		return make_error( 'unsafe_transport', __( 'The HTTP transport cannot pin the connection to the vetted address.', 'oauth2' ), 500, false );
+	}
 
+	$proxy = new \WP_HTTP_Proxy();
+	if ( $proxy->is_enabled() && $proxy->send_through_proxy( $url ) ) {
+		return make_error( 'unsafe_transport', __( 'The request would be sent through a proxy, which cannot be pinned to the vetted address.', 'oauth2' ), 500, false );
+	}
+
+	$ip     = false !== strpos( $ips[0], ':' ) ? '[' . $ips[0] . ']' : $ips[0];
+	$failed = false;
+	$pin    = static function ( $handle, $args, $request_url ) use ( $url, $host, $port, $ip, &$failed ) {
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.curl_curl_setopt -- Pins the connection to the vetted address.
-		curl_setopt( $handle, CURLOPT_RESOLVE, [ "{$host}:{$port}:{$ip}" ] );
+		if ( $request_url !== $url || ! curl_setopt( $handle, CURLOPT_RESOLVE, [ "{$host}:{$port}:{$ip}" ] ) ) {
+			$failed = true;
+			throw new RequestsException( 'The connection could not be pinned to the vetted address.', 'oauth2.cimd.unsafe_transport' );
+		}
 	};
 
 	add_action( 'http_api_curl', $pin, 10, 3 );
 	try {
-		$response = wp_safe_remote_get(
+		$response = wp_remote_get(
 			$url,
 			[
 				'timeout'             => 5,
 				'redirection'         => 0,
 				'limit_response_size' => MAX_DOCUMENT_BYTES + 1,
 				'sslverify'           => true,
-				'reject_unsafe_urls'  => true,
+				'reject_unsafe_urls'  => false,
 				'cookies'             => [],
 				'headers'             => [ 'Accept' => 'application/json' ],
 			]
@@ -344,11 +387,20 @@ function fetch_document( $url ) {
 		remove_action( 'http_api_curl', $pin, 10 );
 	}
 
+	if ( $failed ) {
+		return make_error( 'unsafe_transport', __( 'The connection could not be pinned to the vetted address.', 'oauth2' ), 500, false );
+	}
+
 	if ( is_wp_error( $response ) ) {
 		return make_error( 'fetch_failed', __( 'The client metadata document could not be fetched.', 'oauth2' ), 503, true );
 	}
 
-	if ( 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
+	$code = (int) wp_remote_retrieve_response_code( $response );
+	if ( 429 === $code || ( $code >= 500 && $code < 600 ) ) {
+		return make_error( 'fetch_failed', __( 'The client metadata document server is unavailable.', 'oauth2' ), 503, true );
+	}
+
+	if ( 200 !== $code ) {
 		return make_error( 'fetch_failed', __( 'The client metadata document request did not return 200.', 'oauth2' ), 400, false );
 	}
 
@@ -388,13 +440,51 @@ function invalid_document( $message, $reason = 'invalid_document' ) {
 }
 
 /**
- * Check that a value is an array containing only strings.
+ * Check that a value is a list containing only strings.
  *
  * @param mixed $value Value to check.
  * @return bool
  */
-function is_string_array( $value ) {
-	return is_array( $value ) && array_filter( $value, 'is_string' ) === $value;
+function is_string_list( $value ) {
+	return is_array( $value ) && array_is_list( $value ) && array_filter( $value, 'is_string' ) === $value;
+}
+
+/**
+ * Check whether a host is a loopback host name or address.
+ *
+ * @param string $host Host from parse_url().
+ * @return bool
+ */
+function is_loopback_host( $host ) {
+	if ( 'localhost' === $host || '[::1]' === $host ) {
+		return true;
+	}
+
+	return false !== filter_var( $host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 ) && ip_in_cidr( inet_pton( $host ), '127.0.0.0/8' );
+}
+
+/**
+ * Check that a JWKS contains only public keys.
+ *
+ * @param mixed $jwks Decoded `jwks` value.
+ * @return bool
+ */
+function is_public_jwks( $jwks ) {
+	if ( ! is_array( $jwks ) || array_is_list( $jwks ) || ! isset( $jwks['keys'] ) || ! is_array( $jwks['keys'] ) || ! array_is_list( $jwks['keys'] ) ) {
+		return false;
+	}
+
+	foreach ( $jwks['keys'] as $key ) {
+		if ( ! is_array( $key ) || array_is_list( $key ) ) {
+			return false;
+		}
+
+		if ( array_intersect_key( $key, array_flip( [ 'd', 'p', 'q', 'dp', 'dq', 'qi', 'k' ] ) ) || 'oct' === ( $key['kty'] ?? null ) ) {
+			return false;
+		}
+	}
+
+	return true;
 }
 
 /**
@@ -418,7 +508,7 @@ function validate_document( $document, $url ) {
 	}
 
 	$redirect_uris = $document['redirect_uris'] ?? null;
-	if ( ! is_string_array( $redirect_uris ) || empty( $redirect_uris ) ) {
+	if ( ! is_string_list( $redirect_uris ) || empty( $redirect_uris ) ) {
 		return invalid_document( __( 'The redirect_uris must be a non-empty array of strings.', 'oauth2' ) );
 	}
 
@@ -428,26 +518,26 @@ function validate_document( $document, $url ) {
 			return invalid_document( __( 'Each redirect URI must be an absolute URL without a fragment.', 'oauth2' ) );
 		}
 
-		$is_https    = 'https' === $parts['scheme'];
-		$is_loopback = 'http' === $parts['scheme'] && in_array( $parts['host'], [ 'localhost', '127.0.0.1', '[::1]' ], true );
-		if ( ! $is_https && ! $is_loopback ) {
+		if ( 'https' !== $parts['scheme'] && ! ( 'http' === $parts['scheme'] && is_loopback_host( $parts['host'] ) ) ) {
 			return invalid_document( __( 'Each redirect URI must use https, or http on a loopback host.', 'oauth2' ) );
 		}
 	}
 
-	$plural   = $document['token_endpoint_auth_methods_supported'] ?? null;
-	$singular = $document['token_endpoint_auth_method'] ?? null;
-	if ( is_string_array( $plural ) ) {
-		$methods = $plural;
-	} elseif ( is_string( $singular ) ) {
-		$methods = [ $singular ];
-	} else {
-		$methods = [ 'none' ];
+	if ( array_key_exists( 'token_endpoint_auth_method', $document ) && ! is_string( $document['token_endpoint_auth_method'] ) ) {
+		return invalid_document( __( 'The token_endpoint_auth_method must be a string.', 'oauth2' ) );
 	}
 
-	if ( is_string_array( $plural ) && is_string( $singular ) && ! in_array( $singular, $plural, true ) ) {
+	if ( array_key_exists( 'token_endpoint_auth_methods_supported', $document ) && ! is_string_list( $document['token_endpoint_auth_methods_supported'] ) ) {
+		return invalid_document( __( 'The token_endpoint_auth_methods_supported must be an array of strings.', 'oauth2' ) );
+	}
+
+	$singular = $document['token_endpoint_auth_method'] ?? null;
+	$plural   = $document['token_endpoint_auth_methods_supported'] ?? null;
+	if ( null !== $plural && null !== $singular && ! in_array( $singular, $plural, true ) ) {
 		return invalid_document( __( 'The token_endpoint_auth_method must be listed in token_endpoint_auth_methods_supported.', 'oauth2' ) );
 	}
+
+	$methods = $plural ?? ( null !== $singular ? [ $singular ] : [ 'none' ] );
 
 	if ( array_intersect( [ 'client_secret_basic', 'client_secret_post', 'client_secret_jwt' ], $methods ) ) {
 		return invalid_document( __( 'Shared-secret client authentication methods are not allowed.', 'oauth2' ) );
@@ -461,16 +551,16 @@ function validate_document( $document, $url ) {
 		return invalid_document( __( 'The document must not contain both jwks and jwks_uri.', 'oauth2' ) );
 	}
 
-	if ( isset( $document['jwks']['keys'] ) && is_array( $document['jwks']['keys'] ) ) {
-		foreach ( $document['jwks']['keys'] as $key ) {
-			if ( is_array( $key ) && array_key_exists( 'd', $key ) ) {
-				return invalid_document( __( 'The jwks must not contain private keys.', 'oauth2' ) );
-			}
-		}
+	if ( array_key_exists( 'jwks', $document ) && ! is_public_jwks( $document['jwks'] ) ) {
+		return invalid_document( __( 'The jwks must be an object with a keys array of public keys.', 'oauth2' ) );
 	}
 
-	$grant_types = $document['grant_types'] ?? [ 'authorization_code' ];
-	if ( ! is_string_array( $grant_types ) ) {
+	if ( array_key_exists( 'jwks_uri', $document ) && ! is_cimd_client_id( $document['jwks_uri'] ) ) {
+		return invalid_document( __( 'The jwks_uri must be an https URL.', 'oauth2' ) );
+	}
+
+	$grant_types = array_key_exists( 'grant_types', $document ) ? $document['grant_types'] : [ 'authorization_code' ];
+	if ( ! is_string_list( $grant_types ) ) {
 		return invalid_document( __( 'The grant_types must be an array of strings.', 'oauth2' ) );
 	}
 
@@ -479,8 +569,8 @@ function validate_document( $document, $url ) {
 		return invalid_document( __( 'The grant_types must include authorization_code.', 'oauth2' ) );
 	}
 
-	$response_types = $document['response_types'] ?? [ 'code' ];
-	if ( ! is_string_array( $response_types ) ) {
+	$response_types = array_key_exists( 'response_types', $document ) ? $document['response_types'] : [ 'code' ];
+	if ( ! is_string_list( $response_types ) ) {
 		return invalid_document( __( 'The response_types must be an array of strings.', 'oauth2' ) );
 	}
 
@@ -500,7 +590,7 @@ function validate_document( $document, $url ) {
 	return [
 		'client_id'                  => $url,
 		'client_name'                => $name,
-		'redirect_uris'              => array_values( $redirect_uris ),
+		'redirect_uris'              => $redirect_uris,
 		'grant_types'                => $grant_types,
 		'response_types'             => $response_types,
 		'token_endpoint_auth_method' => 'none',
