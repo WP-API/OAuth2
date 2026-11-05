@@ -179,6 +179,19 @@ class Test_CIMD extends Test_Case {
 		$this->assertCimdError( 'oauth2.cimd.invalid_client_id', 400, validate_client_id_url( home_url() ) );
 	}
 
+	public function test_validate_client_id_url_rejects_an_issuer_set_by_the_metadata_filter() {
+		add_filter(
+			'oauth2.well_known_authorization_server_metadata',
+			function ( $metadata ) {
+				$metadata['issuer'] = 'https://metadata-issuer.example.com/oauth';
+				return $metadata;
+			}
+		);
+
+		$this->assertCimdError( 'oauth2.cimd.invalid_client_id', 400, validate_client_id_url( 'https://metadata-issuer.example.com/oauth' ) );
+		$this->assertCimdError( 'oauth2.cimd.invalid_client_id', 400, validate_client_id_url( 'https://metadata-issuer.example.com/oauth/' ) );
+	}
+
 	public function test_validate_client_id_url_honours_admit_filter() {
 		$seen = null;
 		add_filter(

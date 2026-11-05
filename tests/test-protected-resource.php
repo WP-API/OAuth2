@@ -280,6 +280,18 @@ class Test_Protected_Resource extends Test_Case {
 		);
 	}
 
+	public function test_metadata_authorization_server_follows_the_8414_metadata_filter() {
+		add_filter(
+			'oauth2.well_known_authorization_server_metadata',
+			function ( $metadata ) {
+				$metadata['issuer'] = 'https://metadata-issuer.example.com';
+				return $metadata;
+			}
+		);
+
+		$this->assertSame( [ 'https://metadata-issuer.example.com' ], get_protected_resource_metadata( '/wp-json' )['authorization_servers'] );
+	}
+
 	public function test_metadata_advertises_header_and_query_bearer_methods() {
 		$methods = get_protected_resource_metadata( '/wp-json' )['bearer_methods_supported'];
 

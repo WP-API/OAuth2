@@ -156,9 +156,11 @@ function validate_client_id_url( $url ) {
 		}
 	}
 
-	$issuer = Well_Known\get_issuer();
-	if ( in_array( $url, [ home_url(), trailingslashit( home_url() ), $issuer, trailingslashit( $issuer ) ], true ) ) {
-		return make_error( 'invalid_client_id', __( 'The client ID URL must not be this site\'s issuer.', 'oauth2' ), 400 );
+	$issuers = [ home_url(), Well_Known\get_issuer(), Well_Known\get_published_issuer() ];
+	foreach ( $issuers as $issuer ) {
+		if ( $url === $issuer || trailingslashit( $issuer ) === $url ) {
+			return make_error( 'invalid_client_id', __( 'The client ID URL must not be this site\'s issuer.', 'oauth2' ), 400 );
+		}
 	}
 
 	/**
