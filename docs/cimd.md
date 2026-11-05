@@ -71,13 +71,22 @@ add_filter(
 
 ### oauth2.cimd.rate_limit
 
-Sets how many documents may be fetched in a time window. It runs once for each scope. The scope is `user` for one user, or `global` for all users across the network. The defaults are 10 fetches per 600 seconds per user, and 60 fetches per 600 seconds overall.
+Sets how many documents may be fetched in a time window. It runs once for each scope. The scope is `user` for one user, or `global` for all users of a site. On a network each site has its own counters. The defaults are 10 fetches per 600 seconds per user, and 60 fetches per 600 seconds per site.
+
+The filter gets the default `limit` and `window` for the scope. Change either or both and return the array.
 
 ```php
 add_filter(
 	'oauth2.cimd.rate_limit',
 	function ( $limit, $user_id, $scope ) {
+		if ( 'user' === $scope ) {
+			// Allow 5 fetches per user every 300 seconds.
+			$limit['limit']  = 5;
+			$limit['window'] = 300;
+		}
+
 		if ( 'global' === $scope ) {
+			// Allow 120 fetches per site every 600 seconds.
 			$limit['limit'] = 120;
 		}
 
@@ -109,6 +118,23 @@ Lets the plugin fetch documents from loopback addresses. Use it for local develo
 add_filter( 'oauth2.cimd.allow_loopback', '__return_true' );
 ```
 
+## Issuer and the iss parameter
+
+Every authorization response redirect carries an `iss` parameter (RFC 9207), for all clients and not only CIMD ones. It holds the issuer of the authorization server. The `iss` value always matches the `issuer` in the metadata at `/.well-known/oauth-authorization-server`, which also sets `authorization_response_iss_parameter_supported` to `true`. The issuer is also the `authorization_servers` entry of the protected resource metadata.
+
+The issuer is the site URL by default. Use the `oauth2.issuer` filter to change it. The metadata, the protected resource metadata and `iss` all follow the filter. If you change the issuer through the `oauth2.well_known_authorization_server_metadata` filter instead, `iss` follows that too.
+
+```php
+add_filter(
+	'oauth2.issuer',
+	function ( $issuer ) {
+		return 'https://auth.example.com';
+	}
+);
+```
+
+RFC 8414 and RFC 9207 expect an `https` issuer. A site that is served over `http` publishes an `http` issuer, and a strict client may reject it.
+
 ## Blocking a client
 
 Do not delete the client record to block a client. The record is created again the next time someone uses the client ID.
@@ -119,13 +145,14 @@ Block the client with a filter instead. Return `false` from `oauth2.cimd.admit_u
 
 Each client has one record. Its metadata, expiry, generation, security hash and failure marker are stored together as one value, so a refresh replaces all of them in a single write. After the write the plugin reads the value back from the database. If it does not match, the refresh returns an error and the stored value is not trusted. Only a write that the database refuses leaves the previous value in place. A new record that cannot be read back is deleted.
 
-Fetches are limited per user (10 per 600 seconds) and across the network (60 per 600 seconds). Only a real fetch counts. A request that is served from the cache, or that finds another request already fetching the same URL, does not count.
+Fetches are limited per user (10 per 600 seconds) and per site (60 per 600 seconds). On a network the limits are kept for each site, so a user who reaches the limit on one site can still fetch on another, and one site cannot use up the budget of the others. Only a real fetch counts. A request that is served from the cache, or that finds another request already fetching the same URL, does not count. Use the `oauth2.cimd.rate_limit` filter to change the limits.
 
-Only one request fetches a given URL at a time. The lock is a row in the options table of the main site, shared by the whole network. A database insert takes it, and only the request that holds it can release it. A lock lasts at most 30 seconds, after which another request can take it over.
+Only one request fetches a given URL at a time. The lock is a row in the options table of the main site, shared by the whole network, because one URL has one document whichever site asks. A database insert takes it, and only the request that holds it can release it. A lock lasts at most 30 seconds, after which another request can take it over.
 
-If your site uses an external object cache, the counters live in the object cache, in a global group shared by all sites of a network. The counters are atomic.
+Where the counters are stored depends on the object cache:
 
-If it does not, the counters are site transients. These are shared by the whole network. The counters are read and then written, so under heavy parallel load the limit is soft and may be passed by a few requests.
+* With an external object cache, both counters live in the object cache, in the `oauth2_cimd` group, with the site ID in the key. The counters are atomic.
+* Without one, the per-user counter is a user option, which WordPress stores per site as `{prefix}oauth2_cimd_rl_{user ID}` in the user meta table. The per-site counter is a regular transient of the site, `oauth2_cimd_rl_global`. Each holds a `count` and a `reset` time. The counters are read and then written, so under heavy parallel load the limit is soft and may be passed by a few requests.
 
 ## Rate limiting at the web server
 
