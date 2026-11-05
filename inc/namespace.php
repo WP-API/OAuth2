@@ -191,9 +191,6 @@ function get_client( $id, array $args = [] ) {
 
 	$discover = $args['discover'];
 	$stored   = Client::get_by_id( $id, $args['include_unapproved'] || $discover );
-	if ( $stored && 'deny' === CIMD\get_policy( $id, $stored->get_cimd_metadata(), $stored ) ) {
-		return null;
-	}
 
 	if ( ! $discover ) {
 		return $stored;

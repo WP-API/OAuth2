@@ -19,7 +19,7 @@ The plugin treats these clients as public clients:
 * They cannot use the `client_credentials` grant.
 * Redirect URIs must match a URI in the document exactly. The one exception is a loopback `http` URI (`localhost`, `127.0.0.1` or `[::1]`), which may use any port.
 
-A client record is tied to the document it came from. If the redirect URIs change in a refresh, all tokens and codes issued before the change stop working. With the `manual` policy the client also goes back to draft until an admin approves it again.
+A client record is tied to the document it came from. If the redirect URIs change in a refresh, all tokens and codes issued before the change stop working. If `oauth2.cimd.auto_approve` returns false, the client also goes back to draft until an admin approves it again.
 
 Documents are cached for 5 to 60 minutes, based on the `Cache-Control` header of the response. When a refresh fails for a temporary reason, the plugin keeps using the stored client. When it fails for a permanent reason, such as a 404 or an invalid document, the stored client is marked as failed. New authorizations and the fallback to the stored client are blocked until a refresh succeeds. Codes that were already issued (they last up to 10 minutes) and existing tokens keep working until a later successful refresh changes the generation, or an admin deletes the client.
 
@@ -48,24 +48,20 @@ add_filter(
 );
 ```
 
-### oauth2.cimd.policy
+### oauth2.cimd.auto_approve
 
-Decides what happens to a client. The value is `auto`, `manual` or `deny`.
+Decides whether a new client is approved at once. The default is `true`, which publishes a new client. When it returns `false`, a new client is saved as a draft and an admin has to publish it. A published client also goes back to draft when its redirect URIs change in a refresh.
 
-* `auto` approves a new client at once. This is the default.
-* `manual` saves a new client as a draft. An admin has to publish it.
-* `deny` refuses the client. It also stops a stored client from authorizing, exchanging codes or authenticating.
-
-An existing client keeps its status. A refresh never approves or unapproves it. The one exception is a change to the redirect URIs, which sends a published client back to draft under `manual`.
+An existing client keeps its status otherwise. A refresh never approves a draft. The filter gets the normalised metadata and the client ID URL.
 
 ```php
 add_filter(
-	'oauth2.cimd.policy',
-	function ( $policy, $metadata, $url, $existing ) {
-		return null === $existing ? 'manual' : $policy;
+	'oauth2.cimd.auto_approve',
+	function ( $auto_approve, $metadata, $url ) {
+		return 'example.com' === wp_parse_url( $url, PHP_URL_HOST );
 	},
 	10,
-	4
+	3
 );
 ```
 
@@ -143,7 +139,7 @@ RFC 8414 and RFC 9207 expect an `https` issuer. A site that is served over `http
 
 Do not delete the client record to block a client. The record is created again the next time someone uses the client ID.
 
-Block the client with a filter instead. Return `false` from `oauth2.cimd.admit_url` for the URL or its host, or return `deny` from `oauth2.cimd.policy`. Both take effect at once for authorize, the token endpoint and bearer tokens.
+Block the client with the `oauth2.cimd.admit_url` filter instead. Return `false` for the URL or its host. It takes effect at once for authorize, the token endpoint and bearer tokens.
 
 ## Limits and where they are stored
 

@@ -395,7 +395,7 @@ function render_cimd_details( Client $client ) {
 		</tr>
 	</table>
 	<p class="description">
-		<?php esc_html_e( "Details come from the client's metadata document and refresh automatically. To block this client, use the oauth2.cimd.admit_url or oauth2.cimd.policy filter. Deleting it only removes the stored copy.", 'oauth2' ); ?>
+		<?php esc_html_e( "Details come from the client's metadata document and refresh automatically. To block this client, use the oauth2.cimd.admit_url filter. Deleting it only removes the stored copy.", 'oauth2' ); ?>
 	</p>
 	<?php
 }

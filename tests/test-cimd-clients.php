@@ -697,7 +697,7 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 	}
 
 	/**
-	 * Make fetched documents expire immediately.
+	 * Make clients found through discover() expire immediately.
 	 */
 	protected function expire_immediately() {
 		add_filter( 'oauth2.cimd.cache_ttl', '__return_zero' );
@@ -871,40 +871,17 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 
 	public function test_discovery_that_creates_a_draft_hides_it_unless_requested() {
 		$this->serve();
-		add_filter(
-			'oauth2.cimd.policy',
-			function () {
-				return 'manual';
-			}
-		);
+		add_filter( 'oauth2.cimd.auto_approve', '__return_false' );
 
 		$this->assertNull( $this->discover() );
 		$this->assertSame( 1, $this->count_client_posts() );
 	}
 
-	// Policy.
+	// Auto approval.
 
-	public function test_policy_deny_refuses_the_client_and_stores_nothing() {
+	public function test_auto_approve_false_saves_a_new_client_as_a_draft() {
 		$this->serve();
-		add_filter(
-			'oauth2.cimd.policy',
-			function () {
-				return 'deny';
-			}
-		);
-
-		$this->assertCimdError( 'oauth2.cimd.not_allowed', 403, $this->discover() );
-		$this->assertSame( 0, $this->count_client_posts() );
-	}
-
-	public function test_policy_manual_saves_a_new_client_as_a_draft() {
-		$this->serve();
-		add_filter(
-			'oauth2.cimd.policy',
-			function () {
-				return 'manual';
-			}
-		);
+		add_filter( 'oauth2.cimd.auto_approve', '__return_false' );
 
 		$client = $this->discover( [ 'include_unapproved' => true ] );
 
@@ -913,40 +890,30 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 		$this->assertSame( 'draft', get_post_status( $client->get_post_id() ) );
 	}
 
-	public function test_policy_auto_publishes_a_new_client() {
+	public function test_a_new_client_is_published_by_default() {
 		$this->serve();
-		add_filter(
-			'oauth2.cimd.policy',
-			function () {
-				return 'auto';
-			}
-		);
 
 		$this->assertSame( 'publish', get_post_status( $this->discover()->get_post_id() ) );
 	}
 
-	public function test_policy_receives_the_metadata_url_and_existing_client() {
+	public function test_auto_approve_receives_the_metadata_and_url() {
 		$this->serve();
 		$seen = [];
 		add_filter(
-			'oauth2.cimd.policy',
-			function ( $policy, $metadata, $url, $existing ) use ( &$seen ) {
-				$seen[] = [ $policy, $metadata, $url, $existing ];
-				return $policy;
+			'oauth2.cimd.auto_approve',
+			function ( $auto_approve, $metadata, $url ) use ( &$seen ) {
+				$seen = [ $auto_approve, $metadata, $url ];
+				return $auto_approve;
 			},
 			10,
-			4
+			3
 		);
 
-		$first = $this->discover();
-		$this->change_cimd_state( $first->get_post_id(), [ 'expires' => time() - 1 ] );
 		$this->discover();
 
-		$this->assertSame( 'auto', $seen[0][0] );
-		$this->assertSame( $this->metadata(), $seen[0][1] );
-		$this->assertSame( static::URL, $seen[0][2] );
-		$this->assertNull( $seen[0][3] );
-		$this->assertInstanceOf( Client::class, $seen[1][3] );
+		$this->assertTrue( $seen[0] );
+		$this->assertSame( $this->metadata(), $seen[1] );
+		$this->assertSame( static::URL, $seen[2] );
 	}
 
 	public function test_a_refreshed_document_does_not_approve_an_existing_draft() {
@@ -961,12 +928,7 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 
 	public function test_a_refreshed_document_does_not_unapprove_an_existing_client() {
 		$this->serve();
-		add_filter(
-			'oauth2.cimd.policy',
-			function () {
-				return 'manual';
-			}
-		);
+		add_filter( 'oauth2.cimd.auto_approve', '__return_false' );
 		$stored = $this->store( 'publish', time() - 10 );
 
 		$client = $this->discover();
@@ -975,14 +937,9 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 		$this->assertSame( 'publish', get_post_status( $client->get_post_id() ) );
 	}
 
-	public function test_policy_deny_hides_an_existing_client_before_any_refresh() {
+	public function test_an_url_refused_by_the_admit_filter_hides_a_stale_stored_client_before_any_refresh() {
 		$this->serve();
-		add_filter(
-			'oauth2.cimd.policy',
-			function () {
-				return 'deny';
-			}
-		);
+		add_filter( 'oauth2.cimd.admit_url', '__return_false' );
 		$this->store( 'publish', time() - 10 );
 
 		$this->assertNull( $this->discover() );
@@ -998,6 +955,7 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 	 */
 	protected function fail_terminally() {
 		$stored = $this->store( 'publish', time() - 10 );
+		$this->assertNull( get_client( static::URL ) );
 		$this->mock_dns();
 		$this->mock_http( $this->http_response( '', [], 404 ) );
 		$this->assertWPError( $this->discover() );
@@ -1675,28 +1633,6 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 		$this->assertSame( 0, $this->request_count );
 	}
 
-	public function test_the_deny_policy_hides_a_fresh_stored_client() {
-		$this->serve();
-		$this->store( 'publish', time() + 300 );
-		$seen = [];
-		add_filter(
-			'oauth2.cimd.policy',
-			function ( $policy, $metadata, $url, $existing ) use ( &$seen ) {
-				$seen = [ $metadata, $url, $existing ];
-				return 'deny';
-			},
-			10,
-			4
-		);
-
-		$this->assertNull( get_client( static::URL ) );
-		$this->assertNull( $this->discover() );
-		$this->assertSame( 0, $this->request_count );
-		$this->assertSame( $this->metadata(), $seen[0] );
-		$this->assertSame( static::URL, $seen[1] );
-		$this->assertInstanceOf( Client::class, $seen[2] );
-	}
-
 	public function test_a_registered_client_ignores_the_cimd_switches() {
 		$registered = $this->create_client();
 		add_filter( 'oauth2.cimd.enabled', '__return_false' );
@@ -2046,14 +1982,9 @@ class Test_CIMD_Flow extends CIMD_Clients_Test_Case {
 		$this->assertNull( $out['location'] );
 	}
 
-	public function test_the_manual_policy_gives_the_unapproved_client_error() {
+	public function test_auto_approve_false_gives_the_unapproved_client_error() {
 		$this->serve();
-		add_filter(
-			'oauth2.cimd.policy',
-			function () {
-				return 'manual';
-			}
-		);
+		add_filter( 'oauth2.cimd.auto_approve', '__return_false' );
 		wp_set_current_user( $this->factory->user->create() );
 		$pair = $this->make_pkce_pair();
 
@@ -2065,20 +1996,17 @@ class Test_CIMD_Flow extends CIMD_Clients_Test_Case {
 		$this->assertSame( 'draft', get_post_status( Client::get_by_id( static::URL, true )->get_post_id() ) );
 	}
 
-	public function test_the_deny_policy_returns_a_forbidden_error() {
+	public function test_the_admit_filter_refuses_an_unknown_url_at_authorize_without_a_fetch() {
 		$this->serve();
-		add_filter(
-			'oauth2.cimd.policy',
-			function () {
-				return 'deny';
-			}
-		);
+		add_filter( 'oauth2.cimd.admit_url', '__return_false' );
 		wp_set_current_user( $this->factory->user->create() );
 		$pair = $this->make_pkce_pair();
 
 		$out = $this->authorize( $this->authorize_params( $pair ) );
 
-		$this->assertCimdError( 'oauth2.cimd.not_allowed', 403, $out['result'] );
+		$this->assertWPError( $out['result'] );
+		$this->assertSame( 'oauth2.types.authorization_code.handle_authorisation.invalid_client_id', $out['result']->get_error_code() );
+		$this->assertSame( 0, $this->request_count );
 		$this->assertSame( 0, $this->count_client_posts() );
 	}
 
@@ -2094,6 +2022,21 @@ class Test_CIMD_Flow extends CIMD_Clients_Test_Case {
 	}
 
 	public function test_a_disabled_feature_leaves_an_unknown_url_an_invalid_client() {
+	public function test_the_admit_filter_refuses_a_stored_client_at_authorize() {
+		$this->serve();
+		$this->store();
+		wp_set_current_user( $this->factory->user->create() );
+		$pair = $this->make_pkce_pair();
+
+		add_filter( 'oauth2.cimd.admit_url', '__return_false' );
+		$out = $this->authorize( $this->authorize_params( $pair ) );
+
+		$this->assertWPError( $out['result'] );
+		$this->assertSame( 'oauth2.types.authorization_code.handle_authorisation.invalid_client_id', $out['result']->get_error_code() );
+		$this->assertNull( $out['location'] );
+		$this->assertSame( 0, $this->request_count );
+	}
+
 		$this->serve();
 		add_filter( 'oauth2.cimd.enabled', '__return_false' );
 		wp_set_current_user( $this->factory->user->create() );
@@ -2282,12 +2225,7 @@ class Test_CIMD_Flow extends CIMD_Clients_Test_Case {
 		$token  = $client->issue_token( $this->factory->user->create_and_get() );
 		$this->assertNotNull( Tokens\get_by_id( $token->get_key() )->get_client() );
 
-		add_filter(
-			'oauth2.cimd.policy',
-			function () {
-				return 'deny';
-			}
-		);
+		add_filter( 'oauth2.cimd.admit_url', '__return_false' );
 
 		$this->assertNull( Tokens\get_by_id( $token->get_key() )->get_client() );
 	}
@@ -2658,15 +2596,10 @@ class Test_CIMD_Generation extends CIMD_Clients_Test_Case {
 		$this->assertNotWPError( $refreshed->get_authorization_code( $code->get_code() ) );
 	}
 
-	public function test_under_the_manual_policy_a_security_change_moves_the_record_back_to_draft() {
+	public function test_without_auto_approval_a_security_change_moves_the_record_back_to_draft() {
 		$client = $this->store();
 		$before = $client->get_cimd_generation();
-		add_filter(
-			'oauth2.cimd.policy',
-			function () {
-				return 'manual';
-			}
-		);
+		add_filter( 'oauth2.cimd.auto_approve', '__return_false' );
 		$this->mock_dns();
 		$this->mock_http( $this->http_response( wp_json_encode( $this->document( [ 'redirect_uris' => [ 'https://client.example.com/new' ] ] ) ) ) );
 		$this->change_cimd_state( $client->get_post_id(), [ 'expires' => time() - 1 ] );
@@ -2678,7 +2611,7 @@ class Test_CIMD_Generation extends CIMD_Clients_Test_Case {
 		$this->assertNotSame( $before, $result->get_cimd_generation() );
 	}
 
-	public function test_under_the_auto_policy_a_security_change_keeps_the_record_published() {
+	public function test_with_auto_approval_a_security_change_keeps_the_record_published() {
 		$client = $this->store();
 
 		Client::save_cimd( static::URL, $this->metadata( [ 'redirect_uris' => [ 'https://client.example.com/new' ] ] ), time() + 300, 'publish' );
@@ -2993,7 +2926,7 @@ class Test_CIMD_Admin extends CIMD_Clients_Test_Case {
 		$this->assertStringContainsString( 'authorization_code', $html );
 		$this->assertStringContainsString( wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $expires ), $html );
 		$this->assertMatchesRegularExpression( '/Status<\/th>\s*<td>\s*OK/', $html );
-		$this->assertStringContainsString( 'oauth2.cimd.policy', $html );
+		$this->assertStringContainsString( 'oauth2.cimd.admit_url', $html );
 		$this->assertStringContainsString( 'This application is not approved yet.', $html );
 		$this->assertStringContainsString( 'action=approve', $html );
 		$this->assertStringNotContainsString( '<input', $html );

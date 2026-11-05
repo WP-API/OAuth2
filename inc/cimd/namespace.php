@@ -685,30 +685,6 @@ function validate_document( $document, $url ) {
 }
 
 /**
- * Get the policy for a client ID metadata document.
- *
- * @param string      $url      Client ID URL.
- * @param array       $metadata Normalised client metadata.
- * @param Client|null $existing Shadow client already stored for the URL, if any.
- * @return string One of `auto`, `manual` or `deny`.
- */
-function get_policy( $url, array $metadata, $existing = null ) {
-	/**
-	 * Filters what to do with a client ID metadata document.
-	 *
-	 * A new client is approved with `auto`, saved as a draft with `manual`, and
-	 * refused with `deny`. An existing client keeps its status, but `deny` also
-	 * stops it from authorizing, exchanging codes or authenticating.
-	 *
-	 * @param string      $policy   One of `auto`, `manual` or `deny`. Default `auto`.
-	 * @param array       $metadata Normalised client metadata.
-	 * @param string      $url      Client ID URL.
-	 * @param Client|null $existing Shadow client already stored for the URL, if any.
-	 */
-	return (string) apply_filters( 'oauth2.cimd.policy', 'auto', $metadata, $url, $existing );
-}
-
-/**
  * Get the stored client to fall back on, or an error if there is none.
  *
  * A client whose last refresh failed for good is never used as a fallback.
@@ -772,10 +748,6 @@ function discover_client( $url, $stored = null ) {
 
 		$stored = Client::get_by_id( $url, true );
 		if ( $stored && ! $stored->is_cimd_failed() && $stored->get_cimd_expires() > time() ) {
-			if ( 'deny' === get_policy( $url, $stored->get_cimd_metadata(), $stored ) ) {
-				return make_error( 'not_allowed', __( 'This client is not allowed.', 'oauth2' ), 403 );
-			}
-
 			return $stored;
 		}
 
@@ -797,12 +769,19 @@ function discover_client( $url, $stored = null ) {
 			return stored_or_error( $stored, $result );
 		}
 
-		$policy = get_policy( $url, $result, $stored );
-		if ( 'deny' === $policy ) {
-			return make_error( 'not_allowed', __( 'This client is not allowed.', 'oauth2' ), 403 );
-		}
+		/**
+		 * Filters whether a client ID metadata document is approved automatically.
+		 *
+		 * When true, a new client is published. When false, a new client is saved as a
+		 * draft, and a published client whose security metadata changes goes back to draft.
+		 *
+		 * @param bool   $auto_approve Whether to approve automatically. Default true.
+		 * @param array  $metadata     Normalised client metadata.
+		 * @param string $url          Client ID URL.
+		 */
+		$auto_approve = (bool) apply_filters( 'oauth2.cimd.auto_approve', true, $result, $url );
 
-		return Client::save_cimd( $url, $result, $fetched['expires'], 'auto' === $policy ? 'publish' : 'draft' );
+		return Client::save_cimd( $url, $result, $fetched['expires'], $auto_approve ? 'publish' : 'draft' );
 	} finally {
 		release_lock( $url, $lock );
 	}
