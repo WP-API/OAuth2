@@ -526,13 +526,14 @@ class Client implements ClientInterface {
 	/**
 	 * Issue token for a user.
 	 *
-	 * @param \WP_User $user
-	 * @param array    $meta
+	 * @param \WP_User    $user
+	 * @param array       $meta
+	 * @param string|null $client_generation Generation to stamp a CIMD token with, the client's current one if null.
 	 *
 	 * @return Access_Token
 	 */
-	public function issue_token( WP_User $user, $meta = [] ) {
-		return Tokens\Access_Token::create( $this, $user, $meta );
+	public function issue_token( WP_User $user, $meta = [], $client_generation = null ) {
+		return Tokens\Access_Token::create( $this, $user, $meta, $client_generation );
 	}
 
 	/**

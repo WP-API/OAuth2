@@ -2367,10 +2367,20 @@ class Test_CIMD_Generation extends CIMD_Clients_Test_Case {
 		$this->assertSame( $client->get_cimd_generation(), $loaded->get_client_generation() );
 
 		Client::save_cimd( static::URL, $this->metadata( [ 'redirect_uris' => [ 'https://client.example.com/new' ] ] ), time() + 300, 'publish' );
-		$token = Client::get_by_id( static::URL )->issue_token( $user, [ 'client_generation' => $loaded->get_client_generation() ] );
+		$token = Client::get_by_id( static::URL )->issue_token( $user, [], $loaded->get_client_generation() );
 
 		$this->assertNull( Tokens\get_by_id( $token->get_key() )->get_client() );
 		$this->assertNull( Tokens\get_by_id( $token->get_key() )->get_meta( 'client_generation' ) );
+	}
+
+	public function test_a_client_generation_in_the_meta_does_not_change_the_stamp() {
+		$client = $this->store();
+
+		$token = $client->issue_token( $this->factory->user->create_and_get(), [ 'client_generation' => 'caller-value' ] );
+
+		$found = Tokens\get_by_id( $token->get_key() );
+		$this->assertSame( 'caller-value', $found->get_meta( 'client_generation' ) );
+		$this->assertSame( $client->get_cimd_generation(), $found->get_client()->get_cimd_generation() );
 	}
 
 	public function test_a_token_without_a_passed_generation_uses_the_current_one() {

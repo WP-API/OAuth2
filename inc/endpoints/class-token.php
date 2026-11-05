@@ -280,12 +280,7 @@ class Token {
 		}
 
 		// Stamp the token with the generation the code was issued under, so a rotation since the code was loaded leaves a dead token.
-		$token_meta = [];
-		if ( '' !== $generation ) {
-			$token_meta['client_generation'] = $generation;
-		}
-
-		$token = $client->issue_token( $user, $token_meta );
+		$token = $client->issue_token( $user, [], '' !== $generation ? $generation : null );
 		if ( is_wp_error( $token ) ) {
 			return $token;
 		}
