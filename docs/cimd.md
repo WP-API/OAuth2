@@ -117,6 +117,8 @@ Block the client with a filter instead. Return `false` from `oauth2.cimd.admit_u
 
 ## Limits and where they are stored
 
+Each client has one record. Its metadata, expiry, generation, security hash and failure marker are stored together as one value, so a refresh replaces all of them in a single write. After the write the plugin reads the value back from the database. If it does not match, the refresh returns an error and the previous value stays in place. A new record that cannot be read back is deleted.
+
 Fetches are limited per user (10 per 600 seconds) and across the network (60 per 600 seconds). Only a real fetch counts. A request that is served from the cache, or that finds another request already fetching the same URL, does not count.
 
 Only one request fetches a given URL at a time. The lock is a row in the options table of the main site, shared by the whole network. A database insert takes it, and only the request that holds it can release it. A lock lasts at most 30 seconds, after which another request can take it over.
@@ -133,37 +135,37 @@ Limit the login script and the OAuth REST routes only, so the rest of the site i
 
 ### nginx
 
-Use a `map` on `$uri` so that the limit applies to these paths only. `$uri` is decoded and normalised by nginx, and `~*` makes the match case-insensitive. Requests that map to an empty key are not limited.
+Use a `map` on `$uri` so that the limit applies to these paths only. `$uri` is decoded and normalised by nginx, and `~*` makes the match case-insensitive. The `(/|$)` ending also matches path info, such as `/wp-login.php/x`. Requests that map to an empty key are not limited.
 
 ```nginx
 # In the http block.
 map $uri $oauth2_limit_key {
     default                     "";
-    ~*^/wp-login\.php$          $binary_remote_addr;
+    "~*^/wp-login\.php(/|$)"    $binary_remote_addr;
     ~*^/wp-json/oauth2/         $binary_remote_addr;
 }
 
 limit_req_zone $oauth2_limit_key zone=oauth2:10m rate=60r/m;
 limit_req_status 429;
 
-# In the server block, or inside your existing PHP location.
+# In the server block.
 limit_req zone=oauth2 burst=20 nodelay;
 ```
 
-Put `limit_req` in the server block, or inside the location that already passes PHP requests to FastCGI. Do not add a new `location = /wp-login.php`, because it would replace your PHP handling for that file.
+Put `limit_req` in the server block only. Inside a PHP location it does not work for REST routes. The `try_files` rule sends them to `/index.php` with an internal redirect, and `$uri` is `/index.php` from then on, so the map finds no match. Do not add a new `location = /wp-login.php`, because it would replace your PHP handling for that file.
 
 Use pretty permalinks. With plain permalinks the token endpoint is `/index.php?rest_route=/oauth2/access_token`, and a path-based limit would have to cover all of `index.php`.
 
 ### Apache
 
-`mod_evasive` counts requests for the whole site and cannot be limited to a few paths, so it is not a good fit here. Use `mod_security` instead. The rule below counts requests to these paths for each client address and denies the client when the count is too high. It matches on `REQUEST_FILENAME`, which is the path without the query string. The transformations remove path tricks and ignore case. It is a starting point, so adjust the limit to your traffic.
+`mod_evasive` counts requests for the whole site and cannot be limited to a few paths, so it is not a good fit here. Use `mod_security` instead. The rule below counts requests to these paths for each client address and denies the client when the count is too high. It matches on `REQUEST_FILENAME`, which is the path without the query string. The transformations decode percent-escapes, remove path tricks and ignore case. The `(/|$)` ending also matches path info, such as `/wp-login.php/x`. It is a starting point, so adjust the limit to your traffic.
 
 ```apache
 <IfModule mod_security2.c>
     SecAction "id:9100100,phase:1,nolog,pass,initcol:ip=%{REMOTE_ADDR}"
 
-    SecRule REQUEST_FILENAME "@rx ^/(wp-login\.php$|wp-json/oauth2/)" \
-        "id:9100101,phase:1,nolog,pass,t:normalizePath,t:lowercase,setvar:ip.oauth2_count=+1,expirevar:ip.oauth2_count=60"
+    SecRule REQUEST_FILENAME "@rx ^/(wp-login\.php(/|$)|wp-json/oauth2/)" \
+        "id:9100101,phase:1,nolog,pass,t:urlDecodeUni,t:normalizePath,t:lowercase,setvar:ip.oauth2_count=+1,expirevar:ip.oauth2_count=60"
 
     SecRule IP:OAUTH2_COUNT "@gt 60" \
         "id:9100102,phase:1,deny,status:429,msg:'Too many OAuth requests'"
