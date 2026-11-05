@@ -78,6 +78,7 @@ class Test_CIMD extends Test_Case {
 	 * @param bool           $pin      Whether to fire http_api_curl before returning.
 	 */
 	protected function mock_http( $response, $pin = true ) {
+		remove_all_filters( 'pre_http_request' );
 		add_filter(
 			'pre_http_request',
 			function ( $pre, $args, $url ) use ( $response, $pin ) {
@@ -216,6 +217,13 @@ class Test_CIMD extends Test_Case {
 			'percent-encoded host' => [ 'https://a%2eexample.com/id' ],
 			'idn host'            => [ 'https://bücher.example/id' ],
 			'ipv6 literal'        => [ 'https://[::1]/id' ],
+			'ipv4 literal'        => [ 'https://1.2.3.4/id' ],
+			'hex host'            => [ 'https://0x7f000001/id' ],
+			'decimal host'        => [ 'https://2130706433/id' ],
+			'octal host'          => [ 'https://0177.0.0.1/id' ],
+			'short ipv4 host'     => [ 'https://127.1/id' ],
+			'numeric last label'  => [ 'https://client.example.com.1/id' ],
+			'trailing dot host'   => [ 'https://client.example.com./id' ],
 			'underscore host'     => [ 'https://a_b.example.com/id' ],
 			'disallowed port'     => [ 'https://client.example.com:8443/id' ],
 			'ssh port'            => [ 'https://client.example.com:22/id' ],
@@ -692,7 +700,8 @@ class Test_CIMD extends Test_Case {
 		add_filter(
 			'pre_http_request',
 			function ( $pre, $args, $url ) use ( &$during ) {
-				$during = has_action( 'http_api_curl' );
+				global $wp_filter;
+				$during = array_keys( $wp_filter['http_api_curl']->callbacks );
 				$this->fire_pin( $url );
 				return $this->http_response( '{"a":1}' );
 			},
@@ -702,7 +711,7 @@ class Test_CIMD extends Test_Case {
 
 		$this->assertFalse( has_action( 'http_api_curl' ) );
 		$this->assertIsArray( fetch_document( static::URL ) );
-		$this->assertNotFalse( $during );
+		$this->assertSame( [ PHP_INT_MAX ], $during );
 		$this->assertFalse( has_action( 'http_api_curl' ) );
 	}
 
@@ -753,7 +762,7 @@ class Test_CIMD extends Test_Case {
 			'pre_http_request',
 			function () use ( &$pin ) {
 				global $wp_filter;
-				$pin = array_values( $wp_filter['http_api_curl']->callbacks[10] )[0]['function'];
+				$pin = array_values( $wp_filter['http_api_curl']->callbacks[ PHP_INT_MAX ] )[0]['function'];
 				return $this->http_response( '{"a":1}' );
 			}
 		);
@@ -769,6 +778,38 @@ class Test_CIMD extends Test_Case {
 		$handle = curl_init();
 
 		$this->assertNull( $pin( $handle, [], static::URL ) );
+	}
+
+	public function test_pin_callback_throws_when_it_runs_a_second_time() {
+		$pin    = $this->capture_pin();
+		$handle = curl_init();
+
+		$this->assertNull( $pin( $handle, [], static::URL ) );
+
+		$this->expectException( RequestsException::class );
+		$pin( $handle, [], static::URL );
+	}
+
+	public function test_fetch_document_maps_a_second_pin_call_to_unsafe_transport() {
+		$this->mock_dns();
+		add_filter(
+			'pre_http_request',
+			function ( $pre, $args, $url ) {
+				$this->fire_pin( $url );
+				try {
+					$this->fire_pin( $url );
+				} catch ( RequestsException $e ) {
+					return new WP_Error( 'http_request_failed', $e->getMessage() );
+				}
+
+				return $this->http_response( '{"a":1}' );
+			},
+			10,
+			3
+		);
+
+		$this->assertCimdError( 'oauth2.cimd.unsafe_transport', 500, fetch_document( static::URL ), false );
+		$this->assertFalse( has_action( 'http_api_curl' ) );
 	}
 
 	public function test_pin_callback_throws_for_another_url() {
@@ -969,6 +1010,9 @@ class Test_CIMD extends Test_Case {
 			'localhost' => [ 'http://localhost/cb' ],
 			'127.0.0.1' => [ 'http://127.0.0.1:3000/cb' ],
 			'[::1]'     => [ 'http://[::1]:3000/cb' ],
+			'[::1]:8080' => [ 'http://[::1]:8080/cb' ],
+			'LOCALHOST' => [ 'http://LOCALHOST/cb' ],
+			'expanded ::1' => [ 'http://[0:0:0:0:0:0:0:1]/cb' ],
 			'127.8.9.10' => [ 'http://127.8.9.10/cb' ],
 			'127.255.255.255' => [ 'http://127.255.255.255/cb' ],
 		];
@@ -992,6 +1036,9 @@ class Test_CIMD extends Test_Case {
 			'127.1 shorthand' => [ 'http://127.1/cb' ],
 			'::2'             => [ 'http://[::2]/cb' ],
 			'0.0.0.0'         => [ 'http://0.0.0.0/cb' ],
+			'[::]'            => [ 'http://[::]/cb' ],
+			'[::ffff:127.0.0.1]' => [ 'http://[::ffff:127.0.0.1]/cb' ],
+			'localhost suffix' => [ 'http://localhost.example.com/cb' ],
 		];
 	}
 
@@ -1174,6 +1221,10 @@ class Test_CIMD extends Test_Case {
 			'array'  => [ [ 'https://client.example.com/jwks.json' ] ],
 			'http'   => [ 'http://client.example.com/jwks.json' ],
 			'relative' => [ '/jwks.json' ],
+			'no host' => [ 'https://' ],
+			'empty host' => [ 'https:///x' ],
+			'port only' => [ 'https://:443/' ],
+			'uppercase scheme' => [ 'HTTPS://client.example.com/jwks.json' ],
 		];
 	}
 
