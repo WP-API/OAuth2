@@ -1380,7 +1380,13 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 			'query',
 			function ( $sql ) use ( &$created ) {
 				if ( null === $created && 0 === strpos( $sql, 'INSERT IGNORE' ) && false !== strpos( $sql, 'oauth2_cimd_lock_' ) ) {
+					// Store the record as another process would, leaving this process's caches as they were.
+					$last_changed = wp_cache_get( 'last_changed', 'posts' );
+					wp_cache_set( 'last_changed', 'other-process', 'posts' );
 					$created = $this->store();
+					wp_cache_set( 'last_changed', $last_changed, 'posts' );
+					wp_cache_delete( $created->get_post_id(), 'posts' );
+					wp_cache_delete( $created->get_post_id(), 'post_meta' );
 				}
 
 				return $sql;

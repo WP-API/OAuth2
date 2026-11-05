@@ -756,6 +756,9 @@ function discover_client( $url, $stored = null ) {
 		if ( $stored ) {
 			wp_cache_delete( $stored->get_post_id(), 'post_meta' );
 			clean_post_cache( $stored->get_post_id() );
+		} elseif ( function_exists( 'wp_cache_set_posts_last_changed' ) ) {
+			// Drop the cached query results so a record added by another request is found.
+			wp_cache_set_posts_last_changed();
 		}
 
 		$stored = Client::get_by_id( $url, true );

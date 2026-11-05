@@ -150,6 +150,10 @@ class Client implements ClientInterface {
 	/**
 	 * Record that the last refresh of a CIMD client failed for good.
 	 *
+	 * Callers must hold the fetch lock for the URL (see CIMD\acquire_lock).
+	 *
+	 * @internal
+	 *
 	 * @return bool True if the marker was stored.
 	 */
 	public function mark_cimd_failed() {
@@ -746,6 +750,10 @@ class Client implements ClientInterface {
 	 * redirect URIs, grant types, response types or authentication method gives
 	 * it a new generation, and moves it back to draft when `$status` is not
 	 * `publish`. Does not check capabilities.
+	 *
+	 * Callers must hold the fetch lock for the URL (see CIMD\acquire_lock).
+	 *
+	 * @internal
 	 *
 	 * @param string $url      Client ID URL.
 	 * @param array  $metadata Normalised metadata from CIMD\validate_document().
