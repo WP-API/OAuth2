@@ -22,6 +22,7 @@ use WP_REST_Server;
 use function WP\OAuth2\Authentication\attempt_authentication;
 use function WP\OAuth2\get_client;
 use function WP\OAuth2\CIMD\is_enabled;
+use function WP\OAuth2\CIMD\render_origin_notice;
 use function WP\OAuth2\CIMD\validate_document;
 
 /**
@@ -993,7 +994,16 @@ class CIMD_Redirect_Interrupt extends \RuntimeException {}
  * Authorization code type that returns a marker instead of rendering the consent form.
  */
 class CIMD_Form_Authorization_Code extends Authorization_Code {
-	protected function render_form( Client $client, ?WP_Error $errors = null ) {
+	/**
+	 * Redirect URI passed to the last render.
+	 *
+	 * @var string|null
+	 */
+	public $rendered_redirect_uri = null;
+
+	protected function render_form( Client $client, ?WP_Error $errors = null, $redirect_uri = null ) {
+		$this->rendered_redirect_uri = $redirect_uri;
+
 		return 'form:' . $client->get_id();
 	}
 }
@@ -1055,7 +1065,9 @@ class Test_CIMD_Flow extends CIMD_Clients_Test_Case {
 
 		$result = null;
 		try {
-			$result = ( new CIMD_Form_Authorization_Code() )->handle_authorisation();
+			$type   = new CIMD_Form_Authorization_Code();
+			$result = $type->handle_authorisation();
+			$this->rendered_redirect_uri = $type->rendered_redirect_uri;
 		} catch ( CIMD_Redirect_Interrupt $e ) {
 			// The location was captured by the filter.
 			unset( $e );
@@ -1067,6 +1079,13 @@ class Test_CIMD_Flow extends CIMD_Clients_Test_Case {
 
 		return compact( 'result', 'location' );
 	}
+
+	/**
+	 * Redirect URI the form was rendered with.
+	 *
+	 * @var string|null
+	 */
+	protected $rendered_redirect_uri = null;
 
 	/**
 	 * Query parameters of a valid authorize request.
@@ -1179,6 +1198,7 @@ class Test_CIMD_Flow extends CIMD_Clients_Test_Case {
 		$out = $this->authorize( $this->authorize_params( $pair ) );
 
 		$this->assertSame( 'form:' . static::URL, $out['result'] );
+		$this->assertSame( static::REDIRECT_URI, $this->rendered_redirect_uri );
 		$this->assertNull( $out['location'] );
 		$this->assertSame( 1, $this->request_count );
 		$this->assertSame( 1, $this->count_client_posts() );
@@ -1647,5 +1667,90 @@ class Test_CIMD_Generation extends CIMD_Clients_Test_Case {
 		}
 
 		$this->assertNotNull( Tokens\get_by_id( $key )->get_client() );
+	}
+}
+
+/**
+ * Test cases for the origin notice on the consent screen.
+ */
+class Test_CIMD_Consent extends CIMD_Clients_Test_Case {
+
+	/**
+	 * Capture the notice.
+	 *
+	 * @param Client      $client       Client.
+	 * @param string|null $redirect_uri Redirect URI.
+	 * @return string
+	 */
+	protected function notice( Client $client, $redirect_uri ) {
+		ob_start();
+		render_origin_notice( $client, $redirect_uri );
+
+		return ob_get_clean();
+	}
+
+	public function test_the_notice_names_the_client_id_host_and_the_redirect_host() {
+		$client = $this->store();
+
+		$html = $this->notice( $client, 'https://client.example.com/callback' );
+
+		$this->assertStringContainsString( 'This app is published at <strong>client.example.com</strong>.', $html );
+		$this->assertStringContainsString( 'you will be sent to <strong>client.example.com</strong>.', $html );
+		$this->assertStringNotContainsString( 'run on this device', $html );
+	}
+
+	public function test_the_notice_shows_a_different_redirect_host() {
+		$client = $this->store( 'publish', null, [ 'redirect_uris' => [ 'https://app.example.net/callback' ] ] );
+
+		$html = $this->notice( $client, 'https://app.example.net/callback' );
+
+		$this->assertStringContainsString( 'published at <strong>client.example.com</strong>', $html );
+		$this->assertStringContainsString( 'sent to <strong>app.example.net</strong>', $html );
+	}
+
+	/**
+	 * @dataProvider loopback_redirect_provider
+	 */
+	public function test_the_notice_warns_about_a_loopback_redirect( $redirect_uri ) {
+		$client = $this->store( 'publish', null, [ 'redirect_uris' => [ $redirect_uri ] ] );
+
+		$html = $this->notice( $client, $redirect_uri );
+
+		$this->assertStringContainsString( 'This app will run on this device. Only continue if you started it yourself.', $html );
+	}
+
+	public function loopback_redirect_provider() {
+		return [
+			'localhost' => [ 'http://localhost:8080/cb' ],
+			'ipv4'      => [ 'http://127.0.0.1:8080/cb' ],
+			'ipv6'      => [ 'http://[::1]:8080/cb' ],
+		];
+	}
+
+	public function test_the_notice_is_empty_for_a_registered_client() {
+		$registered = $this->create_client();
+
+		$this->assertSame( '', $this->notice( $registered, 'https://example.com/callback' ) );
+	}
+
+	public function test_the_notice_escapes_the_hosts() {
+		$client = $this->store();
+
+		$html = $this->notice( $client, 'https://evil.example"><script>alert(1)</script>/cb' );
+
+		$this->assertStringNotContainsString( '<script>', $html );
+	}
+
+	public function test_the_notice_skips_the_redirect_line_without_a_redirect_uri() {
+		$html = $this->notice( $this->store(), null );
+
+		$this->assertStringContainsString( 'published at', $html );
+		$this->assertStringNotContainsString( 'sent to', $html );
+	}
+
+	public function test_the_consent_template_prints_the_notice() {
+		$source = file_get_contents( dirname( __DIR__ ) . '/theme/oauth2-authorize.php' );
+
+		$this->assertStringContainsString( 'render_origin_notice( $client, $redirect_uri )', $source );
 	}
 }

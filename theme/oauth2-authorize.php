@@ -6,6 +6,7 @@
  */
 
 /** @var \WP\OAuth2\Client $client */
+/** @var string|null $redirect_uri */
 
 login_header(
 	__( 'Authorize', 'oauth2' ),
@@ -73,6 +74,8 @@ $url = $_SERVER['REQUEST_URI']; // phpcs:ignore WordPress.Security.ValidatedSani
 			)
 		)
 	);
+
+	\WP\OAuth2\CIMD\render_origin_notice( $client, $redirect_uri );
 	?>
 
 	<div class="login-info">

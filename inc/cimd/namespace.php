@@ -810,3 +810,57 @@ function discover_client( $url, $stored = null ) {
 		delete_option( $lock );
 	}
 }
+
+/**
+ * Print where a CIMD client comes from, for the consent screen.
+ *
+ * Shows the host of the client ID and of the redirect URI, and warns when the
+ * redirect URI is on this device.
+ *
+ * @param Client      $client       Client being authorised.
+ * @param string|null $redirect_uri Redirect URI of the request.
+ */
+function render_origin_notice( Client $client, $redirect_uri = null ) {
+	if ( ! $client->is_cimd() ) {
+		return;
+	}
+
+	$client_host = (string) wp_parse_url( $client->get_id(), PHP_URL_HOST );
+	if ( '' !== $client_host ) {
+		printf(
+			'<p class="login-origin">%s</p>',
+			wp_kses(
+				sprintf(
+					/* translators: %s: host name of the client ID URL */
+					__( 'This app is published at %s.', 'oauth2' ),
+					'<strong>' . esc_html( $client_host ) . '</strong>'
+				),
+				[ 'strong' => [] ]
+			)
+		);
+	}
+
+	$redirect_host = is_string( $redirect_uri ) ? (string) wp_parse_url( $redirect_uri, PHP_URL_HOST ) : '';
+	if ( '' === $redirect_host ) {
+		return;
+	}
+
+	printf(
+		'<p class="login-origin">%s</p>',
+		wp_kses(
+			sprintf(
+				/* translators: %s: host name of the redirect URI */
+				__( 'After you approve, you will be sent to %s.', 'oauth2' ),
+				'<strong>' . esc_html( $redirect_host ) . '</strong>'
+			),
+			[ 'strong' => [] ]
+		)
+	);
+
+	if ( is_loopback_host( $redirect_host ) ) {
+		printf(
+			'<p class="login-origin login-origin-warning"><strong>%s</strong></p>',
+			esc_html__( 'This app will run on this device. Only continue if you started it yourself.', 'oauth2' )
+		);
+	}
+}

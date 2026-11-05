@@ -116,7 +116,7 @@ abstract class Base implements Type {
 		}
 
 		if ( empty( $_POST['_wpnonce'] ) ) {
-			return $this->render_form( $client );
+			return $this->render_form( $client, null, $redirect_uri );
 		}
 
 		// Check nonce.
@@ -139,7 +139,7 @@ abstract class Base implements Type {
 					__( 'Cancel', 'oauth2' )
 				)
 			);
-			return $this->render_form( $client, $error );
+			return $this->render_form( $client, $error, $redirect_uri );
 		}
 
 		$submit = sanitize_text_field( wp_unslash( $_POST['wp-submit'] ) );
@@ -232,10 +232,11 @@ abstract class Base implements Type {
 	/**
 	 * Render the authorisation form.
 	 *
-	 * @param Client   $client Client being authorised.
-	 * @param WP_Error $errors Errors to display, if any.
+	 * @param Client      $client       Client being authorised.
+	 * @param WP_Error    $errors       Errors to display, if any.
+	 * @param string|null $redirect_uri Validated redirect URI of the request.
 	 */
-	protected function render_form( Client $client, ?WP_Error $errors = null ) {
+	protected function render_form( Client $client, ?WP_Error $errors = null, $redirect_uri = null ) {
 		$file = locate_template( 'oauth2-authorize.php' );
 		if ( empty( $file ) ) {
 			$file = dirname( dirname( __DIR__ ) ) . '/theme/oauth2-authorize.php';
