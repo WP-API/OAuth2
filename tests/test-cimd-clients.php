@@ -75,19 +75,51 @@ abstract class CIMD_Clients_Test_Case extends Test_Case {
 	}
 
 	/**
-	 * Make writes of one meta key fail.
+	 * Make writes of one meta key fail, or store another value instead.
 	 *
 	 * @param string $blocked_key Meta key.
+	 * @param mixed  $replacement Value to store instead of the one written, or null to refuse the write.
 	 */
-	protected function block_meta_write( $blocked_key ) {
-		add_filter(
-			'update_post_metadata',
-			function ( $check, $post_id, $key ) use ( $blocked_key ) {
-				return $key === $blocked_key ? false : $check;
-			},
-			10,
-			3
-		);
+	protected function block_meta_write( $blocked_key, $replacement = null ) {
+		$hook = function ( $check, $post_id, $key ) use ( $blocked_key, $replacement, &$hook ) {
+			if ( $key !== $blocked_key ) {
+				return $check;
+			}
+
+			if ( null === $replacement ) {
+				return false;
+			}
+
+			remove_filter( 'add_post_metadata', $hook );
+			remove_filter( 'update_post_metadata', $hook );
+			update_metadata( 'post', $post_id, $key, $replacement );
+
+			return true;
+		};
+		add_filter( 'add_post_metadata', $hook, 10, 3 );
+		add_filter( 'update_post_metadata', $hook, 10, 3 );
+	}
+
+	/**
+	 * Read the stored state of a shadow client from the database.
+	 *
+	 * @param int $post_id Post ID.
+	 * @return array
+	 */
+	protected function cimd_state( $post_id ) {
+		wp_cache_delete( $post_id, 'post_meta' );
+
+		return get_post_meta( $post_id, '_oauth2_cimd_state', true );
+	}
+
+	/**
+	 * Change fields of the stored state of a shadow client.
+	 *
+	 * @param int   $post_id Post ID.
+	 * @param array $changes State fields to set.
+	 */
+	protected function change_cimd_state( $post_id, array $changes ) {
+		update_post_meta( $post_id, '_oauth2_cimd_state', wp_slash( array_merge( $this->cimd_state( $post_id ), $changes ) ) );
 	}
 
 	/**
@@ -171,9 +203,15 @@ class Test_CIMD_Clients extends CIMD_Clients_Test_Case {
 		$this->assertSame( 'publish', $post->post_status );
 		$this->assertSame( 'cimd', get_post_meta( $post->ID, '_oauth2_client_kind', true ) );
 		$this->assertSame( static::URL, get_post_meta( $post->ID, '_oauth2_cimd_client_id', true ) );
-		$this->assertSame( $metadata, get_post_meta( $post->ID, '_oauth2_cimd_metadata', true ) );
-		$this->assertSame( $expires, (int) get_post_meta( $post->ID, '_oauth2_cimd_expires', true ) );
-		$this->assertSame( 'public', get_post_meta( $post->ID, '_oauth2_client_type', true ) );
+		$state = get_post_meta( $post->ID, '_oauth2_cimd_state', true );
+		$this->assertSame( [ 'metadata', 'expires', 'generation', 'security_hash', 'failed' ], array_keys( $state ) );
+		$this->assertSame( $metadata, $state['metadata'] );
+		$this->assertSame( $expires, $state['expires'] );
+		$this->assertMatchesRegularExpression( '/^[A-Za-z0-9]{32}$/', $state['generation'] );
+		$this->assertSame( 0, $state['failed'] );
+		$this->assertSame( '', get_post_meta( $post->ID, '_oauth2_client_type', true ) );
+		$this->assertSame( '', get_post_meta( $post->ID, '_oauth2_redirect_uri', true ) );
+		$this->assertSame( 'public', $client->get_type() );
 		$this->assertTrue( $client->is_cimd() );
 		$this->assertTrue( $client->is_approved() );
 		$this->assertSame( $metadata, $client->get_cimd_metadata() );
@@ -212,7 +250,7 @@ class Test_CIMD_Clients extends CIMD_Clients_Test_Case {
 		$this->assertSame( $expires, $second->get_cimd_expires() );
 	}
 
-	public function test_save_cimd_writes_only_the_expiry_when_the_metadata_is_unchanged() {
+	public function test_save_cimd_writes_one_state_value_when_the_metadata_is_unchanged() {
 		$first = $this->store( 'publish', time() + 300 );
 		$posts = 0;
 		$metas = [];
@@ -237,29 +275,20 @@ class Test_CIMD_Clients extends CIMD_Clients_Test_Case {
 		$second  = Client::save_cimd( static::URL, $this->metadata(), $expires, 'publish' );
 
 		$this->assertSame( 0, $posts );
-		$this->assertSame( [ '_oauth2_cimd_expires' ], $metas );
+		$this->assertSame( [ '_oauth2_cimd_state' ], $metas );
 		$this->assertSame( $first->get_post_id(), $second->get_post_id() );
 		$this->assertSame( $expires, $second->get_cimd_expires() );
 		$this->assertSame( $first->get_cimd_generation(), $second->get_cimd_generation() );
 	}
 
-	public function test_save_cimd_writes_nothing_when_the_expiry_is_also_unchanged() {
+	public function test_save_cimd_keeps_the_state_when_nothing_changed() {
 		$expires = time() + 300;
-		$this->store( 'publish', $expires );
-		$metas = [];
-		add_filter(
-			'update_post_metadata',
-			function ( $check, $post_id, $key ) use ( &$metas ) {
-				$metas[] = $key;
-				return $check;
-			},
-			10,
-			3
-		);
+		$first   = $this->store( 'publish', $expires );
+		$state   = get_post_meta( $first->get_post_id(), '_oauth2_cimd_state', true );
 
 		Client::save_cimd( static::URL, $this->metadata(), $expires, 'publish' );
 
-		$this->assertSame( [], $metas );
+		$this->assertSame( $state, get_post_meta( $first->get_post_id(), '_oauth2_cimd_state', true ) );
 	}
 
 	public function test_save_cimd_clears_the_failure_marker_when_the_metadata_is_unchanged() {
@@ -882,7 +911,7 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 		);
 
 		$first = $this->discover();
-		update_post_meta( $first->get_post_id(), '_oauth2_cimd_expires', time() - 1 );
+		$this->change_cimd_state( $first->get_post_id(), [ 'expires' => time() - 1 ] );
 		$this->discover();
 
 		$this->assertSame( 'auto', $seen[0][0] );
@@ -951,7 +980,7 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 	public function test_a_terminal_failure_marks_the_stored_client() {
 		$stored = $this->fail_terminally();
 
-		$this->assertGreaterThan( 0, (int) get_post_meta( $stored->get_post_id(), '_oauth2_cimd_failed', true ) );
+		$this->assertGreaterThan( 0, $this->cimd_state( $stored->get_post_id() )['failed'] );
 		$this->assertTrue( Client::get_by_id( static::URL )->is_cimd_failed() );
 	}
 
@@ -1034,7 +1063,7 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 		$this->store( 'publish', time() - 10 );
 		$this->mock_dns();
 		$this->mock_http( $this->http_response( '', [], 404 ) );
-		$this->block_meta_write( '_oauth2_cimd_failed' );
+		$this->block_meta_write( '_oauth2_cimd_state' );
 
 		$this->assertCimdError( 'oauth2.cimd.fetch_failed', 400, $this->discover(), false );
 		$this->assertFalse( Client::get_by_id( static::URL )->is_cimd_failed() );
@@ -1049,7 +1078,7 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 		$this->assertInstanceOf( Client::class, $client );
 		$this->assertSame( $stored->get_post_id(), $client->get_post_id() );
 		$this->assertFalse( $client->is_cimd_failed() );
-		$this->assertSame( '', get_post_meta( $stored->get_post_id(), '_oauth2_cimd_failed', true ) );
+		$this->assertSame( 0, $this->cimd_state( $stored->get_post_id() )['failed'] );
 	}
 
 	// Rate limit.
@@ -2198,45 +2227,126 @@ class Test_CIMD_Generation extends CIMD_Clients_Test_Case {
 		$this->assertTrue( $refreshed->is_approved() );
 	}
 
-	public function test_a_failed_generation_write_returns_an_error_and_leaves_the_hash() {
+	/**
+	 * Writes that fail or store another value while a new client is saved.
+	 *
+	 * @return array[] Meta key and the value stored instead, null to refuse the write.
+	 */
+	public function insert_failure_provider() {
+		return [
+			'kind refused'   => [ '_oauth2_client_kind', null ],
+			'kind changed'   => [ '_oauth2_client_kind', 'other' ],
+			'url refused'    => [ '_oauth2_cimd_client_id', null ],
+			'url changed'    => [ '_oauth2_cimd_client_id', 'https://other.example.com/oauth/client.json' ],
+			'state refused'  => [ '_oauth2_cimd_state', null ],
+			'state changed'  => [ '_oauth2_cimd_state', [ 'metadata' => [] ] ],
+			'state a string' => [ '_oauth2_cimd_state', 'x' ],
+		];
+	}
+
+	/**
+	 * @dataProvider insert_failure_provider
+	 *
+	 * @param string $key         Meta key.
+	 * @param mixed  $replacement Value stored instead, null to refuse the write.
+	 */
+	public function test_a_failed_write_for_a_new_client_leaves_no_record( $key, $replacement ) {
+		$this->block_meta_write( $key, $replacement );
+
+		$result = Client::save_cimd( static::URL, $this->metadata(), time() + 300, 'publish' );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'oauth2.cimd.save_failed', $result->get_error_code() );
+		$this->assertSame( 500, $result->get_error_data()['status'] );
+		$this->assertSame( 0, $this->count_client_posts() );
+		$this->assertNull( Client::get_by_id( static::URL, true ) );
+	}
+
+	/**
+	 * Writes of the state that fail or store another value while a client is refreshed.
+	 *
+	 * @return array[] Value stored instead of the state, null to refuse the write.
+	 */
+	public function update_failure_provider() {
+		return [
+			'refused'  => [ null ],
+			'changed'  => [ [ 'metadata' => [] ] ],
+			'a string' => [ 'x' ],
+		];
+	}
+
+	/**
+	 * @dataProvider update_failure_provider
+	 *
+	 * @param mixed $replacement Value stored instead, null to refuse the write.
+	 */
+	public function test_a_failed_state_write_returns_an_error_and_leaves_the_old_state( $replacement ) {
 		$client = $this->store();
-		$before = $client->get_cimd_generation();
-		$hash   = get_post_meta( $client->get_post_id(), '_oauth2_cimd_security_hash', true );
-		$this->block_meta_write( '_oauth2_cimd_generation' );
+		$before = $this->cimd_state( $client->get_post_id() );
+		$this->block_meta_write( '_oauth2_cimd_state', $replacement );
 
 		$result = Client::save_cimd( static::URL, $this->metadata( [ 'redirect_uris' => [ 'https://client.example.com/new' ] ] ), time() + 300, 'publish' );
 
 		$this->assertWPError( $result );
 		$this->assertSame( 'oauth2.cimd.save_failed', $result->get_error_code() );
 		$this->assertSame( 500, $result->get_error_data()['status'] );
-		$this->assertSame( $hash, get_post_meta( $client->get_post_id(), '_oauth2_cimd_security_hash', true ) );
-		$this->assertSame( $before, Client::get_by_id( static::URL )->get_cimd_generation() );
-		$this->assertSame( [ 'https://client.example.com/callback' ], Client::get_by_id( static::URL )->get_redirect_uris() );
+		if ( null === $replacement ) {
+			$this->assertSame( $before, $this->cimd_state( $client->get_post_id() ) );
+		}
+
+		$stored = Client::get_by_id( static::URL );
+		$this->assertFalse( $stored->check_redirect_uri( 'https://client.example.com/new' ) );
+		if ( null === $replacement ) {
+			$this->assertSame( [ 'https://client.example.com/callback' ], $stored->get_redirect_uris() );
+			$this->assertSame( $client->get_cimd_generation(), $stored->get_cimd_generation() );
+		}
+	}
+
+	public function test_a_failed_state_write_is_retried_by_the_next_refresh() {
+		$client = $this->store();
+		$before = $client->get_cimd_generation();
+		$this->block_meta_write( '_oauth2_cimd_state' );
+		$metadata = $this->metadata( [ 'redirect_uris' => [ 'https://client.example.com/new' ] ] );
+		$this->assertWPError( Client::save_cimd( static::URL, $metadata, time() + 300, 'publish' ) );
 
 		remove_all_filters( 'update_post_metadata' );
-		$retry = Client::save_cimd( static::URL, $this->metadata( [ 'redirect_uris' => [ 'https://client.example.com/new' ] ] ), time() + 300, 'publish' );
+		$retry = Client::save_cimd( static::URL, $metadata, time() + 300, 'publish' );
 
 		$this->assertNotSame( $before, $retry->get_cimd_generation() );
 		$this->assertSame( [ 'https://client.example.com/new' ], $retry->get_redirect_uris() );
 	}
 
-	public function test_a_failed_generation_write_does_not_demote_the_record() {
+	public function test_a_failed_demotion_leaves_the_state_unchanged() {
 		$client = $this->store();
-		$this->block_meta_write( '_oauth2_cimd_generation' );
+		$before = $this->cimd_state( $client->get_post_id() );
+		add_filter(
+			'wp_insert_post_data',
+			function ( $data ) {
+				$data['post_status'] = 'publish';
 
-		Client::save_cimd( static::URL, $this->metadata( [ 'redirect_uris' => [ 'https://client.example.com/new' ] ] ), time() + 300, 'draft' );
+				return $data;
+			}
+		);
 
-		$this->assertSame( 'publish', get_post_status( $client->get_post_id() ) );
-	}
-
-	public function test_a_failed_generation_write_for_a_new_client_leaves_no_record() {
-		$this->block_meta_write( '_oauth2_cimd_generation' );
-
-		$result = Client::save_cimd( static::URL, $this->metadata(), time() + 300, 'publish' );
+		$result = Client::save_cimd( static::URL, $this->metadata( [ 'redirect_uris' => [ 'https://client.example.com/new' ] ] ), time() + 300, 'draft' );
 
 		$this->assertWPError( $result );
 		$this->assertSame( 'oauth2.cimd.save_failed', $result->get_error_code() );
-		$this->assertSame( 0, $this->count_client_posts() );
+		$this->assertSame( $before, $this->cimd_state( $client->get_post_id() ) );
+		$this->assertSame( [ 'https://client.example.com/callback' ], Client::get_by_id( static::URL )->get_redirect_uris() );
+	}
+
+	public function test_a_demotion_that_errors_leaves_the_state_unchanged() {
+		$client = $this->store();
+		$before = $this->cimd_state( $client->get_post_id() );
+		add_filter( 'wp_insert_post_empty_content', '__return_true' );
+
+		$result = Client::save_cimd( static::URL, $this->metadata( [ 'redirect_uris' => [ 'https://client.example.com/new' ] ] ), time() + 300, 'draft' );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'oauth2.cimd.save_failed', $result->get_error_code() );
+		$this->assertSame( $before, $this->cimd_state( $client->get_post_id() ) );
+		$this->assertSame( 'publish', get_post_status( $client->get_post_id() ) );
 	}
 
 	public function test_reordering_the_security_fields_does_not_rotate_the_generation() {
@@ -2296,7 +2406,7 @@ class Test_CIMD_Generation extends CIMD_Clients_Test_Case {
 		);
 		$this->mock_dns();
 		$this->mock_http( $this->http_response( wp_json_encode( $this->document( [ 'redirect_uris' => [ 'https://client.example.com/new' ] ] ) ) ) );
-		update_post_meta( $client->get_post_id(), '_oauth2_cimd_expires', time() - 1 );
+		$this->change_cimd_state( $client->get_post_id(), [ 'expires' => time() - 1 ] );
 
 		$result = get_client( static::URL, [ 'discover' => true, 'include_unapproved' => true ] );
 

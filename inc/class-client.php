@@ -32,11 +32,7 @@ class Client implements ClientInterface {
 	const KIND_KEY                       = '_oauth2_client_kind';
 	const KIND_CIMD                      = 'cimd';
 	const CIMD_CLIENT_ID_KEY             = '_oauth2_cimd_client_id';
-	const CIMD_METADATA_KEY              = '_oauth2_cimd_metadata';
-	const CIMD_EXPIRES_KEY               = '_oauth2_cimd_expires';
-	const CIMD_GENERATION_KEY            = '_oauth2_cimd_generation';
-	const CIMD_SECURITY_HASH_KEY         = '_oauth2_cimd_security_hash';
-	const CIMD_FAILED_KEY                = '_oauth2_cimd_failed';
+	const CIMD_STATE_KEY                 = '_oauth2_cimd_state';
 
 	/**
 	 * @var WP_Post
@@ -78,12 +74,26 @@ class Client implements ClientInterface {
 	}
 
 	/**
+	 * Get the stored state of a CIMD client.
+	 *
+	 * The state is one array with the `metadata`, `expires`, `generation`,
+	 * `security_hash` and `failed` of the client.
+	 *
+	 * @return array State, empty for a registered client.
+	 */
+	protected function get_cimd_state() {
+		$state = get_post_meta( $this->get_post_id(), static::CIMD_STATE_KEY, true );
+
+		return is_array( $state ) ? $state : [];
+	}
+
+	/**
 	 * Get the stored metadata of a CIMD client.
 	 *
 	 * @return array Normalised metadata, empty for a registered client.
 	 */
 	public function get_cimd_metadata() {
-		$metadata = get_post_meta( $this->get_post_id(), static::CIMD_METADATA_KEY, true );
+		$metadata = $this->get_cimd_state()['metadata'] ?? [];
 
 		return is_array( $metadata ) ? $metadata : [];
 	}
@@ -94,7 +104,7 @@ class Client implements ClientInterface {
 	 * @return int Unix timestamp, 0 for a registered client.
 	 */
 	public function get_cimd_expires() {
-		return (int) get_post_meta( $this->get_post_id(), static::CIMD_EXPIRES_KEY, true );
+		return (int) ( $this->get_cimd_state()['expires'] ?? 0 );
 	}
 
 	/**
@@ -117,7 +127,7 @@ class Client implements ClientInterface {
 	 * @return string Random token, empty for a registered client.
 	 */
 	public function get_cimd_generation() {
-		$generation = get_post_meta( $this->get_post_id(), static::CIMD_GENERATION_KEY, true );
+		$generation = $this->get_cimd_state()['generation'] ?? '';
 
 		return is_string( $generation ) ? $generation : '';
 	}
@@ -128,7 +138,7 @@ class Client implements ClientInterface {
 	 * @return bool True if a refresh failed in a way that retrying cannot fix.
 	 */
 	public function is_cimd_failed() {
-		return (bool) get_post_meta( $this->get_post_id(), static::CIMD_FAILED_KEY, true );
+		return (bool) ( $this->get_cimd_state()['failed'] ?? 0 );
 	}
 
 	/**
@@ -137,22 +147,26 @@ class Client implements ClientInterface {
 	 * @return bool True if the marker was stored.
 	 */
 	public function mark_cimd_failed() {
-		return static::set_cimd_meta( $this->get_post_id(), static::CIMD_FAILED_KEY, time() );
+		$state           = $this->get_cimd_state();
+		$state['failed'] = time();
+
+		return static::set_cimd_meta( $this->get_post_id(), static::CIMD_STATE_KEY, $state );
 	}
 
 	/**
-	 * Write a meta value and read it back to check that it was stored.
+	 * Write a meta value and read it back from the database to check that it was stored.
 	 *
 	 * @param int    $post_id Post ID.
 	 * @param string $key     Meta key.
 	 * @param mixed  $value   Unslashed value.
 	 *
-	 * @return bool True if the stored value equals the one written.
+	 * @return bool True if the stored value is identical to the one written.
 	 */
 	protected static function set_cimd_meta( $post_id, $key, $value ) {
 		update_post_meta( $post_id, $key, wp_slash( $value ) );
+		wp_cache_delete( $post_id, 'post_meta' );
 
-		return (string) get_post_meta( $post_id, $key, true ) === (string) $value;
+		return get_post_meta( $post_id, $key, true ) === $value;
 	}
 
 	/**
@@ -716,7 +730,10 @@ class Client implements ClientInterface {
 	/**
 	 * Create or refresh the shadow client for a client ID metadata document.
 	 *
-	 * When the metadata has not changed, only the expiry is written.
+	 * The metadata, expiry, generation, security hash and failure marker are
+	 * stored as one state value, which is read back from the database after it
+	 * is written. A new client whose meta cannot be read back is deleted, and a
+	 * refresh whose state cannot be read back leaves an error.
 	 *
 	 * An existing shadow client keeps its status, except that a change to the
 	 * redirect URIs, grant types, response types or authentication method gives
@@ -742,10 +759,18 @@ class Client implements ClientInterface {
 			]
 		);
 
-		$title    = isset( $metadata['client_name'] ) ? (string) $metadata['client_name'] : '';
-		$hash     = static::get_cimd_security_hash( $metadata );
-		$is_new   = empty( $posts );
-		$old_hash = null;
+		$title   = isset( $metadata['client_name'] ) ? (string) $metadata['client_name'] : '';
+		$hash    = static::get_cimd_security_hash( $metadata );
+		$is_new  = empty( $posts );
+		$state   = [
+			'metadata'      => $metadata,
+			'expires'       => (int) $expires,
+			'generation'    => wp_generate_password( 32, false ),
+			'security_hash' => $hash,
+			'failed'        => 0,
+		];
+		$failure = new WP_Error( 'oauth2.cimd.save_failed', __( 'The client could not be saved.', 'oauth2' ), [ 'status' => 500 ] );
+
 		if ( $is_new ) {
 			$post_id = wp_insert_post(
 				wp_slash(
@@ -769,82 +794,63 @@ class Client implements ClientInterface {
 
 				return new WP_Error( 'oauth2.cimd.slug_conflict', __( 'Another post already uses the slug of this client ID.', 'oauth2' ), [ 'status' => 500 ] );
 			}
-		} else {
-			$post_id  = $posts[0]->ID;
-			$old_hash = get_post_meta( $post_id, static::CIMD_SECURITY_HASH_KEY, true );
-			if ( static::KIND_CIMD !== get_post_meta( $post_id, static::KIND_KEY, true ) || get_post_meta( $post_id, static::CIMD_CLIENT_ID_KEY, true ) !== $url ) {
-				return new WP_Error( 'oauth2.client.cimd.conflict', __( 'A different client already uses the slug of this client ID.', 'oauth2' ), [ 'status' => 500 ] );
+
+			// The kind and the URL are the lookup keys and are only written here.
+			add_post_meta( $post_id, static::KIND_KEY, static::KIND_CIMD, true );
+			add_post_meta( $post_id, static::CIMD_CLIENT_ID_KEY, wp_slash( $url ), true );
+			$stored = static::set_cimd_meta( $post_id, static::CIMD_STATE_KEY, $state );
+
+			wp_cache_delete( $post_id, 'post_meta' );
+			if ( ! $stored || static::KIND_CIMD !== get_post_meta( $post_id, static::KIND_KEY, true ) || get_post_meta( $post_id, static::CIMD_CLIENT_ID_KEY, true ) !== $url ) {
+				wp_delete_post( $post_id, true );
+
+				return $failure;
 			}
 
-			// Identical metadata only needs the expiry moved, so skip the other writes.
-			if ( $old_hash === $hash && get_post_meta( $post_id, static::CIMD_METADATA_KEY, true ) === $metadata && '' !== get_post_meta( $post_id, static::CIMD_GENERATION_KEY, true ) ) {
-				if ( (int) get_post_meta( $post_id, static::CIMD_EXPIRES_KEY, true ) !== (int) $expires ) {
-					update_post_meta( $post_id, static::CIMD_EXPIRES_KEY, (int) $expires );
-				}
-				if ( get_post_meta( $post_id, static::CIMD_FAILED_KEY, true ) ) {
-					delete_post_meta( $post_id, static::CIMD_FAILED_KEY );
-				}
-
-				return new static( $posts[0] );
-			}
-
-			if ( $posts[0]->post_title !== $title ) {
-				$result = wp_update_post(
-					wp_slash(
-						[
-							'ID'         => $post_id,
-							'post_title' => $title,
-						]
-					),
-					true
-				);
-				if ( is_wp_error( $result ) ) {
-					return $result;
-				}
-			}
+			return new static( get_post( $post_id ) );
 		}
 
-		// The new generation is stored and checked before anything else changes, and the hash that
-		// records the change is stored last, so a failed write is retried by the next refresh.
-		$changed = $is_new || $old_hash !== $hash;
-		if ( $changed ) {
-			if ( ! static::set_cimd_meta( $post_id, static::CIMD_GENERATION_KEY, wp_generate_password( 32, false ) ) ) {
-				if ( $is_new ) {
-					wp_delete_post( $post_id, true );
-				}
+		$post_id = $posts[0]->ID;
+		if ( static::KIND_CIMD !== get_post_meta( $post_id, static::KIND_KEY, true ) || get_post_meta( $post_id, static::CIMD_CLIENT_ID_KEY, true ) !== $url ) {
+			return new WP_Error( 'oauth2.client.cimd.conflict', __( 'A different client already uses the slug of this client ID.', 'oauth2' ), [ 'status' => 500 ] );
+		}
 
-				return new WP_Error( 'oauth2.cimd.save_failed', __( 'The client could not be saved.', 'oauth2' ), [ 'status' => 500 ] );
-			}
-
-			if ( ! $is_new && 'publish' !== $status && 'publish' === $posts[0]->post_status ) {
-				$result = wp_update_post(
+		if ( $posts[0]->post_title !== $title ) {
+			$result = wp_update_post(
+				wp_slash(
 					[
-						'ID'          => $post_id,
-						'post_status' => 'draft',
-					],
-					true
-				);
-				if ( is_wp_error( $result ) ) {
-					return $result;
-				}
+						'ID'         => $post_id,
+						'post_title' => $title,
+					]
+				),
+				true
+			);
+			if ( is_wp_error( $result ) ) {
+				return $result;
 			}
 		}
 
-		$meta = [
-			static::KIND_KEY           => static::KIND_CIMD,
-			static::TYPE_KEY           => 'public',
-			static::CIMD_CLIENT_ID_KEY => $url,
-			static::CIMD_METADATA_KEY  => $metadata,
-			static::CIMD_EXPIRES_KEY   => (int) $expires,
-		];
-		foreach ( $meta as $key => $value ) {
-			update_post_meta( $post_id, $key, wp_slash( $value ) );
+		$current = get_post_meta( $post_id, static::CIMD_STATE_KEY, true );
+		$current = is_array( $current ) ? $current : [];
+		if ( ( $current['security_hash'] ?? null ) === $hash && is_string( $current['generation'] ?? null ) && '' !== $current['generation'] ) {
+			$state['generation'] = $current['generation'];
+		} elseif ( 'publish' !== $status && 'publish' === $posts[0]->post_status ) {
+			// The demotion comes before the state write, so a client that cannot be demoted keeps its old state.
+			$result = wp_update_post(
+				[
+					'ID'          => $post_id,
+					'post_status' => 'draft',
+				],
+				true
+			);
+			clean_post_cache( $post_id );
+			if ( is_wp_error( $result ) || 'draft' !== get_post( $post_id )->post_status ) {
+				return $failure;
+			}
 		}
-		if ( $changed ) {
-			update_post_meta( $post_id, static::CIMD_SECURITY_HASH_KEY, $hash );
-		}
-		if ( get_post_meta( $post_id, static::CIMD_FAILED_KEY, true ) ) {
-			delete_post_meta( $post_id, static::CIMD_FAILED_KEY );
+
+		if ( ! static::set_cimd_meta( $post_id, static::CIMD_STATE_KEY, $state ) ) {
+			return $failure;
 		}
 
 		return new static( get_post( $post_id ) );
