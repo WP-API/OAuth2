@@ -35,6 +35,7 @@ require __DIR__ . '/inc/class-clientinterface.php';
 require __DIR__ . '/inc/class-client.php';
 require __DIR__ . '/inc/class-personalclient.php';
 require __DIR__ . '/inc/class-scopes.php';
+require __DIR__ . '/inc/class-pkce.php';
 require __DIR__ . '/inc/authentication/namespace.php';
 require __DIR__ . '/inc/endpoints/namespace.php';
 require __DIR__ . '/inc/endpoints/class-authorization.php';
@@ -52,5 +53,9 @@ require __DIR__ . '/inc/types/class-implicit.php';
 require __DIR__ . '/inc/admin/namespace.php';
 require __DIR__ . '/inc/admin/profile/namespace.php';
 require __DIR__ . '/inc/admin/profile/personaltokens/namespace.php';
+
+if ( defined( 'WP_CLI' ) && WP_CLI ) {
+	require __DIR__ . '/inc/utilities/class-command.php';
+}
 
 bootstrap();
