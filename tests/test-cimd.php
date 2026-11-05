@@ -18,6 +18,7 @@ use WpOrg\Requests\Transport\Fsockopen;
 
 use function WP\OAuth2\CIMD\fetch_document;
 use function WP\OAuth2\CIMD\is_cimd_client_id;
+use function WP\OAuth2\CIMD\get_rate_limit;
 use function WP\OAuth2\CIMD\is_public_ip;
 use function WP\OAuth2\CIMD\resolve_host;
 use function WP\OAuth2\CIMD\validate_client_id_url;
@@ -311,6 +312,139 @@ class Test_CIMD extends Test_Case {
 			function ( $pre, $host ) {
 				return [ $host . '-ip' ];
 			},
+	// get_rate_limit().
+
+	public function test_get_rate_limit_defaults() {
+		$this->assertSame(
+			[
+				'limit'  => 10,
+				'window' => 600,
+			],
+			get_rate_limit( 1, 'user' )
+		);
+		$this->assertSame(
+			[
+				'limit'  => 60,
+				'window' => 600,
+			],
+			get_rate_limit( 1, 'global' )
+		);
+	}
+
+	public function test_get_rate_limit_accepts_int_like_values_as_ints() {
+		add_filter(
+			'oauth2.cimd.rate_limit',
+			function () {
+				return [
+					'limit'  => '0',
+					'window' => '30',
+				];
+			}
+		);
+
+		$this->assertSame(
+			[
+				'limit'  => 0,
+				'window' => 30,
+			],
+			get_rate_limit( 1, 'user' )
+		);
+	}
+
+	/**
+	 * @dataProvider invalid_rate_limit_provider
+	 *
+	 * @param mixed $filtered Value returned by the filter.
+	 */
+	public function test_get_rate_limit_falls_back_to_the_default_for_invalid_values( $filtered ) {
+		add_filter(
+			'oauth2.cimd.rate_limit',
+			function () use ( $filtered ) {
+				return $filtered;
+			}
+		);
+
+		$this->assertSame(
+			[
+				'limit'  => 60,
+				'window' => 600,
+			],
+			get_rate_limit( 1, 'global' )
+		);
+		$this->assertSame(
+			[
+				'limit'  => 10,
+				'window' => 600,
+			],
+			get_rate_limit( 1, 'user' )
+		);
+	}
+
+	public function invalid_rate_limit_provider() {
+		return [
+			'null'              => [ null ],
+			'string'            => [ '5' ],
+			'int'               => [ 5 ],
+			'empty array'       => [ [] ],
+			'missing limit'     => [ [ 'window' => 60 ] ],
+			'missing window'    => [ [ 'limit' => 5 ] ],
+			'negative limit'    => [
+				[
+					'limit'  => -1,
+					'window' => 60,
+				],
+			],
+			'zero window'       => [
+				[
+					'limit'  => 5,
+					'window' => 0,
+				],
+			],
+			'negative window'   => [
+				[
+					'limit'  => 5,
+					'window' => -60,
+				],
+			],
+			'string limit'      => [
+				[
+					'limit'  => 'many',
+					'window' => 60,
+				],
+			],
+			'string window'     => [
+				[
+					'limit'  => 5,
+					'window' => '10 minutes',
+				],
+			],
+			'fractional limit'  => [
+				[
+					'limit'  => 2.5,
+					'window' => 60,
+				],
+			],
+			'boolean limit'     => [
+				[
+					'limit'  => true,
+					'window' => 60,
+				],
+			],
+			'array window'      => [
+				[
+					'limit'  => 5,
+					'window' => [ 60 ],
+				],
+			],
+			'null limit'        => [
+				[
+					'limit'  => null,
+					'window' => 60,
+				],
+			],
+		];
+	}
+
 			10,
 			2
 		);

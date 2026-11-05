@@ -89,6 +89,9 @@ function release_lock( $url, $handle ) {
 /**
  * Get the rate limit for a scope.
  *
+ * The filtered value must be an array with an integer `limit` of at least 0 and
+ * an integer `window` of at least 1. Anything else gives the default for the scope.
+ *
  * @param int    $user_id User ID.
  * @param string $scope   Either `user` or `global`.
  * @return array Array with int `limit` and int `window` keys.
@@ -110,11 +113,20 @@ function get_rate_limit( $user_id, $scope ) {
 	 * @param string $scope   Either `user` or `global`.
 	 */
 	$limit = apply_filters( 'oauth2.cimd.rate_limit', $defaults, $user_id, $scope );
-	$limit = is_array( $limit ) ? $limit : [];
+
+	if ( ! is_array( $limit ) || ! isset( $limit['limit'], $limit['window'] ) ) {
+		return $defaults;
+	}
+
+	$count  = is_bool( $limit['limit'] ) ? false : filter_var( $limit['limit'], FILTER_VALIDATE_INT );
+	$window = is_bool( $limit['window'] ) ? false : filter_var( $limit['window'], FILTER_VALIDATE_INT );
+	if ( false === $count || false === $window || $count < 0 || $window < 1 ) {
+		return $defaults;
+	}
 
 	return [
-		'limit'  => max( 0, (int) ( $limit['limit'] ?? $defaults['limit'] ) ),
-		'window' => max( 1, (int) ( $limit['window'] ?? $defaults['window'] ) ),
+		'limit'  => $count,
+		'window' => $window,
 	];
 }
 
