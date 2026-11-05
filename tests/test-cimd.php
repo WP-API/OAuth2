@@ -75,18 +75,32 @@ class Test_CIMD extends Test_Case {
 	 * Mock the HTTP response and capture the request arguments.
 	 *
 	 * @param array|WP_Error $response Response to return.
+	 * @param bool           $pin      Whether to fire http_api_curl before returning.
 	 */
-	protected function mock_http( $response ) {
+	protected function mock_http( $response, $pin = true ) {
 		add_filter(
 			'pre_http_request',
-			function ( $pre, $args ) use ( $response ) {
+			function ( $pre, $args, $url ) use ( $response, $pin ) {
 				$this->request_args = $args;
 				++$this->request_count;
+				if ( $pin ) {
+					$this->fire_pin( $url );
+				}
 				return $response;
 			},
 			10,
-			2
+			3
 		);
+	}
+
+	/**
+	 * Fire http_api_curl as the curl transport would, with a real handle.
+	 *
+	 * @param string $url Request URL.
+	 */
+	protected function fire_pin( $url ) {
+		$handle = curl_init();
+		do_action_ref_array( 'http_api_curl', [ &$handle, [], $url ] );
 	}
 
 	/**
@@ -677,10 +691,13 @@ class Test_CIMD extends Test_Case {
 		$this->mock_dns();
 		add_filter(
 			'pre_http_request',
-			function () use ( &$during ) {
+			function ( $pre, $args, $url ) use ( &$during ) {
 				$during = has_action( 'http_api_curl' );
+				$this->fire_pin( $url );
 				return $this->http_response( '{"a":1}' );
-			}
+			},
+			10,
+			3
 		);
 
 		$this->assertFalse( has_action( 'http_api_curl' ) );
@@ -760,6 +777,14 @@ class Test_CIMD extends Test_Case {
 
 		$this->expectException( RequestsException::class );
 		$pin( $handle, [], 'https://other.example.com/id' );
+	}
+
+	public function test_fetch_document_discards_a_response_when_the_pin_never_ran() {
+		$this->mock_dns();
+		$this->mock_http( $this->http_response( '{"client_id":"x"}' ), false );
+
+		$this->assertCimdError( 'oauth2.cimd.unsafe_transport', 500, fetch_document( static::URL ), false );
+		$this->assertSame( 1, $this->request_count );
 	}
 
 	public function test_fetch_document_maps_a_pin_failure_to_unsafe_transport() {

@@ -360,13 +360,14 @@ function fetch_document( $url ) {
 	}
 
 	$ip     = false !== strpos( $ips[0], ':' ) ? '[' . $ips[0] . ']' : $ips[0];
-	$failed = false;
-	$pin    = static function ( $handle, $args, $request_url ) use ( $url, $host, $port, $ip, &$failed ) {
+	$pinned = false;
+	$pin    = static function ( $handle, $args, $request_url ) use ( $url, $host, $port, $ip, &$pinned ) {
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.curl_curl_setopt -- Pins the connection to the vetted address.
 		if ( $request_url !== $url || ! curl_setopt( $handle, CURLOPT_RESOLVE, [ "{$host}:{$port}:{$ip}" ] ) ) {
-			$failed = true;
 			throw new RequestsException( 'The connection could not be pinned to the vetted address.', 'oauth2.cimd.unsafe_transport' );
 		}
+
+		$pinned = true;
 	};
 
 	add_action( 'http_api_curl', $pin, 10, 3 );
@@ -387,7 +388,7 @@ function fetch_document( $url ) {
 		remove_action( 'http_api_curl', $pin, 10 );
 	}
 
-	if ( $failed ) {
+	if ( ! $pinned ) {
 		return make_error( 'unsafe_transport', __( 'The connection could not be pinned to the vetted address.', 'oauth2' ), 500, false );
 	}
 
