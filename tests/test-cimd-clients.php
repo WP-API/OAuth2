@@ -26,7 +26,9 @@ use function WP\OAuth2\Admin\render_edit_page;
 use function WP\OAuth2\Admin\render_edit_page_body;
 use function WP\OAuth2\Authentication\attempt_authentication;
 use function WP\OAuth2\get_client;
+use function WP\OAuth2\CIMD\get_rate_limit_state;
 use function WP\OAuth2\CIMD\is_enabled;
+use function WP\OAuth2\CIMD\take_rate_limit_slot;
 use function WP\OAuth2\CIMD\render_origin_notice;
 use function WP\OAuth2\CIMD\validate_document;
 
@@ -1209,6 +1211,63 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 		$this->assertSame( 10, $this->request_count );
 		$this->assertSame( 10, get_user_option( 'oauth2_cimd_rl_' . $user_id, $user_id )['count'] );
 		$this->assertSame( 10, get_transient( 'oauth2_cimd_rl_global' )['count'] );
+	}
+
+	public function test_an_expired_user_counter_is_deleted_when_it_is_read() {
+		$user_id = $this->factory->user->create();
+		$key     = 'oauth2_cimd_rl_' . $user_id;
+		update_user_option(
+			$user_id,
+			$key,
+			[
+				'count' => 3,
+				'reset' => time() - 1,
+			]
+		);
+
+		$this->assertNull( get_rate_limit_state( $key, $user_id ) );
+		$this->assertFalse( get_user_option( $key, $user_id ) );
+	}
+
+	public function test_a_live_user_counter_is_kept_when_it_is_read() {
+		$user_id = $this->factory->user->create();
+		$key     = 'oauth2_cimd_rl_' . $user_id;
+		$state   = [
+			'count' => 3,
+			'reset' => time() + 60,
+		];
+		update_user_option( $user_id, $key, $state );
+
+		$this->assertSame( $state, get_rate_limit_state( $key, $user_id ) );
+		$this->assertSame( $state, get_user_option( $key, $user_id ) );
+	}
+
+	public function test_a_new_window_starts_after_the_user_counter_expired() {
+		$user_id = $this->factory->user->create();
+		$key     = 'oauth2_cimd_rl_' . $user_id;
+		update_user_option(
+			$user_id,
+			$key,
+			[
+				'count' => 10,
+				'reset' => time() - 1,
+			]
+		);
+
+		$this->assertTrue(
+			take_rate_limit_slot(
+				$key,
+				[
+					'limit'  => 10,
+					'window' => 600,
+				],
+				$user_id
+			)
+		);
+
+		$state = get_user_option( $key, $user_id );
+		$this->assertSame( 1, $state['count'] );
+		$this->assertGreaterThan( time(), $state['reset'] );
 	}
 
 	public function test_the_global_cap_applies_across_users() {

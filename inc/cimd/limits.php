@@ -108,8 +108,9 @@ function get_rate_limit( $user_id, $scope ) {
 /**
  * Read a rate limit counter that is kept outside the object cache.
  *
- * The per-user counter is a user option, which a network keeps per site. The
- * site-wide counter is a transient of the current site.
+ * The per-user counter is a user option, which a network keeps per site, and
+ * is deleted once its window has expired. The site-wide counter is a
+ * transient of the current site.
  *
  * @param string $key     Counter name.
  * @param int    $user_id User ID for a per-user counter, 0 for the site-wide one.
@@ -117,7 +118,15 @@ function get_rate_limit( $user_id, $scope ) {
  */
 function get_rate_limit_state( $key, $user_id ) {
 	$state = $user_id ? get_user_option( $key, $user_id ) : get_transient( $key );
-	if ( ! is_array( $state ) || ! isset( $state['count'], $state['reset'] ) || $state['reset'] <= time() ) {
+	if ( ! is_array( $state ) || ! isset( $state['count'], $state['reset'] ) ) {
+		return null;
+	}
+
+	if ( $state['reset'] <= time() ) {
+		if ( $user_id ) {
+			delete_user_option( $user_id, $key );
+		}
+
 		return null;
 	}
 
