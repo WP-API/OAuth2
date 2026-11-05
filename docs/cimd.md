@@ -19,7 +19,7 @@ The plugin treats these clients as public clients:
 * They cannot use the `client_credentials` grant.
 * Redirect URIs must match a URI in the document exactly. The one exception is a loopback `http` URI (`localhost`, `127.0.0.1` or `[::1]`), which may use any port.
 
-A client record is tied to the document it came from. If the redirect URIs change in a refresh, all tokens and codes issued before the change stop working. If `oauth2.cimd.auto_approve` returns false, the client also goes back to draft until an admin approves it again.
+A client record is tied to the document it came from. If the redirect URIs, grant types, response types or authentication method change in a refresh, all tokens and codes issued before the change stop working. If `oauth2.cimd.auto_approve` returns false, the client also goes back to draft until an admin approves it again.
 
 Documents are cached for 5 to 60 minutes, based on the `Cache-Control` header of the response. When a refresh fails for a temporary reason, the plugin keeps using the stored client. When it fails for a permanent reason, such as a 404 or an invalid document, the stored client is marked as failed. New authorizations and the fallback to the stored client are blocked until a refresh succeeds. Codes that were already issued (they last up to 10 minutes) and existing tokens keep working until a later successful refresh changes the generation, or an admin deletes the client.
 
@@ -50,7 +50,7 @@ add_filter(
 
 ### oauth2.cimd.auto_approve
 
-Decides whether a new client is approved at once. The default is `true`, which publishes a new client. When it returns `false`, a new client is saved as a draft and an admin has to publish it. A published client also goes back to draft when its redirect URIs change in a refresh.
+Decides whether a new client is approved at once. The default is `true`, which publishes a new client. When it returns `false`, a new client is saved as a draft and an admin has to publish it. A published client goes back to draft only when this filter returns `false` and a refresh changes a security-relevant field: the redirect URIs, grant types, response types or authentication method. Only the value `true` publishes. Any other value, such as a string or `null`, counts as `false`.
 
 An existing client keeps its status otherwise. A refresh never approves a draft. The filter gets the normalised metadata and the client ID URL.
 

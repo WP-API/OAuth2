@@ -928,6 +928,41 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 		$this->assertSame( static::URL, $seen[2] );
 	}
 
+	/**
+	 * @dataProvider auto_approve_provider
+	 *
+	 * @param mixed  $filtered Value returned by the filter.
+	 * @param string $status   Expected status of the new client.
+	 */
+	public function test_only_true_from_auto_approve_publishes_a_new_client( $filtered, $status ) {
+		$this->serve();
+		add_filter(
+			'oauth2.cimd.auto_approve',
+			function () use ( $filtered ) {
+				return $filtered;
+			}
+		);
+
+		$client = $this->discover( [ 'include_unapproved' => true ] );
+
+		$this->assertSame( $status, get_post_status( $client->get_post_id() ) );
+	}
+
+	public function auto_approve_provider() {
+		return [
+			'true'         => [ true, 'publish' ],
+			'false'        => [ false, 'draft' ],
+			'string false' => [ 'false', 'draft' ],
+			'manual'       => [ 'manual', 'draft' ],
+			'deny'         => [ 'deny', 'draft' ],
+			'int 1'        => [ 1, 'draft' ],
+			'int 0'        => [ 0, 'draft' ],
+			'null'         => [ null, 'draft' ],
+			'empty array'  => [ [], 'draft' ],
+			'array'        => [ [ 'x' ], 'draft' ],
+		];
+	}
+
 	public function test_a_refreshed_document_does_not_approve_an_existing_draft() {
 		$this->serve();
 		$stored = $this->store( 'draft', time() - 10 );

@@ -798,9 +798,9 @@ function discover_client( $url, $stored = null ) {
 		 * @param array  $metadata     Normalised client metadata.
 		 * @param string $url          Client ID URL.
 		 */
-		$auto_approve = (bool) apply_filters( 'oauth2.cimd.auto_approve', true, $result, $url );
+		$auto_approve = apply_filters( 'oauth2.cimd.auto_approve', true, $result, $url );
 
-		return Client::save_cimd( $url, $result, $fetched['expires'], $auto_approve ? 'publish' : 'draft' );
+		return Client::save_cimd( $url, $result, $fetched['expires'], true === $auto_approve ? 'publish' : 'draft' );
 	} finally {
 		release_lock( $url, $lock );
 	}
