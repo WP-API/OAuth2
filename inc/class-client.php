@@ -695,6 +695,8 @@ class Client implements ClientInterface {
 	/**
 	 * Create or refresh the shadow client for a client ID metadata document.
 	 *
+	 * When the metadata has not changed, only the expiry is written.
+	 *
 	 * An existing shadow client keeps its status, except that a change to the
 	 * redirect URIs, grant types, response types or authentication method gives
 	 * it a new generation, and moves it back to draft when `$status` is not
@@ -744,6 +746,18 @@ class Client implements ClientInterface {
 			$old_hash = get_post_meta( $post_id, static::CIMD_SECURITY_HASH_KEY, true );
 			if ( static::KIND_CIMD !== get_post_meta( $post_id, static::KIND_KEY, true ) || get_post_meta( $post_id, static::CIMD_CLIENT_ID_KEY, true ) !== $url ) {
 				return new WP_Error( 'oauth2.client.cimd.conflict', __( 'A different client already uses the slug of this client ID.', 'oauth2' ), [ 'status' => 500 ] );
+			}
+
+			// Identical metadata only needs the expiry moved, so skip the other writes.
+			if ( $old_hash === $hash && get_post_meta( $post_id, static::CIMD_METADATA_KEY, true ) === $metadata && '' !== get_post_meta( $post_id, static::CIMD_GENERATION_KEY, true ) ) {
+				if ( (int) get_post_meta( $post_id, static::CIMD_EXPIRES_KEY, true ) !== (int) $expires ) {
+					update_post_meta( $post_id, static::CIMD_EXPIRES_KEY, (int) $expires );
+				}
+				if ( get_post_meta( $post_id, static::CIMD_FAILED_KEY, true ) ) {
+					delete_post_meta( $post_id, static::CIMD_FAILED_KEY );
+				}
+
+				return new static( $posts[0] );
 			}
 
 			if ( $posts[0]->post_title !== $title ) {

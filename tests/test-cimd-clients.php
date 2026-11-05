@@ -208,6 +208,82 @@ class Test_CIMD_Clients extends CIMD_Clients_Test_Case {
 		$this->assertSame( $expires, $second->get_cimd_expires() );
 	}
 
+	public function test_save_cimd_writes_only_the_expiry_when_the_metadata_is_unchanged() {
+		$first = $this->store( 'publish', time() + 300 );
+		$posts = 0;
+		$metas = [];
+		add_filter(
+			'wp_insert_post_data',
+			function ( $data ) use ( &$posts ) {
+				++$posts;
+				return $data;
+			}
+		);
+		add_filter(
+			'update_post_metadata',
+			function ( $check, $post_id, $key ) use ( &$metas ) {
+				$metas[] = $key;
+				return $check;
+			},
+			10,
+			3
+		);
+
+		$expires = time() + 900;
+		$second  = Client::save_cimd( static::URL, $this->metadata(), $expires, 'publish' );
+
+		$this->assertSame( 0, $posts );
+		$this->assertSame( [ '_oauth2_cimd_expires' ], $metas );
+		$this->assertSame( $first->get_post_id(), $second->get_post_id() );
+		$this->assertSame( $expires, $second->get_cimd_expires() );
+		$this->assertSame( $first->get_cimd_generation(), $second->get_cimd_generation() );
+	}
+
+	public function test_save_cimd_writes_nothing_when_the_expiry_is_also_unchanged() {
+		$expires = time() + 300;
+		$this->store( 'publish', $expires );
+		$metas = [];
+		add_filter(
+			'update_post_metadata',
+			function ( $check, $post_id, $key ) use ( &$metas ) {
+				$metas[] = $key;
+				return $check;
+			},
+			10,
+			3
+		);
+
+		Client::save_cimd( static::URL, $this->metadata(), $expires, 'publish' );
+
+		$this->assertSame( [], $metas );
+	}
+
+	public function test_save_cimd_clears_the_failure_marker_when_the_metadata_is_unchanged() {
+		$client = $this->store();
+		$client->mark_cimd_failed();
+
+		Client::save_cimd( static::URL, $this->metadata(), time() + 900, 'publish' );
+
+		$this->assertFalse( Client::get_by_id( static::URL )->is_cimd_failed() );
+	}
+
+	public function test_save_cimd_writes_the_record_when_the_metadata_changes() {
+		$this->store();
+		$posts = 0;
+		add_filter(
+			'wp_insert_post_data',
+			function ( $data ) use ( &$posts ) {
+				++$posts;
+				return $data;
+			}
+		);
+
+		$client = Client::save_cimd( static::URL, $this->metadata( [ 'client_name' => 'Renamed Client' ] ), time() + 900, 'publish' );
+
+		$this->assertGreaterThan( 0, $posts );
+		$this->assertSame( 'Renamed Client', $client->get_cimd_metadata()['client_name'] );
+	}
+
 	public function test_save_cimd_keeps_a_published_client_published() {
 		$first = $this->store( 'publish' );
 
