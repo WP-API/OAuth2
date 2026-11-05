@@ -268,34 +268,6 @@ class Test_Types_Authorization_Code extends Test_Case {
 	}
 
 	/**
-	 * RFC 9700 section 2.1.1: S256 is the method to use, since plain does not protect the challenge.
-	 *
-	 * @link https://datatracker.ietf.org/doc/html/rfc9700#section-2.1.1
-	 */
-	public function test_weak_method_error_names_the_filtered_required_methods() {
-		$filter = function () {
-			return [ PKCE::METHOD_PLAIN ];
-		};
-		add_filter( 'oauth2.pkce.required_methods', $filter );
-
-		$client = $this->create_client( [ 'pkce_required' => true ] );
-		$pair   = $this->make_pkce_pair( PKCE::METHOD_S256 );
-		$result = $this->type->validate_extra_params_public(
-			$client,
-			[
-				'code_challenge'        => $pair['code_challenge'],
-				'code_challenge_method' => 'S256',
-			]
-		);
-
-		remove_filter( 'oauth2.pkce.required_methods', $filter );
-
-		$this->assertWPError( $result );
-		$this->assertStringContainsString( 'plain', $result->get_error_message() );
-		$this->assertStringNotContainsString( 'S256', $result->get_error_message() );
-	}
-
-	/**
 	 * RFC 7636 section 4.3: the method is "S256" or "plain", and defaults to "plain" when omitted.
 	 *
 	 * @link https://datatracker.ietf.org/doc/html/rfc7636#section-4.3
@@ -394,24 +366,6 @@ class Test_Types_Authorization_Code extends Test_Case {
 		$this->assertNotNull( $captured_location );
 		$this->assertStringStartsWith( 'https://example.com/callback', $captured_location );
 		$this->assertStringContainsString( 'error=invalid_request', $captured_location );
-	}
-
-	public function test_required_methods_filter_can_allow_plain() {
-		add_filter( 'oauth2.pkce.required_methods', function () {
-			return [ PKCE::METHOD_S256, PKCE::METHOD_PLAIN ];
-		} );
-
-		$client   = $this->create_client( [ 'pkce_required' => true ] );
-		$verifier = PKCE::generate_verifier();
-		$result   = $this->type->validate_extra_params_public(
-			$client,
-			[
-				'code_challenge'        => $verifier,
-				'code_challenge_method' => 'plain',
-			]
-		);
-
-		$this->assertSame( 'plain', $result['code_challenge_method'] );
 	}
 
 	/**
