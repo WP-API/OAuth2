@@ -94,6 +94,35 @@ class PersonalClient implements ClientInterface {
 	}
 
 	/**
+	 * Check whether the client must authenticate with its secret.
+	 *
+	 * @return bool Always false: personal tokens have no secret to check.
+	 */
+	public function requires_secret() {
+		return false;
+	}
+
+	/**
+	 * Check if the provided secret matches the client's secret.
+	 *
+	 * @param string $secret Secret to check.
+	 *
+	 * @return bool Always false: personal tokens cannot authenticate as a client.
+	 */
+	public function check_secret( $secret ) {
+		return false;
+	}
+
+	/**
+	 * Check whether the client_credentials grant is enabled for this client.
+	 *
+	 * @return bool Always false: personal tokens are issued to a user, not a client.
+	 */
+	public function is_client_credentials_enabled() {
+		return false;
+	}
+
+	/**
 	 * Get registered URI for the client.
 	 *
 	 * @return array List of valid redirect URIs.
