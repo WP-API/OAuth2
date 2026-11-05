@@ -122,7 +122,9 @@ add_filter( 'oauth2.cimd.allow_loopback', '__return_true' );
 
 Every authorization response redirect carries an `iss` parameter (RFC 9207), for all clients and not only CIMD ones. It holds the issuer of the authorization server. The `iss` value always matches the `issuer` in the metadata at `/.well-known/oauth-authorization-server`, which also sets `authorization_response_iss_parameter_supported` to `true`. The issuer is also the `authorization_servers` entry of the protected resource metadata.
 
-The issuer is the site URL by default. Use the `oauth2.issuer` filter to change it. The metadata, the protected resource metadata and `iss` all follow the filter. If you change the issuer through the `oauth2.well_known_authorization_server_metadata` filter instead, `iss` follows that too.
+The issuer is the site URL by default. Change it with the `oauth2.issuer` filter. This is the supported way. The metadata, the protected resource metadata and `iss` all follow the filter, and so does the check that refuses the issuer as a client ID.
+
+The `oauth2.well_known_authorization_server_metadata` filter can also change the `issuer` field. `iss`, the protected resource metadata and the client ID check carry that value through as well, but use `oauth2.issuer` rather than this filter to set the issuer.
 
 ```php
 add_filter(
@@ -152,7 +154,7 @@ Only one request fetches a given URL at a time. The lock is a row in the options
 Where the counters are stored depends on the object cache:
 
 * With an external object cache, both counters live in the object cache, in the `oauth2_cimd` group, with the site ID in the key. The counters are atomic.
-* Without one, the per-user counter is a user option, which WordPress stores per site as `{prefix}oauth2_cimd_rl_{user ID}` in the user meta table. The per-site counter is a regular transient of the site, `oauth2_cimd_rl_global`. Each holds a `count` and a `reset` time. The counters are read and then written, so under heavy parallel load the limit is soft and may be passed by a few requests.
+* Without one, the per-user counter is a user option, which WordPress stores per site as `{prefix}oauth2_cimd_rl_{user ID}` in the user meta table. The per-site counter is a regular transient of the site, `oauth2_cimd_rl_global`. Each holds a `count` and a `reset` time. The per-user row is deleted when it is read after its window has expired, so it exists only while a window is active or recently used. The counters are read and then written, so under heavy parallel load the limit is soft and may be passed by a few requests.
 
 ## Rate limiting at the web server
 
