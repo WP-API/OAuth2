@@ -281,6 +281,13 @@ class Authorization_Code {
 	public static function get_by_code( Client $client, $code ) {
 		$key   = static::KEY_PREFIX . $code;
 		$value = get_post_meta( $client->get_post_id(), wp_slash( $key ), false );
+		if ( $client->is_cimd() && ! empty( $value ) ) {
+			$generation = $value[0]['client_generation'] ?? '';
+			if ( ! is_string( $generation ) || '' === $generation || ! hash_equals( $client->get_cimd_generation(), $generation ) ) {
+				$value = [];
+			}
+		}
+
 		if ( empty( $value ) ) {
 			return new WP_Error(
 				'oauth2.client.check_authorization_code.invalid_code',
@@ -315,6 +322,10 @@ class Authorization_Code {
 			'user'       => (int) $user->ID,
 			'expiration' => time() + static::MAX_AGE,
 		];
+
+		if ( $client->is_cimd() ) {
+			$value['client_generation'] = $client->get_cimd_generation();
+		}
 
 		// Only store the challenge when one was actually supplied, so a
 		// non-PKCE code's meta shape is unchanged from before this existed.

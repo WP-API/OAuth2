@@ -35,7 +35,16 @@ class Access_Token extends Token {
 	 * @return ClientInterface|null
 	 */
 	public function get_client() {
-		return OAuth2\get_client( $this->value['client'] );
+		$client = OAuth2\get_client( $this->value['client'] );
+
+		if ( $client instanceof Client && $client->is_cimd() ) {
+			$generation = $this->value['client_generation'] ?? '';
+			if ( ! is_string( $generation ) || '' === $generation || ! hash_equals( $client->get_cimd_generation(), $generation ) ) {
+				return null;
+			}
+		}
+
+		return $client;
 	}
 
 	/**
@@ -241,11 +250,14 @@ class Access_Token extends Token {
 			);
 		}
 
-		$data     = [
+		$data = [
 			'client'  => $client->get_id(),
 			'created' => time(),
 			'meta'    => $meta,
 		];
+		if ( $client instanceof Client && $client->is_cimd() ) {
+			$data['client_generation'] = $client->get_cimd_generation();
+		}
 		$key      = wp_generate_password( static::KEY_LENGTH, false );
 		$meta_key = static::META_PREFIX . $key;
 

@@ -19,6 +19,7 @@ use WP_Error;
 use WP_REST_Request;
 use WP_REST_Server;
 
+use function WP\OAuth2\Authentication\attempt_authentication;
 use function WP\OAuth2\get_client;
 use function WP\OAuth2\CIMD\is_enabled;
 use function WP\OAuth2\CIMD\validate_document;
@@ -1488,5 +1489,163 @@ class Test_CIMD_Flow extends CIMD_Clients_Test_Case {
 
 		$this->assertSame( 401, $response->get_status() );
 		$this->assertSame( 'invalid_client', $response->get_data()['error'] );
+	}
+}
+
+/**
+ * Test cases for tying tokens and codes to one shadow record.
+ */
+class Test_CIMD_Generation extends CIMD_Clients_Test_Case {
+
+	public function tear_down() {
+		unset( $_SERVER['HTTP_AUTHORIZATION'] );
+		parent::tear_down();
+	}
+
+	/**
+	 * Check whether a bearer token still authenticates.
+	 *
+	 * @param string $key Token key.
+	 * @return bool
+	 */
+	protected function authenticates( $key ) {
+		global $oauth2_error;
+		$_SERVER['HTTP_AUTHORIZATION'] = 'Bearer ' . $key;
+		$user_id                       = attempt_authentication( false );
+		unset( $_SERVER['HTTP_AUTHORIZATION'] );
+
+		return is_int( $user_id ) && $user_id > 0 && null === $oauth2_error;
+	}
+
+	public function test_a_new_shadow_client_has_a_generation() {
+		$client = $this->store();
+
+		$this->assertSame( 32, strlen( $client->get_cimd_generation() ) );
+		$this->assertSame( $client->get_cimd_generation(), Client::get_by_id( static::URL )->get_cimd_generation() );
+	}
+
+	public function test_tokens_and_codes_are_stamped_with_the_generation() {
+		$client = $this->store();
+		$user   = $this->factory->user->create_and_get();
+
+		$token = $client->issue_token( $user );
+		$code  = $client->generate_authorization_code( $user );
+
+		$this->assertSame( $client->get_cimd_generation(), Tokens\get_by_id( $token->get_key() )->get_client()->get_cimd_generation() );
+		$this->assertSame( $client->get_cimd_generation(), get_post_meta( $client->get_post_id(), '_oauth2_authcode_' . $code->get_code(), true )['client_generation'] );
+		$this->assertTrue( $this->authenticates( $token->get_key() ) );
+	}
+
+	public function test_a_token_dies_when_the_shadow_record_is_deleted_and_rediscovered() {
+		$client = $this->store();
+		$user   = $this->factory->user->create_and_get();
+		$token  = $client->issue_token( $user );
+		$this->assertTrue( $this->authenticates( $token->get_key() ) );
+
+		$client->delete();
+		$this->mock_dns();
+		$this->mock_http( $this->http_response( wp_json_encode( $this->document() ) ) );
+		wp_set_current_user( $user->ID );
+		$new = get_client( static::URL, [ 'discover' => true ] );
+		wp_set_current_user( 0 );
+
+		$this->assertInstanceOf( Client::class, $new );
+		$this->assertNotSame( $client->get_cimd_generation(), $new->get_cimd_generation() );
+		$this->assertNull( Tokens\get_by_id( $token->get_key() )->get_client() );
+		$this->assertFalse( $this->authenticates( $token->get_key() ) );
+	}
+
+	public function test_a_token_without_a_generation_is_refused() {
+		$client = $this->store();
+		$user   = $this->factory->user->create_and_get();
+		$token  = $client->issue_token( $user );
+		$value  = get_user_meta( $user->ID, '_oauth2_access_' . $token->get_key(), true );
+		unset( $value['client_generation'] );
+		update_user_meta( $user->ID, '_oauth2_access_' . $token->get_key(), $value );
+
+		$this->assertNull( Tokens\get_by_id( $token->get_key() )->get_client() );
+	}
+
+	public function test_a_refresh_that_changes_the_redirect_uris_kills_old_tokens_and_codes() {
+		$client = $this->store();
+		$user   = $this->factory->user->create_and_get();
+		$token  = $client->issue_token( $user );
+		$code   = $client->generate_authorization_code( $user );
+		$before = $client->get_cimd_generation();
+
+		$refreshed = Client::save_cimd( static::URL, $this->metadata( [ 'redirect_uris' => [ 'https://client.example.com/new' ] ] ), time() + 300, 'publish' );
+
+		$this->assertSame( $client->get_post_id(), $refreshed->get_post_id() );
+		$this->assertNotSame( $before, $refreshed->get_cimd_generation() );
+		$this->assertNull( Tokens\get_by_id( $token->get_key() )->get_client() );
+		$this->assertFalse( $this->authenticates( $token->get_key() ) );
+		$this->assertWPError( Client::get_by_id( static::URL )->get_authorization_code( $code->get_code() ) );
+		$this->assertTrue( $refreshed->is_approved() );
+	}
+
+	public function test_a_refresh_that_changes_nothing_security_relevant_keeps_tokens_and_codes() {
+		$client = $this->store();
+		$user   = $this->factory->user->create_and_get();
+		$token  = $client->issue_token( $user );
+		$code   = $client->generate_authorization_code( $user );
+
+		$refreshed = Client::save_cimd( static::URL, $this->metadata( [ 'client_name' => 'Renamed' ] ), time() + 900, 'publish' );
+
+		$this->assertSame( $client->get_cimd_generation(), $refreshed->get_cimd_generation() );
+		$this->assertTrue( $this->authenticates( $token->get_key() ) );
+		$this->assertNotWPError( $refreshed->get_authorization_code( $code->get_code() ) );
+	}
+
+	public function test_under_the_manual_policy_a_security_change_moves_the_record_back_to_draft() {
+		$client = $this->store();
+		$before = $client->get_cimd_generation();
+		add_filter(
+			'oauth2.cimd.policy',
+			function () {
+				return 'manual';
+			}
+		);
+		$this->mock_dns();
+		$this->mock_http( $this->http_response( wp_json_encode( $this->document( [ 'redirect_uris' => [ 'https://client.example.com/new' ] ] ) ) ) );
+		update_post_meta( $client->get_post_id(), '_oauth2_cimd_expires', time() - 1 );
+
+		$result = get_client( static::URL, [ 'discover' => true, 'include_unapproved' => true ] );
+
+		$this->assertSame( $client->get_post_id(), $result->get_post_id() );
+		$this->assertSame( 'draft', get_post_status( $client->get_post_id() ) );
+		$this->assertNotSame( $before, $result->get_cimd_generation() );
+	}
+
+	public function test_under_the_auto_policy_a_security_change_keeps_the_record_published() {
+		$client = $this->store();
+
+		Client::save_cimd( static::URL, $this->metadata( [ 'redirect_uris' => [ 'https://client.example.com/new' ] ] ), time() + 300, 'publish' );
+
+		$this->assertSame( 'publish', get_post_status( $client->get_post_id() ) );
+	}
+
+	public function test_a_token_from_one_site_does_not_authenticate_on_another() {
+		if ( ! is_multisite() ) {
+			$this->markTestSkipped( 'Requires a multisite install.' );
+		}
+
+		$client = $this->store();
+		$user   = $this->factory->user->create_and_get();
+		$token  = $client->issue_token( $user );
+		$key    = $token->get_key();
+		$this->assertNotNull( Tokens\get_by_id( $key )->get_client() );
+
+		$blog_id = $this->factory->blog->create();
+		add_user_to_blog( $blog_id, $user->ID, 'subscriber' );
+		switch_to_blog( $blog_id );
+		try {
+			$other = Client::save_cimd( static::URL, $this->metadata(), time() + 300, 'publish' );
+			$this->assertInstanceOf( Client::class, $other );
+			$this->assertNull( Tokens\get_by_id( $key )->get_client() );
+		} finally {
+			restore_current_blog();
+		}
+
+		$this->assertNotNull( Tokens\get_by_id( $key )->get_client() );
 	}
 }

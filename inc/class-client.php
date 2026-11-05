@@ -34,6 +34,8 @@ class Client implements ClientInterface {
 	const CIMD_CLIENT_ID_KEY             = '_oauth2_cimd_client_id';
 	const CIMD_METADATA_KEY              = '_oauth2_cimd_metadata';
 	const CIMD_EXPIRES_KEY               = '_oauth2_cimd_expires';
+	const CIMD_GENERATION_KEY            = '_oauth2_cimd_generation';
+	const CIMD_SECURITY_HASH_KEY         = '_oauth2_cimd_security_hash';
 
 	/**
 	 * @var WP_Post
@@ -103,6 +105,20 @@ class Client implements ClientInterface {
 	 */
 	public function get_post_id() {
 		return $this->post->ID;
+	}
+
+	/**
+	 * Get the generation of a CIMD client.
+	 *
+	 * Tokens and authorization codes are stamped with it, and stop working when
+	 * the shadow record is replaced or its security-relevant metadata changes.
+	 *
+	 * @return string Random token, empty for a registered client.
+	 */
+	public function get_cimd_generation() {
+		$generation = get_post_meta( $this->get_post_id(), static::CIMD_GENERATION_KEY, true );
+
+		return is_string( $generation ) ? $generation : '';
 	}
 
 	/**
@@ -644,9 +660,28 @@ class Client implements ClientInterface {
 	}
 
 	/**
+	 * Hash the metadata fields that decide who can use a CIMD client.
+	 *
+	 * @param array $metadata Normalised metadata.
+	 *
+	 * @return string SHA-256 hash.
+	 */
+	protected static function get_cimd_security_hash( array $metadata ) {
+		$fields = [];
+		foreach ( [ 'redirect_uris', 'grant_types', 'response_types', 'token_endpoint_auth_method' ] as $field ) {
+			$fields[ $field ] = $metadata[ $field ] ?? null;
+		}
+
+		return hash( 'sha256', wp_json_encode( $fields ) );
+	}
+
+	/**
 	 * Create or refresh the shadow client for a client ID metadata document.
 	 *
-	 * An existing shadow client keeps its status. Does not check capabilities.
+	 * An existing shadow client keeps its status, except that a change to the
+	 * redirect URIs, grant types, response types or authentication method gives
+	 * it a new generation, and moves it back to draft when `$status` is not
+	 * `publish`. Does not check capabilities.
 	 *
 	 * @param string $url      Client ID URL.
 	 * @param array  $metadata Normalised metadata from CIMD\validate_document().
@@ -667,8 +702,11 @@ class Client implements ClientInterface {
 			]
 		);
 
-		$title = isset( $metadata['client_name'] ) ? (string) $metadata['client_name'] : '';
-		if ( empty( $posts ) ) {
+		$title    = isset( $metadata['client_name'] ) ? (string) $metadata['client_name'] : '';
+		$hash     = static::get_cimd_security_hash( $metadata );
+		$is_new   = empty( $posts );
+		$old_hash = null;
+		if ( $is_new ) {
 			$post_id = wp_insert_post(
 				wp_slash(
 					[
@@ -685,7 +723,8 @@ class Client implements ClientInterface {
 				return $post_id;
 			}
 		} else {
-			$post_id = $posts[0]->ID;
+			$post_id  = $posts[0]->ID;
+			$old_hash = get_post_meta( $post_id, static::CIMD_SECURITY_HASH_KEY, true );
 			if ( static::KIND_CIMD !== get_post_meta( $post_id, static::KIND_KEY, true ) || get_post_meta( $post_id, static::CIMD_CLIENT_ID_KEY, true ) !== $url ) {
 				return new WP_Error( 'oauth2.client.cimd.conflict', __( 'A different client already uses the slug of this client ID.', 'oauth2' ), [ 'status' => 500 ] );
 			}
@@ -713,6 +752,23 @@ class Client implements ClientInterface {
 			static::CIMD_METADATA_KEY  => $metadata,
 			static::CIMD_EXPIRES_KEY   => (int) $expires,
 		];
+		if ( $is_new || $old_hash !== $hash ) {
+			$meta[ static::CIMD_GENERATION_KEY ]    = wp_generate_password( 32, false );
+			$meta[ static::CIMD_SECURITY_HASH_KEY ] = $hash;
+
+			if ( ! $is_new && 'publish' !== $status && 'publish' === $posts[0]->post_status ) {
+				$result = wp_update_post(
+					[
+						'ID'          => $post_id,
+						'post_status' => 'draft',
+					],
+					true
+				);
+				if ( is_wp_error( $result ) ) {
+					return $result;
+				}
+			}
+		}
 		foreach ( $meta as $key => $value ) {
 			update_post_meta( $post_id, $key, wp_slash( $value ) );
 		}
