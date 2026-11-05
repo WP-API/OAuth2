@@ -331,6 +331,38 @@ class Test_CIMD_Clients extends CIMD_Clients_Test_Case {
 		$this->assertSame( '', get_post_meta( $post_id, '_oauth2_client_kind', true ) );
 	}
 
+	public function test_save_cimd_reports_a_slug_taken_by_an_attachment() {
+		$attachment_id = wp_insert_post(
+			[
+				'post_type'   => 'attachment',
+				'post_title'  => 'Image',
+				'post_name'   => 'cimd-' . hash( 'sha256', static::URL ),
+				'post_status' => 'inherit',
+			]
+		);
+
+		$result = Client::save_cimd( static::URL, $this->metadata(), time() + 300, 'publish' );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'oauth2.cimd.slug_conflict', $result->get_error_code() );
+		$this->assertSame( 500, $result->get_error_data()['status'] );
+		$this->assertSame( 0, $this->count_client_posts() );
+		$this->assertSame( 'attachment', get_post_type( $attachment_id ) );
+		$this->assertNull( Client::get_by_id( static::URL, true ) );
+	}
+
+	public function test_save_cimd_creates_a_new_record_for_a_trashed_one() {
+		$old = $this->store();
+		wp_trash_post( $old->get_post_id() );
+
+		$new = Client::save_cimd( static::URL, $this->metadata(), time() + 300, 'publish' );
+
+		$this->assertInstanceOf( Client::class, $new );
+		$this->assertNotSame( $old->get_post_id(), $new->get_post_id() );
+		$this->assertNotSame( $old->get_cimd_generation(), $new->get_cimd_generation() );
+		$this->assertSame( 'cimd-' . hash( 'sha256', static::URL ), get_post( $new->get_post_id() )->post_name );
+	}
+
 	// get_by_id().
 
 	public function test_get_by_id_finds_a_shadow_client_by_url() {

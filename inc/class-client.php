@@ -714,7 +714,7 @@ class Client implements ClientInterface {
 		$posts = get_posts(
 			[
 				'post_type'        => static::POST_TYPE,
-				'post_status'      => [ 'publish', 'draft', 'pending', 'private', 'future', 'trash' ],
+				'post_status'      => [ 'publish', 'draft', 'pending', 'private', 'future' ],
 				'name'             => $slug,
 				'posts_per_page'   => 1,
 				'suppress_filters' => true,
@@ -740,6 +740,13 @@ class Client implements ClientInterface {
 			);
 			if ( is_wp_error( $post_id ) ) {
 				return $post_id;
+			}
+
+			// WordPress adds a suffix when another post, such as an attachment, already uses the slug.
+			if ( get_post( $post_id )->post_name !== $slug ) {
+				wp_delete_post( $post_id, true );
+
+				return new WP_Error( 'oauth2.cimd.slug_conflict', __( 'Another post already uses the slug of this client ID.', 'oauth2' ), [ 'status' => 500 ] );
 			}
 		} else {
 			$post_id  = $posts[0]->ID;
