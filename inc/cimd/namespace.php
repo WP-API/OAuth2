@@ -58,6 +58,20 @@ const IPV6_BLOCKLIST = [
 ];
 
 /**
+ * Check whether client ID metadata documents are enabled.
+ *
+ * @return bool
+ */
+function is_enabled() {
+	/**
+	 * Filters whether client ID metadata documents are supported.
+	 *
+	 * @param bool $enabled Whether CIMD is enabled. Default true.
+	 */
+	return (bool) apply_filters( 'oauth2.cimd.enabled', true );
+}
+
+/**
  * Build a WP_Error with a CIMD error code.
  *
  * @param string    $reason    Reason suffix for the `oauth2.cimd.` error code.

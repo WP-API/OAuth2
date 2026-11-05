@@ -7,6 +7,7 @@
 
 namespace WP\OAuth2;
 
+use WP\OAuth2\CIMD;
 use WP\OAuth2\Tokens\Access_Token;
 use WP\OAuth2\Tokens\Authorization_Code;
 use WP_Error;
@@ -28,6 +29,11 @@ class Client implements ClientInterface {
 	const CLIENT_ID_LENGTH               = 12;
 	const CLIENT_SECRET_LENGTH           = 48;
 	const AUTH_CODE_AGE                  = 600; // 10 * MINUTE_IN_SECONDS
+	const KIND_KEY                       = '_oauth2_client_kind';
+	const KIND_CIMD                      = 'cimd';
+	const CIMD_CLIENT_ID_KEY             = '_oauth2_cimd_client_id';
+	const CIMD_METADATA_KEY              = '_oauth2_cimd_metadata';
+	const CIMD_EXPIRES_KEY               = '_oauth2_cimd_expires';
 
 	/**
 	 * @var WP_Post
@@ -46,10 +52,46 @@ class Client implements ClientInterface {
 	/**
 	 * Get the client's ID.
 	 *
-	 * @return string Client ID.
+	 * @return string Client ID. The metadata document URL for a CIMD client.
 	 */
 	public function get_id() {
+		if ( $this->is_cimd() ) {
+			$url = get_post_meta( $this->get_post_id(), static::CIMD_CLIENT_ID_KEY, true );
+			if ( '' !== $url && is_string( $url ) ) {
+				return $url;
+			}
+		}
+
 		return $this->post->post_name;
+	}
+
+	/**
+	 * Check whether the client is a shadow record of a client ID metadata document.
+	 *
+	 * @return bool True for a CIMD client, false for a registered client.
+	 */
+	public function is_cimd() {
+		return static::KIND_CIMD === get_post_meta( $this->get_post_id(), static::KIND_KEY, true );
+	}
+
+	/**
+	 * Get the stored metadata of a CIMD client.
+	 *
+	 * @return array Normalised metadata, empty for a registered client.
+	 */
+	public function get_cimd_metadata() {
+		$metadata = get_post_meta( $this->get_post_id(), static::CIMD_METADATA_KEY, true );
+
+		return is_array( $metadata ) ? $metadata : [];
+	}
+
+	/**
+	 * Get the time the stored metadata of a CIMD client expires.
+	 *
+	 * @return int Unix timestamp, 0 for a registered client.
+	 */
+	public function get_cimd_expires() {
+		return (int) get_post_meta( $this->get_post_id(), static::CIMD_EXPIRES_KEY, true );
 	}
 
 	/**
@@ -122,6 +164,10 @@ class Client implements ClientInterface {
 	 * @return string Type ID if available, or an empty string.
 	 */
 	public function get_type() {
+		if ( $this->is_cimd() ) {
+			return 'public';
+		}
+
 		return get_post_meta( $this->get_post_id(), static::TYPE_KEY, true );
 	}
 
@@ -145,6 +191,10 @@ class Client implements ClientInterface {
 	 * @return bool True if the secret must be verified, false otherwise.
 	 */
 	public function requires_secret() {
+		if ( $this->is_cimd() ) {
+			return false;
+		}
+
 		$requires_secret = ( 'private' === $this->get_type() );
 
 		/**
@@ -173,6 +223,10 @@ class Client implements ClientInterface {
 	 * @return bool True if enabled, false otherwise.
 	 */
 	public function is_client_credentials_enabled() {
+		if ( $this->is_cimd() ) {
+			return false;
+		}
+
 		return (bool) get_post_meta( $this->get_post_id(), static::CLIENT_CREDENTIALS_ENABLED_KEY, true );
 	}
 
@@ -182,7 +236,7 @@ class Client implements ClientInterface {
 	 * @return bool True if PKCE is required, false otherwise.
 	 */
 	public function is_pkce_required() {
-		$required = (bool) get_post_meta( $this->get_post_id(), static::PKCE_REQUIRED_KEY, true );
+		$required = $this->is_cimd() || (bool) get_post_meta( $this->get_post_id(), static::PKCE_REQUIRED_KEY, true );
 
 		/**
 		 * Filter whether PKCE is required for a client.
@@ -214,6 +268,10 @@ class Client implements ClientInterface {
 	 * @return array List of valid redirect URIs.
 	 */
 	public function get_redirect_uris() {
+		if ( $this->is_cimd() ) {
+			return (array) ( $this->get_cimd_metadata()['redirect_uris'] ?? [] );
+		}
+
 		return (array) get_post_meta( $this->get_post_id(), static::REDIRECT_URI_KEY, true );
 	}
 
@@ -259,6 +317,10 @@ class Client implements ClientInterface {
 	 *
 	 */
 	public function check_redirect_uri( $uri ) {
+		if ( $this->is_cimd() ) {
+			return $this->check_cimd_redirect_uri( $uri );
+		}
+
 		if ( ! $this->validate_callback( $uri ) ) {
 			return false;
 		}
@@ -314,6 +376,52 @@ class Client implements ClientInterface {
 	}
 
 	/**
+	 * Check a redirect URI against the URIs of a CIMD client.
+	 *
+	 * The URI must equal a registered URI exactly. A registered http URI on a
+	 * loopback host also matches the same URI with any port.
+	 *
+	 * @param string $uri Supplied redirect URI to check.
+	 *
+	 * @return bool True if the URI is valid, false otherwise.
+	 */
+	protected function check_cimd_redirect_uri( $uri ) {
+		if ( ! is_string( $uri ) || '' === $uri ) {
+			return false;
+		}
+
+		$supplied = wp_parse_url( $uri );
+
+		foreach ( $this->get_redirect_uris() as $registered_uri ) {
+			if ( $uri === $registered_uri ) {
+				return true;
+			}
+
+			$registered = wp_parse_url( $registered_uri );
+			if ( ! is_array( $registered ) || ! is_array( $supplied ) ) {
+				continue;
+			}
+
+			if ( 'http' !== ( $registered['scheme'] ?? null ) || ! isset( $registered['host'] ) || ! CIMD\is_loopback_host( $registered['host'] ) ) {
+				continue;
+			}
+
+			$port = $supplied['port'] ?? null;
+			if ( null !== $port && ( $port < 1 || $port > 65535 ) ) {
+				continue;
+			}
+
+			// Rebuild the URI from the registered one so nothing else can differ.
+			$expected = 'http://' . $registered['host'] . ( null !== $port ? ':' . $port : '' ) . ( $registered['path'] ?? '' ) . ( isset( $registered['query'] ) ? '?' . $registered['query'] : '' );
+			if ( $uri === $expected ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
 	 * @param WP_User $user
 	 * @param array   $data Optional extra data for the code, e.g. PKCE `code_challenge`
 	 *                      and `code_challenge_method`. See Authorization_Code::create().
@@ -360,7 +468,21 @@ class Client implements ClientInterface {
 	}
 
 	/**
+	 * Get the post slug of the shadow client for a client ID metadata document URL.
+	 *
+	 * @param string $url Client ID URL.
+	 *
+	 * @return string Post slug.
+	 */
+	protected static function get_cimd_slug( $url ) {
+		return 'cimd-' . hash( 'sha256', $url );
+	}
+
+	/**
 	 * Get a client by ID.
+	 *
+	 * Only reads the database. A CIMD client ID is a URL; its shadow client is
+	 * found by hashed slug and has to store the same URL.
 	 *
 	 * @param string $id                 Client ID.
 	 * @param bool   $include_unapproved Whether to also match draft and pending clients. Trashed clients never match.
@@ -373,6 +495,8 @@ class Client implements ClientInterface {
 			$statuses = array_merge( $statuses, static::UNAPPROVED_STATUSES );
 		}
 
+		$is_cimd_id = CIMD\is_cimd_client_id( $id );
+
 		$args  = [
 			'post_type'      => static::POST_TYPE,
 			'post_status'    => $statuses,
@@ -380,14 +504,24 @@ class Client implements ClientInterface {
 			'no_found_rows'  => true,
 
 			// Query by slug.
-			'name'           => $id,
+			'name'           => $is_cimd_id ? static::get_cimd_slug( $id ) : $id,
 		];
 		$query = new WP_Query( $args );
 		if ( empty( $query->posts ) ) {
 			return null;
 		}
 
-		return new static( $query->posts[0] );
+		$client = new static( $query->posts[0] );
+		if ( $is_cimd_id ) {
+			$stored = get_post_meta( $client->get_post_id(), static::CIMD_CLIENT_ID_KEY, true );
+			if ( ! $client->is_cimd() || $stored !== $id ) {
+				return null;
+			}
+		} elseif ( $client->is_cimd() ) {
+			return null;
+		}
+
+		return $client;
 	}
 
 	/**
@@ -503,6 +637,83 @@ class Client implements ClientInterface {
 		$post = get_post( $post_id );
 
 		return new static( $post );
+	}
+
+	/**
+	 * Create or refresh the shadow client for a client ID metadata document.
+	 *
+	 * An existing shadow client keeps its status. Does not check capabilities.
+	 *
+	 * @param string $url      Client ID URL.
+	 * @param array  $metadata Normalised metadata from CIMD\validate_document().
+	 * @param int    $expires  Unix timestamp the metadata expires at.
+	 * @param string $status   Post status for a new shadow client.
+	 *
+	 * @return static|WP_Error Client instance on success, error otherwise.
+	 */
+	public static function save_cimd( $url, array $metadata, $expires, $status = 'publish' ) {
+		$slug  = static::get_cimd_slug( $url );
+		$posts = get_posts(
+			[
+				'post_type'        => static::POST_TYPE,
+				'post_status'      => [ 'publish', 'draft', 'pending', 'private', 'future', 'trash' ],
+				'name'             => $slug,
+				'posts_per_page'   => 1,
+				'suppress_filters' => true,
+			]
+		);
+
+		$title = isset( $metadata['client_name'] ) ? (string) $metadata['client_name'] : '';
+		if ( empty( $posts ) ) {
+			$post_id = wp_insert_post(
+				wp_slash(
+					[
+						'post_type'    => static::POST_TYPE,
+						'post_title'   => $title,
+						'post_content' => '',
+						'post_name'    => $slug,
+						'post_status'  => $status,
+					]
+				),
+				true
+			);
+			if ( is_wp_error( $post_id ) ) {
+				return $post_id;
+			}
+		} else {
+			$post_id = $posts[0]->ID;
+			if ( static::KIND_CIMD !== get_post_meta( $post_id, static::KIND_KEY, true ) || get_post_meta( $post_id, static::CIMD_CLIENT_ID_KEY, true ) !== $url ) {
+				return new WP_Error( 'oauth2.client.cimd.conflict', __( 'A different client already uses the slug of this client ID.', 'oauth2' ), [ 'status' => 500 ] );
+			}
+
+			if ( $posts[0]->post_title !== $title ) {
+				$result = wp_update_post(
+					wp_slash(
+						[
+							'ID'         => $post_id,
+							'post_title' => $title,
+						]
+					),
+					true
+				);
+				if ( is_wp_error( $result ) ) {
+					return $result;
+				}
+			}
+		}
+
+		$meta = [
+			static::KIND_KEY           => static::KIND_CIMD,
+			static::TYPE_KEY           => 'public',
+			static::CIMD_CLIENT_ID_KEY => $url,
+			static::CIMD_METADATA_KEY  => $metadata,
+			static::CIMD_EXPIRES_KEY   => (int) $expires,
+		];
+		foreach ( $meta as $key => $value ) {
+			update_post_meta( $post_id, $key, wp_slash( $value ) );
+		}
+
+		return new static( get_post( $post_id ) );
 	}
 
 	/**
