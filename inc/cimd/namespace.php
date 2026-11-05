@@ -729,53 +729,6 @@ function is_transient_error( WP_Error $error ) {
 }
 
 /**
- * Check whether the current user may fetch another document, and count a fetch against them.
- *
- * @param int  $user_id User ID.
- * @param bool $count   Whether to record a fetch.
- * @return bool True if the user is within the limit.
- */
-function check_rate_limit( $user_id, $count = false ) {
-	/**
-	 * Filters the limit on document fetches per user.
-	 *
-	 * @param array $limit   Array with `limit` fetches allowed per `window` seconds.
-	 * @param int   $user_id User ID.
-	 */
-	$limit  = apply_filters(
-		'oauth2.cimd.rate_limit',
-		[
-			'limit'  => 10,
-			'window' => 600,
-		],
-		$user_id
-	);
-	$limit  = is_array( $limit ) ? $limit : [];
-	$max    = max( 0, (int) ( $limit['limit'] ?? 10 ) );
-	$window = max( 1, (int) ( $limit['window'] ?? 600 ) );
-
-	$key   = 'oauth2_cimd_rl_' . $user_id;
-	$state = get_transient( $key );
-	if ( ! is_array( $state ) || ! isset( $state['count'], $state['reset'] ) || $state['reset'] <= time() ) {
-		$state = [
-			'count' => 0,
-			'reset' => time() + $window,
-		];
-	}
-
-	if ( $state['count'] >= $max ) {
-		return false;
-	}
-
-	if ( $count ) {
-		++$state['count'];
-		set_transient( $key, $state, max( 1, $state['reset'] - time() ) );
-	}
-
-	return true;
-}
-
-/**
  * Fetch, validate and store the client for a client ID metadata document.
  *
  * @param string      $url    Client ID URL.
@@ -792,26 +745,16 @@ function discover_client( $url, $stored = null ) {
 		return $valid;
 	}
 
-	$user_id = get_current_user_id();
-	if ( ! check_rate_limit( $user_id ) ) {
-		return stored_or_error( $stored, make_error( 'rate_limited', __( 'Too many client metadata document fetches. Try again later.', 'oauth2' ), 429, true ) );
-	}
-
 	$busy = stored_or_error( $stored, make_error( 'busy', __( 'The client metadata document is being fetched. Try again shortly.', 'oauth2' ), 503, true ) );
-	$lock = 'oauth2_cimd_lock_' . md5( $url );
-	if ( ! add_option( $lock, time(), '', false ) ) {
-		if ( time() - (int) get_option( $lock ) < LOCK_TIMEOUT ) {
-			return $busy;
-		}
-
-		delete_option( $lock );
-		if ( ! add_option( $lock, time(), '', false ) ) {
-			return $busy;
-		}
+	$lock = acquire_lock( $url );
+	if ( false === $lock ) {
+		return $busy;
 	}
 
 	try {
-		check_rate_limit( $user_id, true );
+		if ( ! reserve_fetch( get_current_user_id() ) ) {
+			return stored_or_error( $stored, make_error( 'rate_limited', __( 'Too many client metadata document fetches. Try again later.', 'oauth2' ), 429, true ) );
+		}
 
 		$fetched = fetch_document( $url );
 		$result  = is_wp_error( $fetched ) ? $fetched : validate_document( $fetched['document'], $url );
@@ -834,7 +777,7 @@ function discover_client( $url, $stored = null ) {
 
 		return Client::save_cimd( $url, $result, $fetched['expires'], 'auto' === $policy ? 'publish' : 'draft' );
 	} finally {
-		delete_option( $lock );
+		release_lock( $url, $lock );
 	}
 }
 

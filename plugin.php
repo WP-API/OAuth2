@@ -51,6 +51,7 @@ require __DIR__ . '/inc/types/class-base.php';
 require __DIR__ . '/inc/types/class-authorization-code.php';
 require __DIR__ . '/inc/types/class-implicit.php';
 require __DIR__ . '/inc/cimd/namespace.php';
+require __DIR__ . '/inc/cimd/limits.php';
 require __DIR__ . '/inc/admin/namespace.php';
 require __DIR__ . '/inc/admin/profile/namespace.php';
 require __DIR__ . '/inc/admin/profile/personaltokens/namespace.php';
