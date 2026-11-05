@@ -40,7 +40,7 @@ requirement — `plain` remains an accepted method generally, but does not
 count as PKCE having been used, since it offers no protection against a
 malicious app on the same device reading the authorization request.
 
-Filters: `oauth2.pkce.supported_methods` (accepted `code_challenge_method` values, default `S256` and `plain`) and `oauth2.pkce.required` (override whether PKCE is required for a given client).
+Filters: `oauth2.pkce.allow_plain` (return false to accept only `S256` as the `code_challenge_method`) and `oauth2.pkce.required` (override whether PKCE is required for a given client).
 
 ## CLI Commands
 

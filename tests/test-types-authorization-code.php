@@ -115,26 +115,44 @@ class Test_Types_Authorization_Code extends Test_Case {
 	 *
 	 * @link https://datatracker.ietf.org/doc/html/rfc7636#section-4.4.1
 	 */
-	public function test_unsupported_method_error_names_the_filtered_supported_methods() {
-		$filter = function () {
-			return [ PKCE::METHOD_PLAIN ];
-		};
-		add_filter( 'oauth2.pkce.supported_methods', $filter );
+	public function test_plain_is_unsupported_when_allow_plain_is_false() {
+		add_filter( 'oauth2.pkce.allow_plain', '__return_false' );
 
-		$pair   = $this->make_pkce_pair( PKCE::METHOD_S256 );
 		$result = $this->type->validate_extra_params_public(
 			$this->client,
 			[
-				'code_challenge'        => $pair['code_challenge'],
-				'code_challenge_method' => 'S256',
+				'code_challenge'        => PKCE::generate_verifier(),
+				'code_challenge_method' => 'plain',
 			]
 		);
 
-		remove_filter( 'oauth2.pkce.supported_methods', $filter );
+		remove_filter( 'oauth2.pkce.allow_plain', '__return_false' );
 
 		$this->assertWPError( $result );
-		$this->assertStringContainsString( 'plain', $result->get_error_message() );
-		$this->assertStringNotContainsString( 'S256', $result->get_error_message() );
+		$this->assertEquals( 'oauth2.types.authorization_code.validate_extra_params.unsupported_method', $result->get_error_code() );
+		$this->assertStringContainsString( 'S256', $result->get_error_message() );
+		$this->assertStringNotContainsString( 'plain', $result->get_error_message() );
+	}
+
+	/**
+	 * RFC 7636 section 4.3: an omitted method defaults to "plain", so it is refused when plain is not allowed.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc7636#section-4.3
+	 */
+	public function test_omitted_method_is_unsupported_when_allow_plain_is_false() {
+		add_filter( 'oauth2.pkce.allow_plain', '__return_false' );
+
+		$result = $this->type->validate_extra_params_public(
+			$this->client,
+			[
+				'code_challenge' => PKCE::generate_verifier(),
+			]
+		);
+
+		remove_filter( 'oauth2.pkce.allow_plain', '__return_false' );
+
+		$this->assertWPError( $result );
+		$this->assertEquals( 'oauth2.types.authorization_code.validate_extra_params.unsupported_method', $result->get_error_code() );
 	}
 
 	/**

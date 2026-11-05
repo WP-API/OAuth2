@@ -122,10 +122,8 @@ class Test_Well_Known extends Test_Case {
 	 *
 	 * @link https://datatracker.ietf.org/doc/html/rfc8414#section-2
 	 */
-	public function test_metadata_pkce_methods_follow_the_supported_methods_filter() {
-		add_filter( 'oauth2.pkce.supported_methods', function () {
-			return [ 'S256' ];
-		} );
+	public function test_metadata_pkce_methods_follow_the_allow_plain_filter() {
+		add_filter( 'oauth2.pkce.allow_plain', '__return_false' );
 
 		$metadata = get_authorization_server_metadata();
 

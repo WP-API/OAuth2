@@ -28,18 +28,17 @@ class PKCE {
 	 */
 	public static function supported_methods() {
 		/**
-		 * Filter the PKCE code challenge methods this site accepts.
+		 * Filter whether the `plain` code challenge method is accepted.
 		 *
-		 * Only the built-in `S256` and `plain` methods can be enabled; any
-		 * other value is dropped, since no challenge can be derived for it.
-		 * Comparisons against these values are case-sensitive, per RFC 7636
-		 * section 4.3.
+		 * `S256` is always accepted.
 		 *
-		 * @param string[] $methods Supported `code_challenge_method` values.
+		 * @param bool $allow_plain True to accept `plain`, the default.
 		 */
-		$methods = apply_filters( 'oauth2.pkce.supported_methods', [ static::METHOD_S256, static::METHOD_PLAIN ] );
+		if ( apply_filters( 'oauth2.pkce.allow_plain', true ) ) {
+			return [ static::METHOD_S256, static::METHOD_PLAIN ];
+		}
 
-		return array_values( array_intersect( (array) $methods, [ static::METHOD_S256, static::METHOD_PLAIN ] ) );
+		return [ static::METHOD_S256 ];
 	}
 
 	/**
