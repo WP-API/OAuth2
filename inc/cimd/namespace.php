@@ -700,14 +700,20 @@ function get_policy( $url, array $metadata, $existing = null ) {
 }
 
 /**
- * Get the stored client, or an error if none is stored.
+ * Get the stored client to fall back on, or an error if there is none.
  *
- * @param Client|null $stored Stored client.
- * @param WP_Error    $error  Error to return when there is no stored client.
+ * A client whose last refresh failed for good is never used as a fallback.
+ *
+ * @param Client|null   $stored Stored client.
+ * @param WP_Error|null $error  Error to return when there is no usable stored client.
  * @return Client|WP_Error
  */
-function stored_or_error( $stored, WP_Error $error ) {
-	return $stored ? $stored : $error;
+function stored_or_error( $stored, $error = null ) {
+	if ( $stored && ! $stored->is_cimd_failed() ) {
+		return $stored;
+	}
+
+	return $error ? $error : make_error( 'client_failed', __( 'The client metadata document could not be refreshed.', 'oauth2' ), 400, false );
 }
 
 /**
@@ -777,7 +783,7 @@ function check_rate_limit( $user_id, $count = false ) {
  * @return Client|WP_Error
  */
 function discover_client( $url, $stored = null ) {
-	if ( $stored && $stored->get_cimd_expires() > time() ) {
+	if ( $stored && ! $stored->is_cimd_failed() && $stored->get_cimd_expires() > time() ) {
 		return $stored;
 	}
 
@@ -810,7 +816,15 @@ function discover_client( $url, $stored = null ) {
 		$fetched = fetch_document( $url );
 		$result  = is_wp_error( $fetched ) ? $fetched : validate_document( $fetched['document'], $url );
 		if ( is_wp_error( $result ) ) {
-			return $stored && is_transient_error( $result ) ? $stored : $result;
+			if ( ! is_transient_error( $result ) ) {
+				if ( $stored ) {
+					$stored->mark_cimd_failed();
+				}
+
+				return $result;
+			}
+
+			return stored_or_error( $stored, $result );
 		}
 
 		$policy = get_policy( $url, $result, $stored );

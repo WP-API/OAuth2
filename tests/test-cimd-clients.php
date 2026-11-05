@@ -759,6 +759,116 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 		$this->assertSame( 0, $this->request_count );
 	}
 
+	// Terminal failures.
+
+	/**
+	 * Store an expired client and make its refresh fail with a 404.
+	 *
+	 * @return Client
+	 */
+	protected function fail_terminally() {
+		$stored = $this->store( 'publish', time() - 10 );
+		$this->mock_dns();
+		$this->mock_http( $this->http_response( '', [], 404 ) );
+		$this->assertWPError( $this->discover() );
+
+		return $stored;
+	}
+
+	public function test_a_terminal_failure_marks_the_stored_client() {
+		$stored = $this->fail_terminally();
+
+		$this->assertGreaterThan( 0, (int) get_post_meta( $stored->get_post_id(), '_oauth2_cimd_failed', true ) );
+		$this->assertTrue( Client::get_by_id( static::URL )->is_cimd_failed() );
+	}
+
+	public function test_an_invalid_document_marks_the_stored_client() {
+		$stored = $this->store( 'publish', time() - 10 );
+		$this->serve( [ 'client_id' => 'https://other.example.com/oauth/client.json' ] );
+
+		$this->assertWPError( $this->discover() );
+
+		$this->assertTrue( Client::get_by_id( static::URL )->is_cimd_failed() );
+		$this->assertSame( $stored->get_post_id(), Client::get_by_id( static::URL )->get_post_id() );
+	}
+
+	public function test_a_terminal_failure_without_a_stored_client_stores_nothing() {
+		$this->mock_dns();
+		$this->mock_http( $this->http_response( '', [], 404 ) );
+
+		$this->assertWPError( $this->discover() );
+
+		$this->assertSame( 0, $this->count_client_posts() );
+	}
+
+	public function test_a_transient_failure_does_not_mark_the_stored_client() {
+		$this->store( 'publish', time() - 10 );
+		$this->mock_dns();
+		$this->mock_http( new WP_Error( 'http_request_failed', 'Timed out' ) );
+
+		$this->discover();
+
+		$this->assertFalse( Client::get_by_id( static::URL )->is_cimd_failed() );
+	}
+
+	public function test_a_transient_failure_after_a_terminal_failure_returns_the_error() {
+		$this->fail_terminally();
+		$this->mock_http( new WP_Error( 'http_request_failed', 'Timed out' ) );
+
+		$this->assertCimdError( 'oauth2.cimd.fetch_failed', 503, $this->discover(), true );
+	}
+
+	public function test_rate_limiting_after_a_terminal_failure_returns_the_error() {
+		$this->fail_terminally();
+		add_filter(
+			'oauth2.cimd.rate_limit',
+			function () {
+				return [
+					'limit'  => 0,
+					'window' => 600,
+				];
+			}
+		);
+
+		$this->assertCimdError( 'oauth2.cimd.rate_limited', 429, $this->discover(), true );
+	}
+
+	public function test_a_held_lock_after_a_terminal_failure_returns_the_error() {
+		$this->fail_terminally();
+		add_option( $this->lock_name(), time(), '', false );
+
+		$this->assertCimdError( 'oauth2.cimd.busy', 503, $this->discover(), true );
+	}
+
+	public function test_a_failed_client_is_not_served_as_fresh() {
+		$stored = $this->store( 'publish', time() + 300 );
+		$stored->mark_cimd_failed();
+		$this->mock_dns();
+		$this->mock_http( $this->http_response( '', [], 404 ) );
+
+		$this->assertCimdError( 'oauth2.cimd.fetch_failed', 400, $this->discover(), false );
+		$this->assertSame( 1, $this->request_count );
+	}
+
+	public function test_without_an_error_a_failed_client_gives_a_client_failed_error() {
+		$stored = $this->store();
+		$stored->mark_cimd_failed();
+
+		$this->assertCimdError( 'oauth2.cimd.client_failed', 400, \WP\OAuth2\CIMD\stored_or_error( $stored ), false );
+	}
+
+	public function test_a_successful_refresh_clears_the_failure() {
+		$stored = $this->fail_terminally();
+		$this->serve();
+
+		$client = $this->discover();
+
+		$this->assertInstanceOf( Client::class, $client );
+		$this->assertSame( $stored->get_post_id(), $client->get_post_id() );
+		$this->assertFalse( $client->is_cimd_failed() );
+		$this->assertSame( '', get_post_meta( $stored->get_post_id(), '_oauth2_cimd_failed', true ) );
+	}
+
 	// Rate limit.
 
 	public function test_rate_limit_without_a_stored_client_returns_an_error() {

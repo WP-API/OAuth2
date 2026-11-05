@@ -36,6 +36,7 @@ class Client implements ClientInterface {
 	const CIMD_EXPIRES_KEY               = '_oauth2_cimd_expires';
 	const CIMD_GENERATION_KEY            = '_oauth2_cimd_generation';
 	const CIMD_SECURITY_HASH_KEY         = '_oauth2_cimd_security_hash';
+	const CIMD_FAILED_KEY                = '_oauth2_cimd_failed';
 
 	/**
 	 * @var WP_Post
@@ -119,6 +120,22 @@ class Client implements ClientInterface {
 		$generation = get_post_meta( $this->get_post_id(), static::CIMD_GENERATION_KEY, true );
 
 		return is_string( $generation ) ? $generation : '';
+	}
+
+	/**
+	 * Check whether the last refresh of a CIMD client failed for good.
+	 *
+	 * @return bool True if a refresh failed in a way that retrying cannot fix.
+	 */
+	public function is_cimd_failed() {
+		return (bool) get_post_meta( $this->get_post_id(), static::CIMD_FAILED_KEY, true );
+	}
+
+	/**
+	 * Record that the last refresh of a CIMD client failed for good.
+	 */
+	public function mark_cimd_failed() {
+		update_post_meta( $this->get_post_id(), static::CIMD_FAILED_KEY, time() );
 	}
 
 	/**
@@ -771,6 +788,9 @@ class Client implements ClientInterface {
 		}
 		foreach ( $meta as $key => $value ) {
 			update_post_meta( $post_id, $key, wp_slash( $value ) );
+		}
+		if ( get_post_meta( $post_id, static::CIMD_FAILED_KEY, true ) ) {
+			delete_post_meta( $post_id, static::CIMD_FAILED_KEY );
 		}
 
 		return new static( get_post( $post_id ) );
