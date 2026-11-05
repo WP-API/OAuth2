@@ -752,6 +752,21 @@ function discover_client( $url, $stored = null ) {
 	}
 
 	try {
+		// Another request may have stored or refreshed the client since it was loaded.
+		if ( $stored ) {
+			wp_cache_delete( $stored->get_post_id(), 'post_meta' );
+			clean_post_cache( $stored->get_post_id() );
+		}
+
+		$stored = Client::get_by_id( $url, true );
+		if ( $stored && ! $stored->is_cimd_failed() && $stored->get_cimd_expires() > time() ) {
+			if ( 'deny' === get_policy( $url, $stored->get_cimd_metadata(), $stored ) ) {
+				return make_error( 'not_allowed', __( 'This client is not allowed.', 'oauth2' ), 403 );
+			}
+
+			return $stored;
+		}
+
 		if ( ! reserve_fetch( get_current_user_id() ) ) {
 			return stored_or_error( $stored, make_error( 'rate_limited', __( 'Too many client metadata document fetches. Try again later.', 'oauth2' ), 429, true ) );
 		}

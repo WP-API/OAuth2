@@ -123,6 +123,28 @@ abstract class CIMD_Clients_Test_Case extends Test_Case {
 	}
 
 	/**
+	 * Change the stored state of a shadow client in the database only, as another request would.
+	 *
+	 * The post meta cache of this request is left as it is.
+	 *
+	 * @param int   $post_id Post ID.
+	 * @param array $changes State fields to set.
+	 */
+	protected function change_cimd_state_behind_the_cache( $post_id, array $changes ) {
+		global $wpdb;
+		$state = array_merge( $this->cimd_state( $post_id ), $changes );
+		$wpdb->update(
+			$wpdb->postmeta,
+			[ 'meta_value' => maybe_serialize( $state ) ],
+			[
+				'post_id'  => $post_id,
+				'meta_key' => '_oauth2_cimd_state',
+			]
+		);
+		get_post_meta( $post_id, '_oauth2_cimd_state', true );
+	}
+
+	/**
 	 * Hold the fetch lock for a URL as another request would.
 	 *
 	 * @param int    $age Seconds ago the lock was taken.
@@ -1318,6 +1340,62 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 		$this->assertNotFalse( $this->lock_value() );
 	}
 
+	public function test_a_record_refreshed_by_another_request_before_the_lock_is_taken_is_not_fetched_again() {
+		$this->serve();
+		$stored = $this->store( 'publish', time() - 10 );
+		$this->assertSame( time() - 10, Client::get_by_id( static::URL )->get_cimd_expires() );
+		$this->change_cimd_state_behind_the_cache( $stored->get_post_id(), [ 'expires' => time() + 300 ] );
+
+		$client = $this->discover();
+
+		$this->assertSame( $stored->get_post_id(), $client->get_post_id() );
+		$this->assertSame( 0, $this->request_count );
+		$this->assertFalse( $this->lock_value() );
+	}
+
+	public function test_a_failure_cleared_by_another_request_before_the_lock_is_taken_is_not_fetched_again() {
+		$this->serve();
+		$stored = $this->store( 'publish', time() - 10 );
+		$stored->mark_cimd_failed();
+		$this->assertTrue( Client::get_by_id( static::URL )->is_cimd_failed() );
+		$this->change_cimd_state_behind_the_cache(
+			$stored->get_post_id(),
+			[
+				'expires' => time() + 300,
+				'failed'  => 0,
+			]
+		);
+
+		$client = $this->discover();
+
+		$this->assertSame( $stored->get_post_id(), $client->get_post_id() );
+		$this->assertSame( 0, $this->request_count );
+		$this->assertFalse( $client->is_cimd_failed() );
+	}
+
+	public function test_a_record_created_by_another_request_before_the_lock_is_taken_is_not_fetched_again() {
+		$this->serve();
+		$created = null;
+		add_filter(
+			'query',
+			function ( $sql ) use ( &$created ) {
+				if ( null === $created && 0 === strpos( $sql, 'INSERT IGNORE' ) && false !== strpos( $sql, 'oauth2_cimd_lock_' ) ) {
+					$created = $this->store();
+				}
+
+				return $sql;
+			}
+		);
+
+		$client = $this->discover();
+
+		$this->assertInstanceOf( Client::class, $created );
+		$this->assertSame( $created->get_post_id(), $client->get_post_id() );
+		$this->assertSame( 0, $this->request_count );
+		$this->assertSame( 1, $this->count_client_posts() );
+		$this->assertFalse( $this->lock_value() );
+	}
+
 	public function test_a_stale_lock_is_replaced() {
 		$this->serve();
 		$this->hold_lock( 31 );
@@ -2283,6 +2361,8 @@ class Test_CIMD_Generation extends CIMD_Clients_Test_Case {
 	public function test_a_failed_state_write_returns_an_error_and_leaves_the_old_state( $replacement ) {
 		$client = $this->store();
 		$before = $this->cimd_state( $client->get_post_id() );
+		$token  = $client->issue_token( $this->factory->user->create_and_get() );
+		$this->assertTrue( $this->authenticates( $token->get_key() ) );
 		$this->block_meta_write( '_oauth2_cimd_state', $replacement );
 
 		$result = Client::save_cimd( static::URL, $this->metadata( [ 'redirect_uris' => [ 'https://client.example.com/new' ] ] ), time() + 300, 'publish' );
@@ -2300,6 +2380,50 @@ class Test_CIMD_Generation extends CIMD_Clients_Test_Case {
 			$this->assertSame( [ 'https://client.example.com/callback' ], $stored->get_redirect_uris() );
 			$this->assertSame( $client->get_cimd_generation(), $stored->get_cimd_generation() );
 		}
+
+		// A refused write keeps the old state, so the token still works. A state that was replaced cannot be trusted, so its generation is empty and the token is refused.
+		$this->assertSame( null === $replacement, $this->authenticates( $token->get_key() ) );
+	}
+
+	public function test_marking_a_failure_keeps_a_state_written_by_another_request() {
+		$client = $this->store();
+		$old    = $client->get_cimd_generation();
+		$new    = str_repeat( 'n', 32 );
+		$this->change_cimd_state_behind_the_cache( $client->get_post_id(), [ 'generation' => $new ] );
+		$this->assertSame( $old, $client->get_cimd_generation() );
+
+		$this->assertTrue( $client->mark_cimd_failed() );
+
+		$state = $this->cimd_state( $client->get_post_id() );
+		$this->assertSame( $new, $state['generation'] );
+		$this->assertGreaterThan( 0, $state['failed'] );
+	}
+
+	public function test_a_refresh_keeps_a_state_written_by_another_request() {
+		$client = $this->store();
+		$old    = $client->get_cimd_generation();
+		$new    = str_repeat( 'n', 32 );
+		$this->assertSame( $old, Client::get_by_id( static::URL )->get_cimd_generation() );
+		$this->change_cimd_state_behind_the_cache( $client->get_post_id(), [ 'generation' => $new ] );
+		$this->assertSame( $old, Client::get_by_id( static::URL )->get_cimd_generation() );
+
+		$refreshed = Client::save_cimd( static::URL, $this->metadata(), time() + 900, 'publish' );
+
+		$this->assertSame( $new, $refreshed->get_cimd_generation() );
+		$this->assertSame( $new, $this->cimd_state( $client->get_post_id() )['generation'] );
+	}
+
+	public function test_a_state_write_that_fails_after_the_demotion_leaves_a_draft_with_the_old_state() {
+		$client = $this->store();
+		$before = $this->cimd_state( $client->get_post_id() );
+		$this->block_meta_write( '_oauth2_cimd_state' );
+
+		$result = Client::save_cimd( static::URL, $this->metadata( [ 'redirect_uris' => [ 'https://client.example.com/new' ] ] ), time() + 300, 'draft' );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'oauth2.cimd.save_failed', $result->get_error_code() );
+		$this->assertSame( 'draft', get_post_status( $client->get_post_id() ) );
+		$this->assertSame( $before, $this->cimd_state( $client->get_post_id() ) );
 	}
 
 	public function test_a_failed_state_write_is_retried_by_the_next_refresh() {

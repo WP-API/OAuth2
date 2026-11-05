@@ -79,9 +79,15 @@ class Client implements ClientInterface {
 	 * The state is one array with the `metadata`, `expires`, `generation`,
 	 * `security_hash` and `failed` of the client.
 	 *
+	 * @param bool $fresh Whether to drop the cached post meta first, to read what the database holds.
+	 *
 	 * @return array State, empty for a registered client.
 	 */
-	protected function get_cimd_state() {
+	protected function get_cimd_state( $fresh = false ) {
+		if ( $fresh ) {
+			wp_cache_delete( $this->get_post_id(), 'post_meta' );
+		}
+
 		$state = get_post_meta( $this->get_post_id(), static::CIMD_STATE_KEY, true );
 
 		return is_array( $state ) ? $state : [];
@@ -147,7 +153,7 @@ class Client implements ClientInterface {
 	 * @return bool True if the marker was stored.
 	 */
 	public function mark_cimd_failed() {
-		$state           = $this->get_cimd_state();
+		$state           = $this->get_cimd_state( true );
 		$state['failed'] = time();
 
 		return static::set_cimd_meta( $this->get_post_id(), static::CIMD_STATE_KEY, $state );
@@ -811,12 +817,15 @@ class Client implements ClientInterface {
 			return new static( get_post( $post_id ) );
 		}
 
+		// Another request may have refreshed the client since it was loaded.
 		$post_id = $posts[0]->ID;
+		clean_post_cache( $post_id );
+		$post = get_post( $post_id );
 		if ( static::KIND_CIMD !== get_post_meta( $post_id, static::KIND_KEY, true ) || get_post_meta( $post_id, static::CIMD_CLIENT_ID_KEY, true ) !== $url ) {
 			return new WP_Error( 'oauth2.client.cimd.conflict', __( 'A different client already uses the slug of this client ID.', 'oauth2' ), [ 'status' => 500 ] );
 		}
 
-		if ( $posts[0]->post_title !== $title ) {
+		if ( $post->post_title !== $title ) {
 			$result = wp_update_post(
 				wp_slash(
 					[
@@ -831,11 +840,12 @@ class Client implements ClientInterface {
 			}
 		}
 
+		wp_cache_delete( $post_id, 'post_meta' );
 		$current = get_post_meta( $post_id, static::CIMD_STATE_KEY, true );
 		$current = is_array( $current ) ? $current : [];
 		if ( ( $current['security_hash'] ?? null ) === $hash && is_string( $current['generation'] ?? null ) && '' !== $current['generation'] ) {
 			$state['generation'] = $current['generation'];
-		} elseif ( 'publish' !== $status && 'publish' === $posts[0]->post_status ) {
+		} elseif ( 'publish' !== $status && 'publish' === $post->post_status ) {
 			// The demotion comes before the state write, so a client that cannot be demoted keeps its old state.
 			$result = wp_update_post(
 				[
