@@ -117,7 +117,7 @@ Block the client with a filter instead. Return `false` from `oauth2.cimd.admit_u
 
 ## Limits and where they are stored
 
-Each client has one record. Its metadata, expiry, generation, security hash and failure marker are stored together as one value, so a refresh replaces all of them in a single write. After the write the plugin reads the value back from the database. If it does not match, the refresh returns an error and the previous value stays in place. A new record that cannot be read back is deleted.
+Each client has one record. Its metadata, expiry, generation, security hash and failure marker are stored together as one value, so a refresh replaces all of them in a single write. After the write the plugin reads the value back from the database. If it does not match, the refresh returns an error and the stored value is not trusted. Only a write that the database refuses leaves the previous value in place. A new record that cannot be read back is deleted.
 
 Fetches are limited per user (10 per 600 seconds) and across the network (60 per 600 seconds). Only a real fetch counts. A request that is served from the cache, or that finds another request already fetching the same URL, does not count.
 
@@ -152,7 +152,7 @@ limit_req_status 429;
 limit_req zone=oauth2 burst=20 nodelay;
 ```
 
-Put `limit_req` in the server block only. Inside a PHP location it does not work for REST routes. The `try_files` rule sends them to `/index.php` with an internal redirect, and `$uri` is `/index.php` from then on, so the map finds no match. Do not add a new `location = /wp-login.php`, because it would replace your PHP handling for that file.
+Put `limit_req` in the server block only. Inside a PHP location it does not work for REST routes. The `try_files` rule sends them to `/index.php` with an internal redirect, and `$uri` is `/index.php` from then on, so the map finds no match. A server-level `limit_req` is inherited only by locations that do not define their own. If your `\.php$` location already has a `limit_req`, add the `oauth2` zone there as well, so that `wp-login.php` is still limited. Do not add a new `location = /wp-login.php`, because it would replace your PHP handling for that file.
 
 Use pretty permalinks. With plain permalinks the token endpoint is `/index.php?rest_route=/oauth2/access_token`, and a path-based limit would have to cover all of `index.php`.
 

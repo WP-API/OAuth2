@@ -114,6 +114,9 @@ interface ClientInterface {
 	/**
 	 * Issue token for a user.
 	 *
+	 * Implementations may accept an optional third `$client_generation`
+	 * argument, which the token endpoint passes.
+	 *
 	 * @param \WP_User $user
 	 * @param array    $meta
 	 *
