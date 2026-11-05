@@ -14,7 +14,7 @@ const LOCK_GROUP = 'oauth2_cimd';
  * Take the fetch lock for a client ID URL.
  *
  * With an external object cache the lock is a cache entry that expires on its
- * own. Without one it is a row in the main site's options table, which every
+ * own. The handle holds a random token and the time the lock was taken. Without one it is a row in the main site's options table, which every
  * site of a network shares, and an expired lock is taken over only if no other
  * request changed it first.
  *
@@ -23,7 +23,7 @@ const LOCK_GROUP = 'oauth2_cimd';
  */
 function acquire_lock( $url ) {
 	$key    = 'oauth2_cimd_lock_' . md5( $url );
-	$handle = wp_generate_password( 32, false );
+	$handle = wp_generate_password( 32, false ) . '|' . time();
 
 	if ( wp_using_ext_object_cache() ) {
 		wp_cache_add_global_groups( LOCK_GROUP );
@@ -32,17 +32,16 @@ function acquire_lock( $url ) {
 	}
 
 	global $wpdb;
-	$table  = $wpdb->base_prefix . 'options';
-	$handle = $handle . '|' . time();
+	$table = $wpdb->base_prefix . 'options';
 
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The unique option_name makes the insert atomic.
-	$added = $wpdb->query( $wpdb->prepare( "INSERT IGNORE INTO %i (option_name, option_value, autoload) VALUES (%s, %s, 'no')", $table, $key, $handle ) );
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- The unique option_name makes the insert atomic. The table name is the trusted base prefix, not user input.
+	$added = $wpdb->query( $wpdb->prepare( "INSERT IGNORE INTO {$wpdb->base_prefix}options (option_name, option_value, autoload) VALUES (%s, %s, 'no')", $key, $handle ) );
 	if ( 1 === $added ) {
 		return $handle;
 	}
 
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Reads the lock without the options cache.
-	$held = $wpdb->get_var( $wpdb->prepare( 'SELECT option_value FROM %i WHERE option_name = %s', $table, $key ) );
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Reads the lock without the options cache. The table name is the trusted base prefix, not user input.
+	$held = $wpdb->get_var( $wpdb->prepare( "SELECT option_value FROM {$wpdb->base_prefix}options WHERE option_name = %s", $key ) );
 	if ( null === $held || time() - (int) ( explode( '|', $held, 2 )[1] ?? 0 ) < LOCK_TIMEOUT ) {
 		return false;
 	}
@@ -71,7 +70,10 @@ function release_lock( $url, $handle ) {
 
 	if ( wp_using_ext_object_cache() ) {
 		wp_cache_add_global_groups( LOCK_GROUP );
-		if ( wp_cache_get( $key, LOCK_GROUP ) === $handle ) {
+
+		// Past this age the entry may have expired and been taken by another request, which a delete would remove.
+		$taken_at = (int) ( explode( '|', $handle, 2 )[1] ?? 0 );
+		if ( time() - $taken_at < LOCK_TIMEOUT - 5 && wp_cache_get( $key, LOCK_GROUP ) === $handle ) {
 			wp_cache_delete( $key, LOCK_GROUP );
 		}
 

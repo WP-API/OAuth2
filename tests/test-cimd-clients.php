@@ -112,7 +112,7 @@ abstract class CIMD_Clients_Test_Case extends Test_Case {
 		}
 
 		global $wpdb;
-		$value = $wpdb->get_var( $wpdb->prepare( 'SELECT option_value FROM %i WHERE option_name = %s', $wpdb->base_prefix . 'options', $key ) );
+		$value = $wpdb->get_var( $wpdb->prepare( "SELECT option_value FROM {$wpdb->base_prefix}options WHERE option_name = %s", $key ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Trusted table name.
 
 		return null === $value ? false : $value;
 	}
@@ -1336,7 +1336,7 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 
 		$handle = \WP\OAuth2\CIMD\acquire_lock( static::URL );
 
-		$this->assertSame( 32, strlen( $handle ) );
+		$this->assertMatchesRegularExpression( '/^[A-Za-z0-9]{32}\|\d+$/', $handle );
 		$this->assertSame( $handle, wp_cache_get( 'oauth2_cimd_lock_' . md5( static::URL ), 'oauth2_cimd' ) );
 		$this->assertFalse( \WP\OAuth2\CIMD\acquire_lock( static::URL ) );
 		$this->assertFalse( get_option( 'oauth2_cimd_lock_' . md5( static::URL ) ) );
@@ -1354,6 +1354,28 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 		\WP\OAuth2\CIMD\release_lock( static::URL, $handle );
 
 		$this->assertSame( 'another', $this->lock_value() );
+	}
+
+	public function test_the_object_cache_lock_is_released_while_it_is_young() {
+		wp_using_ext_object_cache( true );
+		$handle = 'token|' . ( time() - 10 );
+		wp_cache_add_global_groups( 'oauth2_cimd' );
+		wp_cache_set( 'oauth2_cimd_lock_' . md5( static::URL ), $handle, 'oauth2_cimd', 30 );
+
+		\WP\OAuth2\CIMD\release_lock( static::URL, $handle );
+
+		$this->assertFalse( $this->lock_value() );
+	}
+
+	public function test_an_object_cache_lock_that_may_have_expired_is_left_to_expire() {
+		wp_using_ext_object_cache( true );
+		$handle = 'token|' . ( time() - 26 );
+		wp_cache_add_global_groups( 'oauth2_cimd' );
+		wp_cache_set( 'oauth2_cimd_lock_' . md5( static::URL ), $handle, 'oauth2_cimd', 30 );
+
+		\WP\OAuth2\CIMD\release_lock( static::URL, $handle );
+
+		$this->assertSame( $handle, $this->lock_value() );
 	}
 
 	public function test_a_held_object_cache_lock_returns_the_stored_client_without_a_fetch() {
