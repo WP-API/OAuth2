@@ -22,42 +22,47 @@ const MIN_CACHE_TTL      = 300;
 const MAX_CACHE_TTL      = 3600;
 const LOCK_TIMEOUT       = 30;
 
+/*
+ * The CIMD draft (section 10.7) says the server MUST NOT fetch from special-use addresses
+ * (the RFC 6890 registry). PHP's FILTER_FLAG_NO_PRIV_RANGE and FILTER_FLAG_NO_RES_RANGE miss
+ * several of them, so the lists are explicit.
+ */
 const IPV4_BLOCKLIST = [
-	'0.0.0.0/8',
-	'10.0.0.0/8',
-	'100.64.0.0/10',
-	'127.0.0.0/8',
-	'169.254.0.0/16',
-	'172.16.0.0/12',
-	'192.0.0.0/24',
-	'192.0.2.0/24',
-	'192.88.99.0/24',
-	'192.168.0.0/16',
-	'198.18.0.0/15',
-	'198.51.100.0/24',
-	'203.0.113.0/24',
-	'224.0.0.0/4',
-	'240.0.0.0/4',
-	'255.255.255.255/32',
+	'0.0.0.0/8',          // This network, RFC 791.
+	'10.0.0.0/8',         // Private, RFC 1918.
+	'100.64.0.0/10',      // Shared address space, CGNAT, RFC 6598.
+	'127.0.0.0/8',        // Loopback.
+	'169.254.0.0/16',     // Link-local, RFC 3927.
+	'172.16.0.0/12',      // Private, RFC 1918.
+	'192.0.0.0/24',       // IETF protocol assignments.
+	'192.0.2.0/24',       // Documentation, RFC 5737.
+	'192.88.99.0/24',     // 6to4 relay anycast, RFC 7526.
+	'192.168.0.0/16',     // Private, RFC 1918.
+	'198.18.0.0/15',      // Benchmarking, RFC 2544.
+	'198.51.100.0/24',    // Documentation, RFC 5737.
+	'203.0.113.0/24',     // Documentation, RFC 5737.
+	'224.0.0.0/4',        // Multicast.
+	'240.0.0.0/4',        // Reserved.
+	'255.255.255.255/32', // Broadcast.
 ];
 
 const IPV6_BLOCKLIST = [
-	'::/128',
-	'::/96',
-	'::1/128',
-	'::ffff:0:0/96',
-	'64:ff9b::/96',
-	'64:ff9b:1::/48',
-	'100::/64',
-	'2001::/23',
-	'2001:db8::/32',
-	'2002::/16',
-	'fc00::/7',
-	'fe80::/10',
-	'fec0::/10',
-	'ff00::/8',
-	'3fff::/20',
-	'5f00::/16',
+	'::/128',         // Unspecified.
+	'::/96',          // IPv4-compatible, deprecated, RFC 4291.
+	'::1/128',        // Loopback.
+	'::ffff:0:0/96',  // IPv4-mapped.
+	'64:ff9b::/96',   // NAT64, RFC 6052.
+	'64:ff9b:1::/48', // Local-use NAT64, RFC 8215.
+	'100::/64',       // Discard-only, RFC 6666.
+	'2001::/23',      // IETF protocol assignments, including Teredo, RFC 4380.
+	'2001:db8::/32',  // Documentation, RFC 3849.
+	'2002::/16',      // 6to4, RFC 3056.
+	'fc00::/7',       // Unique local, RFC 4193.
+	'fe80::/10',      // Link-local.
+	'fec0::/10',      // Site-local, deprecated, RFC 3879.
+	'ff00::/8',       // Multicast.
+	'3fff::/20',      // Documentation, RFC 9637.
+	'5f00::/16',      // SRv6 SIDs, RFC 9602.
 ];
 
 /**

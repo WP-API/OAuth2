@@ -13,10 +13,19 @@ const LOCK_GROUP = 'oauth2_cimd';
 /**
  * Take the fetch lock for a client ID URL.
  *
- * The lock is a row in the main site's options table, which every site of a
- * network shares. The handle holds a random token and the time the lock was
- * taken. An expired lock is taken over only if no other request changed it
- * first.
+ * The lock must be atomic and shared across a network, so it writes SQL to
+ * the options table directly. `add_option()` checks first and then does
+ * `INSERT ... ON DUPLICATE KEY UPDATE`, so two requests can both win.
+ * `add_site_option()` writes to the sitemeta table, which has no unique key on
+ * `meta_key`. An object cache lock cannot release atomically, because it has to
+ * get and then delete.
+ *
+ * `INSERT IGNORE` on the unique `option_name` takes the lock. An
+ * `UPDATE ... WHERE option_value = old` that must change exactly one row takes
+ * over a stale lock. The rows use `base_prefix`, the main site's table, so every
+ * site shares one lock. They have autoload off and are never read through
+ * `get_option()`. The handle holds a random token and the time the lock was
+ * taken.
  *
  * @param string $url Client ID URL.
  * @return string|false Handle to pass to release_lock(), or false if another request holds the lock.
@@ -55,6 +64,10 @@ function acquire_lock( $url ) {
 
 /**
  * Release the fetch lock for a client ID URL, if it is still ours.
+ *
+ * `DELETE ... WHERE option_value = handle` removes only the row this request
+ * holds, so a lock another request took over after it went stale is left alone.
+ * See acquire_lock() for why the lock is written as SQL.
  *
  * @param string $url    Client ID URL.
  * @param string $handle Handle returned by acquire_lock().
