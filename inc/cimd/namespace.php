@@ -374,16 +374,28 @@ function fetch_document( $url ) {
 		$options[ CURLOPT_REDIR_PROTOCOLS ] = CURLPROTO_HTTPS;
 	}
 
-	$ip     = false !== strpos( $ips[0], ':' ) ? '[' . $ips[0] . ']' : $ips[0];
-	$called = false;
-	$failed = false;
-	$pinned = false;
-	$pin    = static function ( $handle, $args, $request_url ) use ( $url, $host, $port, $ip, $options, &$called, &$failed, &$pinned ) {
+	$ip      = false !== strpos( $ips[0], ':' ) ? '[' . $ips[0] . ']' : $ips[0];
+	$called  = false;
+	$applied = false;
+	$failed  = false;
+	$pinned  = false;
+
+	// Runs on http_api_curl: checks the request is for this URL and runs only once.
+	$check = static function ( $handle, $args, $request_url ) use ( $url, &$called, &$failed ) {
 		if ( $called || $request_url !== $url ) {
 			$failed = true;
 			throw new RequestsException( 'The connection could not be pinned to the vetted address.', 'oauth2.cimd.unsafe_transport' );
 		}
 		$called = true;
+	};
+
+	// Runs on requests-curl.before_send, the last hook before curl_exec: sets the pin and its options.
+	$apply = static function ( $handle ) use ( $host, $port, $ip, $options, &$called, &$applied, &$failed, &$pinned ) {
+		if ( ! $called || $applied ) {
+			$failed = true;
+			throw new RequestsException( 'The connection could not be pinned to the vetted address.', 'oauth2.cimd.unsafe_transport' );
+		}
+		$applied = true;
 
 		// The resolve entry goes last so that every other option is already in place.
 		$options[ CURLOPT_RESOLVE ] = [ "{$host}:{$port}:{$ip}" ];
@@ -398,7 +410,8 @@ function fetch_document( $url ) {
 		$pinned = true;
 	};
 
-	add_action( 'http_api_curl', $pin, PHP_INT_MAX, 3 );
+	add_action( 'http_api_curl', $check, PHP_INT_MAX, 3 );
+	add_action( 'requests-curl.before_send', $apply, PHP_INT_MAX, 1 );
 	try {
 		$response = wp_remote_get(
 			$url,
@@ -413,7 +426,8 @@ function fetch_document( $url ) {
 			]
 		);
 	} finally {
-		remove_action( 'http_api_curl', $pin, PHP_INT_MAX );
+		remove_action( 'http_api_curl', $check, PHP_INT_MAX );
+		remove_action( 'requests-curl.before_send', $apply, PHP_INT_MAX );
 	}
 
 	if ( $failed || ! $pinned ) {

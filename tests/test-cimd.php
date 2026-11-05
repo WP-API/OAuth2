@@ -51,6 +51,7 @@ class Test_CIMD extends Test_Case {
 		remove_all_filters( 'oauth2.cimd.allow_loopback' );
 		remove_all_filters( 'oauth2.cimd.cache_ttl' );
 		remove_all_actions( 'http_api_curl' );
+		remove_all_actions( 'requests-curl.before_send' );
 		$this->request_args  = null;
 		$this->request_count = 0;
 
@@ -95,13 +96,14 @@ class Test_CIMD extends Test_Case {
 	}
 
 	/**
-	 * Fire http_api_curl as the curl transport would, with a real handle.
+	 * Fire http_api_curl and then requests-curl.before_send as the curl transport would, with a real handle.
 	 *
 	 * @param string $url Request URL.
 	 */
 	protected function fire_pin( $url ) {
 		$handle = curl_init();
 		do_action_ref_array( 'http_api_curl', [ &$handle, [], $url ] );
+		do_action_ref_array( 'requests-curl.before_send', [ &$handle ] );
 	}
 
 	/**
@@ -701,7 +703,10 @@ class Test_CIMD extends Test_Case {
 			'pre_http_request',
 			function ( $pre, $args, $url ) use ( &$during ) {
 				global $wp_filter;
-				$during = array_keys( $wp_filter['http_api_curl']->callbacks );
+				$during = [
+					array_keys( $wp_filter['http_api_curl']->callbacks ),
+					array_keys( $wp_filter['requests-curl.before_send']->callbacks ),
+				];
 				$this->fire_pin( $url );
 				return $this->http_response( '{"a":1}' );
 			},
@@ -710,9 +715,11 @@ class Test_CIMD extends Test_Case {
 		);
 
 		$this->assertFalse( has_action( 'http_api_curl' ) );
+		$this->assertFalse( has_action( 'requests-curl.before_send' ) );
 		$this->assertIsArray( fetch_document( static::URL ) );
-		$this->assertSame( [ PHP_INT_MAX ], $during );
+		$this->assertSame( [ [ PHP_INT_MAX ], [ PHP_INT_MAX ] ], $during );
 		$this->assertFalse( has_action( 'http_api_curl' ) );
+		$this->assertFalse( has_action( 'requests-curl.before_send' ) );
 	}
 
 	public function test_fetch_document_removes_the_pin_after_a_transport_error() {
@@ -721,6 +728,7 @@ class Test_CIMD extends Test_Case {
 
 		$this->assertWPError( fetch_document( static::URL ) );
 		$this->assertFalse( has_action( 'http_api_curl' ) );
+		$this->assertFalse( has_action( 'requests-curl.before_send' ) );
 	}
 
 	public function test_fetch_document_removes_the_pin_after_a_bad_response() {
@@ -729,6 +737,7 @@ class Test_CIMD extends Test_Case {
 
 		$this->assertWPError( fetch_document( static::URL ) );
 		$this->assertFalse( has_action( 'http_api_curl' ) );
+		$this->assertFalse( has_action( 'requests-curl.before_send' ) );
 	}
 
 	public function test_fetch_document_removes_the_pin_when_the_request_throws() {
@@ -748,46 +757,52 @@ class Test_CIMD extends Test_Case {
 		}
 
 		$this->assertFalse( has_action( 'http_api_curl' ) );
+		$this->assertFalse( has_action( 'requests-curl.before_send' ) );
 	}
 
 	/**
-	 * Fetch while capturing the pin callback that is registered for the request.
+	 * Fetch while capturing the callbacks that are registered for the request.
 	 *
-	 * @return callable
+	 * @return callable[] The http_api_curl callback and the requests-curl.before_send callback.
 	 */
 	protected function capture_pin() {
-		$pin = null;
+		$pin = [];
 		$this->mock_dns( [ '2606:2800:220:1::1' ] );
 		add_filter(
 			'pre_http_request',
 			function () use ( &$pin ) {
 				global $wp_filter;
-				$pin = array_values( $wp_filter['http_api_curl']->callbacks[ PHP_INT_MAX ] )[0]['function'];
+				$pin = [
+					array_values( $wp_filter['http_api_curl']->callbacks[ PHP_INT_MAX ] )[0]['function'],
+					array_values( $wp_filter['requests-curl.before_send']->callbacks[ PHP_INT_MAX ] )[0]['function'],
+				];
 				return $this->http_response( '{"a":1}' );
 			}
 		);
 
 		fetch_document( static::URL );
-		$this->assertIsCallable( $pin );
+		$this->assertCount( 2, $pin );
+		$this->assertIsCallable( $pin[0] );
+		$this->assertIsCallable( $pin[1] );
 
 		return $pin;
 	}
 
 	public function test_pin_callback_accepts_the_request_url() {
-		$pin    = $this->capture_pin();
-		$handle = curl_init();
+		list( $check ) = $this->capture_pin();
+		$handle        = curl_init();
 
-		$this->assertNull( $pin( $handle, [], static::URL ) );
+		$this->assertNull( $check( $handle, [], static::URL ) );
 	}
 
 	public function test_pin_callback_throws_when_it_runs_a_second_time() {
-		$pin    = $this->capture_pin();
-		$handle = curl_init();
+		list( $check ) = $this->capture_pin();
+		$handle        = curl_init();
 
-		$this->assertNull( $pin( $handle, [], static::URL ) );
+		$this->assertNull( $check( $handle, [], static::URL ) );
 
 		$this->expectException( RequestsException::class );
-		$pin( $handle, [], static::URL );
+		$check( $handle, [], static::URL );
 	}
 
 	public function test_fetch_document_maps_a_second_pin_call_to_unsafe_transport() {
@@ -810,14 +825,95 @@ class Test_CIMD extends Test_Case {
 
 		$this->assertCimdError( 'oauth2.cimd.unsafe_transport', 500, fetch_document( static::URL ), false );
 		$this->assertFalse( has_action( 'http_api_curl' ) );
+		$this->assertFalse( has_action( 'requests-curl.before_send' ) );
 	}
 
 	public function test_pin_callback_throws_for_another_url() {
-		$pin    = $this->capture_pin();
-		$handle = curl_init();
+		list( $check ) = $this->capture_pin();
+		$handle        = curl_init();
 
 		$this->expectException( RequestsException::class );
-		$pin( $handle, [], 'https://other.example.com/id' );
+		$check( $handle, [], 'https://other.example.com/id' );
+	}
+
+	public function test_send_callback_applies_the_options_after_the_url_check() {
+		list( $check, $apply ) = $this->capture_pin();
+		$handle                = curl_init();
+
+		$check( $handle, [], static::URL );
+
+		$this->assertNull( $apply( $handle ) );
+	}
+
+	public function test_send_callback_refuses_to_run_before_the_url_check() {
+		list( , $apply ) = $this->capture_pin();
+		$handle          = curl_init();
+
+		$this->expectException( RequestsException::class );
+		$apply( $handle );
+	}
+
+	public function test_send_callback_refuses_to_run_after_a_url_mismatch() {
+		list( $check, $apply ) = $this->capture_pin();
+		$handle                = curl_init();
+
+		try {
+			$check( $handle, [], 'https://other.example.com/id' );
+			$this->fail( 'The URL check should throw.' );
+		} catch ( RequestsException $e ) {
+			$this->assertSame( 'oauth2.cimd.unsafe_transport', $e->getType() );
+		}
+
+		$this->expectException( RequestsException::class );
+		$apply( $handle );
+	}
+
+	public function test_send_callback_throws_when_it_runs_a_second_time() {
+		list( $check, $apply ) = $this->capture_pin();
+		$handle                = curl_init();
+
+		$check( $handle, [], static::URL );
+		$apply( $handle );
+
+		$this->expectException( RequestsException::class );
+		$apply( $handle );
+	}
+
+	public function test_fetch_document_discards_a_response_when_only_the_url_check_ran() {
+		$this->mock_dns();
+		add_filter(
+			'pre_http_request',
+			function ( $pre, $args, $url ) {
+				$handle = curl_init();
+				do_action_ref_array( 'http_api_curl', [ &$handle, [], $url ] );
+
+				return $this->http_response( '{"client_id":"x"}' );
+			},
+			10,
+			3
+		);
+
+		$this->assertCimdError( 'oauth2.cimd.unsafe_transport', 500, fetch_document( static::URL ), false );
+	}
+
+	public function test_fetch_document_maps_a_send_callback_failure_to_unsafe_transport() {
+		$this->mock_dns();
+		add_filter(
+			'pre_http_request',
+			function () {
+				$handle = curl_init();
+				try {
+					do_action_ref_array( 'requests-curl.before_send', [ &$handle ] );
+				} catch ( RequestsException $e ) {
+					return new WP_Error( 'http_request_failed', $e->getMessage() );
+				}
+
+				return $this->http_response( '{"a":1}' );
+			}
+		);
+
+		$this->assertCimdError( 'oauth2.cimd.unsafe_transport', 500, fetch_document( static::URL ), false );
+		$this->assertFalse( has_action( 'requests-curl.before_send' ) );
 	}
 
 	public function test_fetch_document_discards_a_response_when_the_pin_never_ran() {
@@ -1298,6 +1394,59 @@ class Test_CIMD extends Test_Case {
 
 		$this->assertCimdError( 'oauth2.cimd.unsafe_transport', 500, fetch_document( static::URL ), false );
 		$this->assertSame( 0, $this->request_count );
+	}
+
+	public function test_fetch_document_ignores_proxy_environment_variables() {
+		if ( ! function_exists( 'curl_init' ) || ! \WP\OAuth2\CIMD\is_curl_transport_in_use() ) {
+			$this->markTestSkipped( 'The curl transport is not available.' );
+		}
+
+		$saved = [
+			'https_proxy' => getenv( 'https_proxy' ),
+			'HTTPS_PROXY' => getenv( 'HTTPS_PROXY' ),
+		];
+		putenv( 'https_proxy=http://127.0.0.1:9' );
+		putenv( 'HTTPS_PROXY=http://127.0.0.1:9' );
+
+		$url = 'https://pin-test.invalid:1/x';
+		add_filter(
+			'oauth2.cimd.pre_resolve_host',
+			function () {
+				return [ '127.0.0.1' ];
+			}
+		);
+		add_filter( 'oauth2.cimd.allow_loopback', '__return_true' );
+		add_filter(
+			'http_allowed_safe_ports',
+			function ( $ports ) {
+				$ports[] = 1;
+				return $ports;
+			}
+		);
+
+		$transport_error = null;
+		add_action(
+			'http_api_debug',
+			function ( $response ) use ( &$transport_error ) {
+				$transport_error = $response;
+			}
+		);
+
+		try {
+			$result = fetch_document( $url );
+		} finally {
+			foreach ( $saved as $name => $value ) {
+				putenv( false === $value ? $name : "{$name}={$value}" );
+			}
+			remove_all_actions( 'http_api_debug' );
+			remove_all_filters( 'http_allowed_safe_ports' );
+		}
+
+		$this->assertCimdError( 'oauth2.cimd.fetch_failed', 503, $result, true );
+		$this->assertStringNotContainsString( 'proxy', $result->get_error_message() );
+		$this->assertWPError( $transport_error );
+		$this->assertStringContainsString( 'pin-test.invalid:1', $transport_error->get_error_message() );
+		$this->assertStringNotContainsString( 'proxy', $transport_error->get_error_message() );
 	}
 
 	/**
