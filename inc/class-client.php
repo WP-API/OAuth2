@@ -148,6 +148,15 @@ class Client implements ClientInterface {
 	}
 
 	/**
+	 * Get the time the last refresh of a CIMD client failed for good.
+	 *
+	 * @return int Unix timestamp, 0 if no refresh failed.
+	 */
+	public function get_cimd_failed_at() {
+		return (int) ( $this->get_cimd_state()['failed'] ?? 0 );
+	}
+
+	/**
 	 * Record that the last refresh of a CIMD client failed for good.
 	 *
 	 * Callers must hold the fetch lock for the URL (see CIMD\acquire_lock).

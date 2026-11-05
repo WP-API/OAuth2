@@ -233,6 +233,10 @@ function handle_edit_submit( ?Client $consumer = null ) {
 		$did_action = 'add';
 		check_admin_referer( 'rest-oauth2-add' );
 	} else {
+		if ( $consumer->is_cimd() ) {
+			wp_die( esc_html__( 'Invalid client ID.', 'oauth2' ), '', [ 'response' => 400 ] );
+		}
+
 		$did_action = 'edit';
 		check_admin_referer( 'rest-oauth2-edit-' . $consumer->get_post_id() );
 	}
@@ -329,6 +333,70 @@ function render_approval_status( $client_post ) {
 			<?php endif; ?>
 		</p>
 	</div>
+	<?php
+}
+
+/**
+ * Output the read-only details of a CIMD client.
+ *
+ * @param Client $client CIMD client.
+ */
+function render_cimd_details( Client $client ) {
+	$metadata    = $client->get_cimd_metadata();
+	$expires     = $client->get_cimd_expires();
+	$failed_at   = $client->get_cimd_failed_at();
+	$date_format = get_option( 'date_format' ) . ' ' . get_option( 'time_format' );
+	$grant_types = isset( $metadata['grant_types'] ) ? (array) $metadata['grant_types'] : [];
+	?>
+	<table class="form-table">
+		<tr>
+			<th scope="row"><?php esc_html_e( 'Client ID', 'oauth2' ); ?></th>
+			<td><code><?php echo esc_html( $client->get_id() ); ?></code></td>
+		</tr>
+		<tr>
+			<th scope="row"><?php echo esc_html_x( 'Name', 'field name', 'oauth2' ); ?></th>
+			<td><?php echo esc_html( $client->get_name() ); ?></td>
+		</tr>
+		<tr>
+			<th scope="row"><?php esc_html_e( 'Redirect URIs', 'oauth2' ); ?></th>
+			<td>
+				<ul>
+					<?php foreach ( $client->get_redirect_uris() as $uri ) : ?>
+						<li><code><?php echo esc_html( $uri ); ?></code></li>
+					<?php endforeach; ?>
+				</ul>
+			</td>
+		</tr>
+		<tr>
+			<th scope="row"><?php esc_html_e( 'Grant types', 'oauth2' ); ?></th>
+			<td><?php echo esc_html( implode( ', ', $grant_types ) ); ?></td>
+		</tr>
+		<tr>
+			<th scope="row"><?php esc_html_e( 'Cache expires', 'oauth2' ); ?></th>
+			<td><?php echo esc_html( $expires ? wp_date( $date_format, $expires ) : __( 'Unknown', 'oauth2' ) ); ?></td>
+		</tr>
+		<tr>
+			<th scope="row"><?php esc_html_e( 'Status', 'oauth2' ); ?></th>
+			<td>
+				<?php
+				if ( $failed_at ) {
+					echo esc_html(
+						sprintf(
+							/* translators: %s: date and time of the failed refresh */
+							__( 'Refresh failed on %s', 'oauth2' ),
+							wp_date( $date_format, $failed_at )
+						)
+					);
+				} else {
+					esc_html_e( 'OK', 'oauth2' );
+				}
+				?>
+			</td>
+		</tr>
+	</table>
+	<p class="description">
+		<?php esc_html_e( "Details come from the client's metadata document and refresh automatically. To block this client, use the oauth2.cimd.admit_url or oauth2.cimd.policy filter. Deleting it only removes the stored copy.", 'oauth2' ); ?>
+	</p>
 	<?php
 }
 
@@ -449,6 +517,15 @@ function render_edit_page() {
 		<?php
 		if ( $consumer ) {
 			render_approval_status( get_post( $consumer->get_post_id() ) );
+		}
+		?>
+
+		<?php
+		if ( $consumer && $consumer->is_cimd() ) {
+			render_cimd_details( $consumer );
+			echo '</div>';
+
+			return;
 		}
 		?>
 
@@ -734,6 +811,10 @@ function handle_regenerate() {
 	}
 
 	$client = Client::get_by_post_id( $id );
+	if ( $client && $client->is_cimd() ) {
+		wp_die( esc_html__( 'Invalid client ID.', 'oauth2' ), '', [ 'response' => 400 ] );
+	}
+
 	$result = $client->regenerate_secret();
 	if ( is_wp_error( $result ) ) {
 		wp_die( esc_html( $result->get_error_message() ) );

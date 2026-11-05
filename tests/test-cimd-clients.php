@@ -11,6 +11,7 @@ require_once __DIR__ . '/class-test-case.php';
 require_once __DIR__ . '/trait-cimd-helpers.php';
 require_once __DIR__ . '/login-stubs.php';
 
+use WP\OAuth2\Admin\ListTable;
 use WP\OAuth2\Client;
 use WP\OAuth2\Endpoints\Authorization;
 use WP\OAuth2\PKCE;
@@ -20,6 +21,10 @@ use WP_Error;
 use WP_REST_Request;
 use WP_REST_Server;
 
+use function WP\OAuth2\Admin\handle_regenerate;
+use function WP\OAuth2\Admin\render_approval_status;
+use function WP\OAuth2\Admin\render_cimd_details;
+use function WP\OAuth2\Admin\render_edit_page;
 use function WP\OAuth2\Authentication\attempt_authentication;
 use function WP\OAuth2\get_client;
 use function WP\OAuth2\CIMD\is_enabled;
@@ -2735,5 +2740,181 @@ class Test_CIMD_Consent extends CIMD_Clients_Test_Case {
 		$html = $this->render_form( $this->create_client(), 'https://example.com/callback' );
 
 		$this->assertStringNotContainsString( 'published at', $html );
+	}
+}
+
+/**
+ * Test cases for the admin screens of shadow clients.
+ */
+class Test_CIMD_Admin extends CIMD_Clients_Test_Case {
+
+	public function tear_down() {
+		$_GET     = [];
+		$_POST    = [];
+		$_REQUEST = [];
+		parent::tear_down();
+	}
+
+	/**
+	 * Sign in as an administrator.
+	 */
+	protected function sign_in_as_admin() {
+		$user_id = self::factory()->user->create( [ 'role' => 'administrator' ] );
+		if ( is_multisite() ) {
+			grant_super_admin( $user_id );
+		}
+		wp_set_current_user( $user_id );
+	}
+
+	/**
+	 * Capture a protected list table column for a client.
+	 *
+	 * @param string $column Column method name.
+	 * @param Client $client Client to print the column for.
+	 * @return string Column output.
+	 */
+	protected function column( $column, Client $client ) {
+		set_current_screen( 'users_page_rest-oauth2-apps' );
+		require_once ABSPATH . 'wp-admin/includes/class-wp-list-table.php';
+		require_once dirname( __DIR__ ) . '/inc/admin/class-listtable.php';
+
+		$reader = new class( [ 'screen' => 'users_page_rest-oauth2-apps' ] ) extends ListTable {
+			public function read( $column, $item ) {
+				return $this->$column( $item );
+			}
+		};
+
+		return (string) $reader->read( $column, get_post( $client->get_post_id() ) );
+	}
+
+	/**
+	 * Capture the body of the edit page for a client.
+	 *
+	 * @param Client $client Client to edit.
+	 * @return string Page output.
+	 */
+	protected function edit_page( Client $client ) {
+		ob_start();
+		render_approval_status( get_post( $client->get_post_id() ) );
+		render_cimd_details( $client );
+
+		return ob_get_clean();
+	}
+
+	public function test_the_name_column_labels_a_metadata_document_client_and_shows_the_host() {
+		$html = $this->column( 'column_name', $this->store( 'draft' ) );
+
+		$this->assertStringContainsString( 'Draft', $html );
+		$this->assertStringContainsString( 'Metadata document', $html );
+		$this->assertStringContainsString( '<code>client.example.com</code>', $html );
+	}
+
+	public function test_the_name_column_leaves_a_registered_client_unchanged() {
+		$html = $this->column( 'column_name', $this->create_client() );
+
+		$this->assertStringNotContainsString( 'Metadata document', $html );
+		$this->assertStringNotContainsString( '<code>', $html );
+	}
+
+	public function test_the_description_column_shows_where_a_metadata_document_client_is_published() {
+		$html = $this->column( 'column_description', $this->store() );
+
+		$this->assertSame( 'Published at ' . static::URL, $html );
+	}
+
+	public function test_the_description_column_escapes_the_client_id() {
+		$client = $this->store();
+		update_post_meta( $client->get_post_id(), Client::CIMD_CLIENT_ID_KEY, 'https://client.example.com/<b>x</b>' );
+
+		$html = $this->column( 'column_description', Client::get_by_post_id( $client->get_post_id() ) );
+
+		$this->assertStringNotContainsString( '<b>', $html );
+		$this->assertStringContainsString( '&lt;b&gt;x&lt;/b&gt;', $html );
+	}
+
+	public function test_the_description_column_shows_the_content_of_a_registered_client() {
+		$this->assertSame( 'Test client description.', $this->column( 'column_description', $this->create_client() ) );
+	}
+
+	public function test_the_edit_page_shows_a_read_only_table_for_a_metadata_document_client() {
+		$this->sign_in_as_admin();
+		$expires = time() + 300;
+		$client  = $this->store( 'draft', $expires, [ 'redirect_uris' => [ 'https://client.example.com/callback', 'https://client.example.com/other' ] ] );
+
+		$html = $this->edit_page( $client );
+
+		$this->assertStringContainsString( '<code>' . static::URL . '</code>', $html );
+		$this->assertStringContainsString( 'Example Client', $html );
+		$this->assertStringContainsString( '<code>https://client.example.com/callback</code>', $html );
+		$this->assertStringContainsString( '<code>https://client.example.com/other</code>', $html );
+		$this->assertStringContainsString( 'authorization_code', $html );
+		$this->assertStringContainsString( wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $expires ), $html );
+		$this->assertMatchesRegularExpression( '/Status<\/th>\s*<td>\s*OK/', $html );
+		$this->assertStringContainsString( 'oauth2.cimd.policy', $html );
+		$this->assertStringContainsString( 'This application is not approved yet.', $html );
+		$this->assertStringContainsString( 'action=approve', $html );
+		$this->assertStringNotContainsString( '<input', $html );
+		$this->assertStringNotContainsString( '<textarea', $html );
+		$this->assertStringNotContainsString( '<form', $html );
+		$this->assertStringNotContainsString( 'Regenerate Secret', $html );
+	}
+
+	public function test_the_edit_page_reports_a_failed_refresh() {
+		$this->sign_in_as_admin();
+		$client = $this->store();
+		$client->mark_cimd_failed();
+
+		$html = $this->edit_page( $client );
+
+		$this->assertStringContainsString( 'Refresh failed on ' . wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), time() ), $html );
+	}
+
+	public function test_an_edit_submission_for_a_metadata_document_client_is_refused() {
+		$this->sign_in_as_admin();
+		$client = $this->store();
+		$id     = $client->get_post_id();
+		$nonce  = wp_create_nonce( 'rest-oauth2-edit-' . $id );
+
+		$_POST                = [
+			'name'        => 'Changed',
+			'description' => 'Changed.',
+			'type'        => 'private',
+			'callback'    => 'https://evil.example.com/callback',
+			'_wpnonce'    => $nonce,
+		];
+		$_REQUEST             = $_POST;
+		$_REQUEST['id']       = $id;
+		$_REQUEST['_wpnonce'] = $nonce;
+
+		try {
+			ob_start();
+			render_edit_page();
+			$this->fail( 'The edit was not refused.' );
+		} catch ( \WPDieException $e ) {
+			$this->assertSame( 'Invalid client ID.', $e->getMessage() );
+		} finally {
+			ob_end_clean();
+		}
+
+		$after = Client::get_by_post_id( $id );
+		$this->assertSame( 'Example Client', $after->get_name() );
+		$this->assertSame( [ 'https://client.example.com/callback' ], $after->get_redirect_uris() );
+	}
+
+	public function test_a_regenerate_request_for_a_metadata_document_client_is_refused() {
+		$this->sign_in_as_admin();
+		$client = $this->store();
+		$id     = $client->get_post_id();
+		$nonce  = wp_create_nonce( 'rest-oauth2-regenerate:' . $id );
+
+		$_GET['id']           = $id;
+		$_REQUEST['_wpnonce'] = $nonce;
+
+		$this->expectException( \WPDieException::class );
+		try {
+			handle_regenerate();
+		} finally {
+			$this->assertSame( '', (string) $client->get_secret() );
+		}
 	}
 }
