@@ -176,6 +176,6 @@ class ListTable extends WP_List_Table {
 			);
 		}
 
-		return $item->post_content;
+		return wp_kses_post( $item->post_content );
 	}
 }

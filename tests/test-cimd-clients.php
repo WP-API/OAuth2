@@ -2905,6 +2905,21 @@ class Test_CIMD_Admin extends CIMD_Clients_Test_Case {
 		$this->assertSame( 'Test client description.', $this->column( 'column_description', $this->create_client() ) );
 	}
 
+	public function test_the_description_column_strips_unsafe_markup_from_a_registered_client() {
+		$client = $this->create_client();
+		wp_update_post(
+			[
+				'ID'           => $client->get_post_id(),
+				'post_content' => 'Safe <b>bold</b><script>alert(1)</script>',
+			]
+		);
+
+		$html = $this->column( 'column_description', $client );
+
+		$this->assertStringContainsString( '<b>bold</b>', $html );
+		$this->assertStringNotContainsString( '<script', $html );
+	}
+
 	public function test_the_edit_page_shows_a_read_only_table_for_a_metadata_document_client() {
 		$this->sign_in_as_admin();
 		$expires = time() + 300;
