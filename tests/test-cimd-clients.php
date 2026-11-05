@@ -1739,6 +1739,56 @@ class Test_CIMD_Flow extends CIMD_Clients_Test_Case {
 		$this->assertTrue( Client::get_by_id( static::URL )->is_approved() );
 	}
 
+	public function test_a_percent_encoded_client_id_is_matched_exactly() {
+		$url = 'https://client.example.com/oauth/my%20client.json';
+		$this->serve( [ 'client_id' => $url ] );
+		wp_set_current_user( $this->factory->user->create() );
+		$pair = $this->make_pkce_pair();
+
+		$out = $this->authorize( $this->authorize_params( $pair, [ 'client_id' => $url ] ) );
+
+		$this->assertSame( 'form:' . $url, $out['result'] );
+		$this->assertSame( $url, Client::get_by_id( $url )->get_id() );
+	}
+
+	public function test_a_percent_encoded_redirect_uri_is_matched_exactly() {
+		$redirect_uri = 'https://client.example.com/callback?next=a%20b&x=%2F';
+		$this->serve( [ 'redirect_uris' => [ $redirect_uri ] ] );
+		wp_set_current_user( $this->factory->user->create() );
+		$pair = $this->make_pkce_pair();
+
+		$out = $this->authorize( $this->authorize_params( $pair, [ 'redirect_uri' => $redirect_uri ] ) );
+
+		$this->assertSame( 'form:' . static::URL, $out['result'] );
+		$this->assertSame( $redirect_uri, $this->rendered_redirect_uri );
+	}
+
+	public function test_a_redirect_uri_that_differs_only_by_encoding_is_refused() {
+		$this->serve( [ 'redirect_uris' => [ 'https://client.example.com/callback?next=a%20b' ] ] );
+		wp_set_current_user( $this->factory->user->create() );
+		$pair = $this->make_pkce_pair();
+
+		$out = $this->authorize( $this->authorize_params( $pair, [ 'redirect_uri' => 'https://client.example.com/callback?next=a b' ] ) );
+
+		$this->assertWPError( $out['result'] );
+		$this->assertSame( 'oauth2.types.authorization_code.handle_authorisation.invalid_redirect_uri', $out['result']->get_error_code() );
+	}
+
+	public function test_a_registered_clients_redirect_uri_is_still_sanitised() {
+		$client = $this->create_client();
+		wp_set_current_user( $this->factory->user->create() );
+
+		$out = $this->authorize(
+			[
+				'client_id'    => $client->get_id(),
+				'redirect_uri' => "https://example.com/callback\n",
+			]
+		);
+
+		$this->assertSame( 'form:' . $client->get_id(), $out['result'] );
+		$this->assertSame( 'https://example.com/callback', $this->rendered_redirect_uri );
+	}
+
 	public function test_a_logged_in_request_without_pkce_is_reported_to_the_client() {
 		$this->serve();
 		wp_set_current_user( $this->factory->user->create() );
