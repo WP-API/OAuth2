@@ -8,6 +8,7 @@
 
 namespace WP\OAuth2\CIMD;
 
+use WP\OAuth2\Client;
 use WP_Error;
 use WpOrg\Requests\Capability;
 use WpOrg\Requests\Exception as RequestsException;
@@ -18,6 +19,7 @@ const MAX_URL_LENGTH     = 2048;
 const MAX_DOCUMENT_BYTES = 5120;
 const MIN_CACHE_TTL      = 300;
 const MAX_CACHE_TTL      = 3600;
+const LOCK_TIMEOUT       = 30;
 
 const IPV4_BLOCKLIST = [
 	'0.0.0.0/8',
@@ -671,4 +673,140 @@ function validate_document( $document, $url ) {
 		'response_types'             => $response_types,
 		'token_endpoint_auth_method' => 'none',
 	];
+}
+
+/**
+ * Get the stored client, or an error if none is stored.
+ *
+ * @param Client|null $stored Stored client.
+ * @param WP_Error    $error  Error to return when there is no stored client.
+ * @return Client|WP_Error
+ */
+function stored_or_error( $stored, WP_Error $error ) {
+	return $stored ? $stored : $error;
+}
+
+/**
+ * Check whether an error says that retrying later may succeed.
+ *
+ * @param WP_Error $error Error from the fetcher or validator.
+ * @return bool
+ */
+function is_transient_error( WP_Error $error ) {
+	$data = $error->get_error_data();
+
+	return is_array( $data ) && ! empty( $data['transient'] );
+}
+
+/**
+ * Check whether the current user may fetch another document, and count a fetch against them.
+ *
+ * @param int  $user_id User ID.
+ * @param bool $count   Whether to record a fetch.
+ * @return bool True if the user is within the limit.
+ */
+function check_rate_limit( $user_id, $count = false ) {
+	/**
+	 * Filters the limit on document fetches per user.
+	 *
+	 * @param array $limit   Array with `limit` fetches allowed per `window` seconds.
+	 * @param int   $user_id User ID.
+	 */
+	$limit  = apply_filters(
+		'oauth2.cimd.rate_limit',
+		[
+			'limit'  => 10,
+			'window' => 600,
+		],
+		$user_id
+	);
+	$limit  = is_array( $limit ) ? $limit : [];
+	$max    = max( 0, (int) ( $limit['limit'] ?? 10 ) );
+	$window = max( 1, (int) ( $limit['window'] ?? 600 ) );
+
+	$key   = 'oauth2_cimd_rl_' . $user_id;
+	$state = get_transient( $key );
+	if ( ! is_array( $state ) || ! isset( $state['count'], $state['reset'] ) || $state['reset'] <= time() ) {
+		$state = [
+			'count' => 0,
+			'reset' => time() + $window,
+		];
+	}
+
+	if ( $state['count'] >= $max ) {
+		return false;
+	}
+
+	if ( $count ) {
+		++$state['count'];
+		set_transient( $key, $state, max( 1, $state['reset'] - time() ) );
+	}
+
+	return true;
+}
+
+/**
+ * Fetch, validate and store the client for a client ID metadata document.
+ *
+ * @param string      $url    Client ID URL.
+ * @param Client|null $stored Shadow client already stored for the URL, if any.
+ * @return Client|WP_Error
+ */
+function discover_client( $url, $stored = null ) {
+	if ( $stored && $stored->get_cimd_expires() > time() ) {
+		return $stored;
+	}
+
+	$valid = validate_client_id_url( $url );
+	if ( is_wp_error( $valid ) ) {
+		return $valid;
+	}
+
+	$user_id = get_current_user_id();
+	if ( ! check_rate_limit( $user_id ) ) {
+		return stored_or_error( $stored, make_error( 'rate_limited', __( 'Too many client metadata document fetches. Try again later.', 'oauth2' ), 429, true ) );
+	}
+
+	$busy = stored_or_error( $stored, make_error( 'busy', __( 'The client metadata document is being fetched. Try again shortly.', 'oauth2' ), 503, true ) );
+	$lock = 'oauth2_cimd_lock_' . md5( $url );
+	if ( ! add_option( $lock, time(), '', false ) ) {
+		if ( time() - (int) get_option( $lock ) < LOCK_TIMEOUT ) {
+			return $busy;
+		}
+
+		delete_option( $lock );
+		if ( ! add_option( $lock, time(), '', false ) ) {
+			return $busy;
+		}
+	}
+
+	try {
+		check_rate_limit( $user_id, true );
+
+		$fetched = fetch_document( $url );
+		$result  = is_wp_error( $fetched ) ? $fetched : validate_document( $fetched['document'], $url );
+		if ( is_wp_error( $result ) ) {
+			return $stored && is_transient_error( $result ) ? $stored : $result;
+		}
+
+		/**
+		 * Filters what to do with a client ID metadata document that was fetched.
+		 *
+		 * A new client is approved with `auto`, saved as a draft with `manual`, and
+		 * refused with `deny`. An existing client keeps its status.
+		 *
+		 * @param string      $policy   One of `auto`, `manual` or `deny`. Default `auto`.
+		 * @param array       $metadata Normalised client metadata.
+		 * @param string      $url      Client ID URL.
+		 * @param Client|null $existing Shadow client already stored for the URL, if any.
+		 */
+		$policy = apply_filters( 'oauth2.cimd.policy', 'auto', $result, $url, $stored );
+		if ( 'deny' === $policy ) {
+			return make_error( 'not_allowed', __( 'This client is not allowed.', 'oauth2' ), 403 );
+		}
+
+		return Client::save_cimd( $url, $result, $fetched['expires'], 'auto' === $policy ? 'publish' : 'draft' );
+	} finally {
+		delete_option( $lock );
+	}
 }
