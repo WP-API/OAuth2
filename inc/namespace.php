@@ -184,8 +184,17 @@ function get_client( $id, array $args = [] ) {
 		return Client::get_by_id( $id, $args['include_unapproved'] );
 	}
 
-	$discover = $args['discover'] && CIMD\is_enabled();
+	// Switches that block a client apply to every lookup, with or without discovery.
+	if ( ! CIMD\is_enabled() || is_wp_error( CIMD\validate_client_id_url( $id ) ) ) {
+		return null;
+	}
+
+	$discover = $args['discover'];
 	$stored   = Client::get_by_id( $id, $args['include_unapproved'] || $discover );
+	if ( $stored && 'deny' === CIMD\get_policy( $id, $stored->get_cimd_metadata(), $stored ) ) {
+		return null;
+	}
+
 	if ( ! $discover ) {
 		return $stored;
 	}

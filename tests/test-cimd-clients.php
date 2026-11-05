@@ -625,7 +625,7 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 
 		$result = get_client( 'https://client.example.com/', [ 'discover' => true ] );
 
-		$this->assertCimdError( 'oauth2.cimd.invalid_client_id', 400, $result );
+		$this->assertNull( $result );
 		$this->assertSame( 0, $this->request_count );
 		$this->assertFalse( get_transient( 'oauth2_cimd_rl_' . get_current_user_id() ) );
 	}
@@ -745,7 +745,7 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 		$this->assertSame( 'publish', get_post_status( $client->get_post_id() ) );
 	}
 
-	public function test_policy_deny_also_refuses_a_refresh_of_an_existing_client() {
+	public function test_policy_deny_hides_an_existing_client_before_any_refresh() {
 		$this->serve();
 		add_filter(
 			'oauth2.cimd.policy',
@@ -755,7 +755,8 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 		);
 		$this->store( 'publish', time() - 10 );
 
-		$this->assertCimdError( 'oauth2.cimd.not_allowed', 403, $this->discover() );
+		$this->assertNull( $this->discover() );
+		$this->assertSame( 0, $this->request_count );
 	}
 
 	// Rate limit.
@@ -973,15 +974,61 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 		$this->assertSame( 0, $this->count_client_posts() );
 	}
 
-	public function test_a_disabled_feature_returns_a_stale_stored_client_without_a_fetch() {
+	public function test_a_disabled_feature_hides_a_stored_client_without_a_fetch() {
 		$this->serve();
-		$stored = $this->store( 'publish', time() - 10 );
+		$this->store( 'publish', time() - 10 );
 		add_filter( 'oauth2.cimd.enabled', '__return_false' );
 
-		$client = $this->discover();
-
-		$this->assertSame( $stored->get_post_id(), $client->get_post_id() );
+		$this->assertNull( $this->discover() );
+		$this->assertNull( get_client( static::URL ) );
 		$this->assertSame( 0, $this->request_count );
+	}
+
+	public function test_a_disabled_feature_hides_a_fresh_stored_client() {
+		$this->store( 'publish', time() + 300 );
+		add_filter( 'oauth2.cimd.enabled', '__return_false' );
+
+		$this->assertNull( get_client( static::URL ) );
+		$this->assertNull( $this->discover() );
+	}
+
+	public function test_an_url_refused_by_the_admit_filter_hides_a_fresh_stored_client() {
+		$this->serve();
+		$this->store( 'publish', time() + 300 );
+		add_filter( 'oauth2.cimd.admit_url', '__return_false' );
+
+		$this->assertNull( get_client( static::URL ) );
+		$this->assertNull( $this->discover() );
+		$this->assertSame( 0, $this->request_count );
+	}
+
+	public function test_the_deny_policy_hides_a_fresh_stored_client() {
+		$this->serve();
+		$this->store( 'publish', time() + 300 );
+		$seen = [];
+		add_filter(
+			'oauth2.cimd.policy',
+			function ( $policy, $metadata, $url, $existing ) use ( &$seen ) {
+				$seen = [ $metadata, $url, $existing ];
+				return 'deny';
+			},
+			10,
+			4
+		);
+
+		$this->assertNull( get_client( static::URL ) );
+		$this->assertNull( $this->discover() );
+		$this->assertSame( 0, $this->request_count );
+		$this->assertSame( $this->metadata(), $seen[0] );
+		$this->assertSame( static::URL, $seen[1] );
+		$this->assertInstanceOf( Client::class, $seen[2] );
+	}
+
+	public function test_a_registered_client_ignores_the_cimd_switches() {
+		$registered = $this->create_client();
+		add_filter( 'oauth2.cimd.enabled', '__return_false' );
+
+		$this->assertSame( $registered->get_post_id(), get_client( $registered->get_id() )->get_post_id() );
 	}
 }
 
@@ -1459,6 +1506,41 @@ class Test_CIMD_Flow extends CIMD_Clients_Test_Case {
 		);
 
 		$this->assertSame( 200, $response->get_status() );
+	}
+
+	public function test_the_token_endpoint_refuses_a_client_blocked_by_a_filter() {
+		$client = $this->store();
+		$pair   = $this->make_pkce_pair();
+		$params = [
+			'grant_type'    => 'authorization_code',
+			'client_id'     => static::URL,
+			'code'          => $this->mint_code( $client, $pair ),
+			'code_verifier' => $pair['code_verifier'],
+		];
+
+		add_filter( 'oauth2.cimd.admit_url', '__return_false' );
+		$blocked = $this->token( $params );
+		remove_all_filters( 'oauth2.cimd.admit_url' );
+		$allowed = $this->token( $params );
+
+		$this->assertSame( 400, $blocked->get_status() );
+		$this->assertSame( 'invalid_client', $blocked->get_data()['error'] );
+		$this->assertSame( 200, $allowed->get_status() );
+	}
+
+	public function test_a_blocked_client_stops_its_bearer_tokens() {
+		$client = $this->store();
+		$token  = $client->issue_token( $this->factory->user->create_and_get() );
+		$this->assertNotNull( Tokens\get_by_id( $token->get_key() )->get_client() );
+
+		add_filter(
+			'oauth2.cimd.policy',
+			function () {
+				return 'deny';
+			}
+		);
+
+		$this->assertNull( Tokens\get_by_id( $token->get_key() )->get_client() );
 	}
 
 	public function test_the_token_endpoint_does_not_fetch_an_unknown_url() {

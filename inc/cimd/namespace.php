@@ -676,6 +676,30 @@ function validate_document( $document, $url ) {
 }
 
 /**
+ * Get the policy for a client ID metadata document.
+ *
+ * @param string      $url      Client ID URL.
+ * @param array       $metadata Normalised client metadata.
+ * @param Client|null $existing Shadow client already stored for the URL, if any.
+ * @return string One of `auto`, `manual` or `deny`.
+ */
+function get_policy( $url, array $metadata, $existing = null ) {
+	/**
+	 * Filters what to do with a client ID metadata document.
+	 *
+	 * A new client is approved with `auto`, saved as a draft with `manual`, and
+	 * refused with `deny`. An existing client keeps its status, but `deny` also
+	 * stops it from authorizing, exchanging codes or authenticating.
+	 *
+	 * @param string      $policy   One of `auto`, `manual` or `deny`. Default `auto`.
+	 * @param array       $metadata Normalised client metadata.
+	 * @param string      $url      Client ID URL.
+	 * @param Client|null $existing Shadow client already stored for the URL, if any.
+	 */
+	return (string) apply_filters( 'oauth2.cimd.policy', 'auto', $metadata, $url, $existing );
+}
+
+/**
  * Get the stored client, or an error if none is stored.
  *
  * @param Client|null $stored Stored client.
@@ -789,18 +813,7 @@ function discover_client( $url, $stored = null ) {
 			return $stored && is_transient_error( $result ) ? $stored : $result;
 		}
 
-		/**
-		 * Filters what to do with a client ID metadata document that was fetched.
-		 *
-		 * A new client is approved with `auto`, saved as a draft with `manual`, and
-		 * refused with `deny`. An existing client keeps its status.
-		 *
-		 * @param string      $policy   One of `auto`, `manual` or `deny`. Default `auto`.
-		 * @param array       $metadata Normalised client metadata.
-		 * @param string      $url      Client ID URL.
-		 * @param Client|null $existing Shadow client already stored for the URL, if any.
-		 */
-		$policy = apply_filters( 'oauth2.cimd.policy', 'auto', $result, $url, $stored );
+		$policy = get_policy( $url, $result, $stored );
 		if ( 'deny' === $policy ) {
 			return make_error( 'not_allowed', __( 'This client is not allowed.', 'oauth2' ), 403 );
 		}
