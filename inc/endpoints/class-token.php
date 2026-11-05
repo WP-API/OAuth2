@@ -250,6 +250,8 @@ class Token {
 			return $auth_code;
 		}
 
+		$generation = $auth_code->get_client_generation();
+
 		// Read from the body only, not get_param(), which also reads $_GET on a
 		// POST route — a verifier belongs in the body, not the URL, since a URL
 		// is far more likely to end up in access logs or a Referer header.
@@ -277,7 +279,13 @@ class Token {
 			return $did_delete;
 		}
 
-		$token = $client->issue_token( $user );
+		// Stamp the token with the generation the code was issued under, so a rotation since the code was loaded leaves a dead token.
+		$token_meta = [];
+		if ( '' !== $generation ) {
+			$token_meta['client_generation'] = $generation;
+		}
+
+		$token = $client->issue_token( $user, $token_meta );
 		if ( is_wp_error( $token ) ) {
 			return $token;
 		}

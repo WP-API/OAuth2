@@ -2029,6 +2029,32 @@ class Test_CIMD_Flow extends CIMD_Clients_Test_Case {
 		$this->assertSame( 'invalid_grant', $response->get_data()['error'] );
 	}
 
+	public function test_a_rotation_while_a_code_is_exchanged_leaves_a_dead_token() {
+		$client = $this->store();
+		$pair   = $this->make_pkce_pair();
+		$code   = $this->mint_code( $client, $pair );
+		$rotate = function ( $meta_ids, $post_id, $key ) use ( &$rotate ) {
+			if ( 0 === strpos( $key, '_oauth2_authcode_' ) ) {
+				remove_action( 'delete_post_meta', $rotate, 10 );
+				Client::save_cimd( static::URL, $this->metadata( [ 'redirect_uris' => [ 'https://client.example.com/new' ] ] ), time() + 300, 'publish' );
+			}
+		};
+		add_action( 'delete_post_meta', $rotate, 10, 3 );
+
+		$response = $this->token(
+			[
+				'grant_type'    => 'authorization_code',
+				'client_id'     => static::URL,
+				'code'          => $code,
+				'code_verifier' => $pair['code_verifier'],
+			]
+		);
+
+		$this->assertSame( 200, $response->get_status() );
+		$token = Tokens\get_by_id( $response->get_data()['access_token'] );
+		$this->assertNull( $token->get_client() );
+	}
+
 	public function test_the_token_endpoint_rejects_a_client_secret() {
 		$this->serve();
 		$client = $this->store();
@@ -2318,6 +2344,30 @@ class Test_CIMD_Generation extends CIMD_Clients_Test_Case {
 		$refreshed = Client::save_cimd( static::URL, $this->metadata( [ 'redirect_uris' => [ 'https://client.example.com/b', 'https://client.example.com/a' ] ] ), time() + 900, 'publish' );
 
 		$this->assertSame( $before, $refreshed->get_cimd_generation() );
+	}
+
+	public function test_a_token_issued_for_a_code_keeps_the_codes_generation() {
+		$client = $this->store();
+		$user   = $this->factory->user->create_and_get();
+		$code   = $client->generate_authorization_code( $user );
+		$loaded = Client::get_by_id( static::URL )->get_authorization_code( $code->get_code() );
+		$this->assertNotWPError( $loaded );
+		$this->assertSame( $client->get_cimd_generation(), $loaded->get_client_generation() );
+
+		Client::save_cimd( static::URL, $this->metadata( [ 'redirect_uris' => [ 'https://client.example.com/new' ] ] ), time() + 300, 'publish' );
+		$token = Client::get_by_id( static::URL )->issue_token( $user, [ 'client_generation' => $loaded->get_client_generation() ] );
+
+		$this->assertNull( Tokens\get_by_id( $token->get_key() )->get_client() );
+		$this->assertNull( Tokens\get_by_id( $token->get_key() )->get_meta( 'client_generation' ) );
+	}
+
+	public function test_a_token_without_a_passed_generation_uses_the_current_one() {
+		$client = $this->store();
+
+		$token = $client->issue_token( $this->factory->user->create_and_get(), [ 'note' => 'x' ] );
+
+		$this->assertNotNull( Tokens\get_by_id( $token->get_key() )->get_client() );
+		$this->assertSame( 'x', Tokens\get_by_id( $token->get_key() )->get_meta( 'note' ) );
 	}
 
 	public function test_a_refresh_that_changes_nothing_security_relevant_keeps_tokens_and_codes() {

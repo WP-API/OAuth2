@@ -250,13 +250,17 @@ class Access_Token extends Token {
 			);
 		}
 
+		// A generation passed in `$meta` is the one the authorization code was issued under.
+		$generation = isset( $meta['client_generation'] ) && is_string( $meta['client_generation'] ) ? $meta['client_generation'] : null;
+		unset( $meta['client_generation'] );
+
 		$data = [
 			'client'  => $client->get_id(),
 			'created' => time(),
 			'meta'    => $meta,
 		];
 		if ( $client instanceof Client && $client->is_cimd() ) {
-			$data['client_generation'] = $client->get_cimd_generation();
+			$data['client_generation'] = null !== $generation ? $generation : $client->get_cimd_generation();
 		}
 		$key      = wp_generate_password( static::KEY_LENGTH, false );
 		$meta_key = static::META_PREFIX . $key;

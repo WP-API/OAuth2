@@ -115,6 +115,17 @@ class Authorization_Code {
 	}
 
 	/**
+	 * Get the client generation stored against this code.
+	 *
+	 * @return string Generation of the CIMD client the code was issued for, empty for other clients.
+	 */
+	public function get_client_generation() {
+		$value = $this->get_value();
+
+		return is_array( $value ) && isset( $value['client_generation'] ) && is_string( $value['client_generation'] ) ? $value['client_generation'] : '';
+	}
+
+	/**
 	 * Get the PKCE code challenge stored against this code, if any.
 	 *
 	 * @return string|null Code challenge, or null if this code was not issued with one.
