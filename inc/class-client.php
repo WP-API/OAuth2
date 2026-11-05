@@ -236,7 +236,11 @@ class Client implements ClientInterface {
 	 * @return bool True if PKCE is required, false otherwise.
 	 */
 	public function is_pkce_required() {
-		$required = $this->is_cimd() || (bool) get_post_meta( $this->get_post_id(), static::PKCE_REQUIRED_KEY, true );
+		if ( $this->is_cimd() ) {
+			return true;
+		}
+
+		$required = (bool) get_post_meta( $this->get_post_id(), static::PKCE_REQUIRED_KEY, true );
 
 		/**
 		 * Filter whether PKCE is required for a client.

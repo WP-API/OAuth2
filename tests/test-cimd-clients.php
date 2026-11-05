@@ -303,11 +303,11 @@ class Test_CIMD_Clients extends CIMD_Clients_Test_Case {
 		$this->assertTrue( $client->is_pkce_required() );
 	}
 
-	public function test_cimd_client_pkce_requirement_goes_through_the_filter() {
+	public function test_cimd_client_pkce_requirement_cannot_be_filtered_off() {
 		$client = $this->store();
 		add_filter( 'oauth2.pkce.required', '__return_false' );
 
-		$this->assertFalse( $client->is_pkce_required() );
+		$this->assertTrue( $client->is_pkce_required() );
 	}
 
 	public function test_cimd_client_cannot_use_client_credentials() {
@@ -1195,6 +1195,23 @@ class Test_CIMD_Flow extends CIMD_Clients_Test_Case {
 			]
 		);
 
+		$this->assertStringStartsWith( static::REDIRECT_URI, $out['location'] );
+		$this->assertStringContainsString( 'error=invalid_request', $out['location'] );
+	}
+
+	public function test_a_request_without_pkce_is_rejected_even_when_the_filter_turns_pkce_off() {
+		$this->serve();
+		add_filter( 'oauth2.pkce.required', '__return_false' );
+		wp_set_current_user( $this->factory->user->create() );
+
+		$out = $this->authorize(
+			[
+				'client_id'    => static::URL,
+				'redirect_uri' => static::REDIRECT_URI,
+			]
+		);
+
+		$this->assertNull( $out['result'] );
 		$this->assertStringStartsWith( static::REDIRECT_URI, $out['location'] );
 		$this->assertStringContainsString( 'error=invalid_request', $out['location'] );
 	}
