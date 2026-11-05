@@ -826,7 +826,7 @@ function handle_regenerate() {
 	}
 
 	$client = Client::get_by_post_id( $id );
-	if ( $client && $client->is_cimd() ) {
+	if ( ! $client || Client::POST_TYPE !== get_post_type( $id ) || $client->is_cimd() ) {
 		wp_die( esc_html__( 'Invalid client ID.', 'oauth2' ), '', [ 'response' => 400 ] );
 	}
 

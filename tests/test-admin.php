@@ -11,6 +11,7 @@ require_once __DIR__ . '/class-test-case.php';
 
 use WP\OAuth2\Admin\ListTable;
 use function WP\OAuth2\Admin\handle_approve;
+use function WP\OAuth2\Admin\handle_regenerate;
 use function WP\OAuth2\Admin\render_approval_status;
 use function WP\OAuth2\Admin\validate_parameters;
 
@@ -221,6 +222,28 @@ class Test_Admin extends Test_Case {
 			handle_approve();
 		} finally {
 			$this->assertSame( 'trash', get_post_status( $id ) );
+		}
+	}
+
+	public function test_handle_regenerate_refuses_a_post_that_is_not_a_client() {
+		$user_id = self::factory()->user->create( [ 'role' => 'administrator' ] );
+		if ( is_multisite() ) {
+			grant_super_admin( $user_id );
+		}
+		wp_set_current_user( $user_id );
+
+		$id    = self::factory()->post->create();
+		$nonce = wp_create_nonce( 'rest-oauth2-regenerate:' . $id );
+
+		$_GET['id']           = $id;
+		$_GET['_wpnonce']     = $nonce;
+		$_REQUEST['_wpnonce'] = $nonce;
+
+		$this->expectException( \WPDieException::class );
+		try {
+			handle_regenerate();
+		} finally {
+			$this->assertSame( '', get_post_meta( $id, '_oauth2_client_secret', true ) );
 		}
 	}
 }
