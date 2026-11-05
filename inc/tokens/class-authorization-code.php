@@ -191,28 +191,14 @@ class Authorization_Code {
 				return true;
 			}
 
-			/**
-			 * Filter whether a code_verifier is accepted for a code that has no stored code_challenge.
-			 *
-			 * A verifier arriving for a non-PKCE code is unexpected: either the
-			 * client is misconfigured, or the code was obtained some other way.
-			 * Rejecting it by default is the safer choice.
-			 *
-			 * @param bool   $reject True to reject the request, the default.
-			 * @param string $verifier Code verifier that was supplied.
-			 */
-			if ( apply_filters( 'oauth2.pkce.reject_unexpected_verifier', true, $verifier ) ) {
-				return new WP_Error(
-					'oauth2.tokens.authorization_code.validate.unexpected_verifier',
-					__( 'This authorization code was not issued with a PKCE challenge.', 'oauth2' ),
-					[
-						'status' => WP_Http::BAD_REQUEST,
-						'error'  => 'invalid_grant',
-					]
-				);
-			}
-
-			return true;
+			return new WP_Error(
+				'oauth2.tokens.authorization_code.validate.unexpected_verifier',
+				__( 'This authorization code was not issued with a PKCE challenge.', 'oauth2' ),
+				[
+					'status' => WP_Http::BAD_REQUEST,
+					'error'  => 'invalid_grant',
+				]
+			);
 		}
 
 		$method = $this->get_code_challenge_method();
