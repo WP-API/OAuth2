@@ -501,6 +501,21 @@ function render_edit_page() {
 	// phpcs:enable
 
 	include ABSPATH . 'wp-admin/admin-header.php';
+
+	render_edit_page_body( $consumer, $title, $messages, $form_action, $regenerate_action, $data );
+}
+
+/**
+ * Output the content of the alias editing page, below the admin header.
+ *
+ * @param Client|null $consumer          Client being edited, null on the add page.
+ * @param string      $title             Page title.
+ * @param string[]    $messages          Messages to show above the form.
+ * @param string      $form_action       URL the edit form posts to.
+ * @param string      $regenerate_action URL the regenerate secret form posts to.
+ * @param array       $data              Field values for the form.
+ */
+function render_edit_page_body( $consumer, $title, $messages, $form_action, $regenerate_action, $data ) {
 	?>
 
 	<div class="wrap">

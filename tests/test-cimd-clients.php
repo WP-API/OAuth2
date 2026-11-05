@@ -22,9 +22,8 @@ use WP_REST_Request;
 use WP_REST_Server;
 
 use function WP\OAuth2\Admin\handle_regenerate;
-use function WP\OAuth2\Admin\render_approval_status;
-use function WP\OAuth2\Admin\render_cimd_details;
 use function WP\OAuth2\Admin\render_edit_page;
+use function WP\OAuth2\Admin\render_edit_page_body;
 use function WP\OAuth2\Authentication\attempt_authentication;
 use function WP\OAuth2\get_client;
 use function WP\OAuth2\CIMD\is_enabled;
@@ -2788,15 +2787,17 @@ class Test_CIMD_Admin extends CIMD_Clients_Test_Case {
 	}
 
 	/**
-	 * Capture the body of the edit page for a client.
+	 * Capture the content of the edit page for a client.
+	 *
+	 * Calls render_edit_page_body(), which render_edit_page() runs below the
+	 * admin header. The header cannot be included under PHPUnit.
 	 *
 	 * @param Client $client Client to edit.
 	 * @return string Page output.
 	 */
 	protected function edit_page( Client $client ) {
 		ob_start();
-		render_approval_status( get_post( $client->get_post_id() ) );
-		render_cimd_details( $client );
+		render_edit_page_body( $client, 'Edit Application', [], '/form-action', '/regenerate-action', [] );
 
 		return ob_get_clean();
 	}
@@ -2867,6 +2868,29 @@ class Test_CIMD_Admin extends CIMD_Clients_Test_Case {
 		$html = $this->edit_page( $client );
 
 		$this->assertStringContainsString( 'Refresh failed on ' . wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), time() ), $html );
+	}
+
+	public function test_the_edit_page_still_shows_the_form_for_a_registered_client() {
+		$this->sign_in_as_admin();
+		$client = $this->create_client();
+		$data   = [
+			'name'                       => 'Test Client',
+			'description'                => '',
+			'type'                       => 'public',
+			'callback'                   => 'https://example.com/callback',
+			'client_credentials_enabled' => false,
+			'pkce_required'              => false,
+			'token_ttl'                  => '',
+		];
+
+		ob_start();
+		render_edit_page_body( $client, 'Edit Application', [], '/form-action', '/regenerate-action', $data );
+		$html = ob_get_clean();
+
+		$this->assertStringContainsString( 'name="name"', $html );
+		$this->assertStringContainsString( 'name="callback"', $html );
+		$this->assertStringContainsString( 'Regenerate Secret', $html );
+		$this->assertStringNotContainsString( 'Cache expires', $html );
 	}
 
 	public function test_an_edit_submission_for_a_metadata_document_client_is_refused() {
