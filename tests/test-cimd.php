@@ -1410,7 +1410,7 @@ class Test_CIMD extends Test_Case {
 
 		$this->assertTrue( $pinned );
 		$this->assertFalse( $failed );
-		$this->assertNotSame( 0, $errno );
+		$this->assertSame( CURLE_COULDNT_CONNECT, $errno );
 		$this->assertStringContainsString( 'pin-test.invalid', $error );
 		$this->assertStringNotContainsStringIgnoringCase( 'proxy', $error );
 	}
