@@ -14,6 +14,7 @@ use WP\OAuth2\CIMD;
 use WP\OAuth2\Client;
 
 use function WP\OAuth2\CIMD\is_cimd_client_id;
+use function WP\OAuth2\Well_Known\get_issuer;
 
 abstract class Base implements Type {
 	/**
@@ -205,6 +206,7 @@ abstract class Base implements Type {
 		if ( null !== $state ) {
 			$args['state'] = $state;
 		}
+		$args['iss'] = get_issuer();
 
 		return add_query_arg( urlencode_deep( $args ), $redirect_uri );
 	}
@@ -275,7 +277,7 @@ abstract class Base implements Type {
 	}
 
 	/**
-	 * Filter the redirection args.
+	 * Add the issuer to the redirection args and filter them.
 	 *
 	 * @param array   $redirect_args Redirect args.
 	 * @param boolean $authorized True if authorized, false otherwise.
@@ -286,6 +288,9 @@ abstract class Base implements Type {
 	 *                      which is only ever supplied at the token endpoint.
 	 */
 	protected function filter_redirect_args( $redirect_args, $authorized, Client $client, $data ) {
+		// RFC 9207: identify the issuer in every authorization response.
+		$redirect_args['iss'] = get_issuer();
+
 		if ( ! $authorized ) {
 			/**
 			 * Filter the redirect args when the user has cancelled.
