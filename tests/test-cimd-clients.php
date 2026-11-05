@@ -9,6 +9,7 @@ namespace WP\OAuth2\Tests;
 
 require_once __DIR__ . '/class-test-case.php';
 require_once __DIR__ . '/trait-cimd-helpers.php';
+require_once __DIR__ . '/login-stubs.php';
 
 use WP\OAuth2\Client;
 use WP\OAuth2\Endpoints\Authorization;
@@ -2438,6 +2439,15 @@ class Test_CIMD_Generation extends CIMD_Clients_Test_Case {
 }
 
 /**
+ * Authorization code type that exposes the form rendering.
+ */
+class CIMD_Render_Authorization_Code extends Authorization_Code {
+	public function render( Client $client, $redirect_uri ) {
+		$this->render_form( $client, null, $redirect_uri );
+	}
+}
+
+/**
  * Test cases for the origin notice on the consent screen.
  */
 class Test_CIMD_Consent extends CIMD_Clients_Test_Case {
@@ -2515,9 +2525,64 @@ class Test_CIMD_Consent extends CIMD_Clients_Test_Case {
 		$this->assertStringNotContainsString( 'sent to', $html );
 	}
 
-	public function test_the_consent_template_prints_the_notice() {
-		$source = file_get_contents( dirname( __DIR__ ) . '/theme/oauth2-authorize.php' );
+	/**
+	 * Render the consent form with the bundled template.
+	 *
+	 * @param Client      $client       Client.
+	 * @param string|null $redirect_uri Redirect URI.
+	 * @return string
+	 */
+	protected function render_form( Client $client, $redirect_uri ) {
+		wp_set_current_user( $this->factory->user->create() );
+		$_SERVER['REQUEST_URI'] = '/wp-login.php?action=oauth2_authorize';
+		$type                   = new CIMD_Render_Authorization_Code();
 
-		$this->assertStringContainsString( 'render_origin_notice( $client, $redirect_uri )', $source );
+		ob_start();
+		try {
+			$type->render( $client, $redirect_uri );
+		} finally {
+			$html = ob_get_clean();
+		}
+
+		return $html;
+	}
+
+	public function test_the_bundled_template_prints_the_notice_once() {
+		$client = $this->store();
+
+		$html = $this->render_form( $client, 'https://client.example.com/callback' );
+
+		$this->assertSame( 1, substr_count( $html, 'This app is published at' ) );
+		$this->assertSame( 1, substr_count( $html, 'you will be sent to' ) );
+		$this->assertStringContainsString( 'oauth2_authorize_form', $html );
+		$this->assertFalse( has_action( 'oauth2_authorize_form' ) );
+	}
+
+	public function test_the_notice_prints_before_other_callbacks_of_the_form_action() {
+		$client = $this->store();
+		add_action(
+			'oauth2_authorize_form',
+			function () {
+				echo 'EXTRA-FIELD';
+			}
+		);
+
+		$html = $this->render_form( $client, 'https://client.example.com/callback' );
+
+		$this->assertLessThan( strpos( $html, 'EXTRA-FIELD' ), strpos( $html, 'This app is published at' ) );
+	}
+
+	public function test_the_bundled_template_warns_about_a_loopback_redirect() {
+		$client = $this->store( 'publish', null, [ 'redirect_uris' => [ 'http://localhost/cb' ] ] );
+
+		$html = $this->render_form( $client, 'http://localhost:9999/cb' );
+
+		$this->assertSame( 1, substr_count( $html, 'run on this device' ) );
+	}
+
+	public function test_the_bundled_template_prints_nothing_extra_for_a_registered_client() {
+		$html = $this->render_form( $this->create_client(), 'https://example.com/callback' );
+
+		$this->assertStringNotContainsString( 'published at', $html );
 	}
 }

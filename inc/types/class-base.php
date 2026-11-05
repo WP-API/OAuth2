@@ -10,6 +10,7 @@ namespace WP\OAuth2\Types;
 use WP_Error;
 use WP_Http;
 use WP\OAuth2;
+use WP\OAuth2\CIMD;
 use WP\OAuth2\Client;
 
 use function WP\OAuth2\CIMD\is_cimd_client_id;
@@ -250,7 +251,17 @@ abstract class Base implements Type {
 			$file = dirname( dirname( __DIR__ ) ) . '/theme/oauth2-authorize.php';
 		}
 
-		include $file;
+		// The notice about where a CIMD client comes from is printed by the form action, so a
+		// theme template that fires the action shows it without any other change.
+		$notice = static function ( $form_client ) use ( $redirect_uri ) {
+			CIMD\render_origin_notice( $form_client, $redirect_uri );
+		};
+		add_action( 'oauth2_authorize_form', $notice, 0 );
+		try {
+			include $file;
+		} finally {
+			remove_action( 'oauth2_authorize_form', $notice, 0 );
+		}
 	}
 
 	/**
