@@ -21,7 +21,7 @@ The plugin treats these clients as public clients:
 
 A client record is tied to the document it came from. If the redirect URIs change in a refresh, all tokens and codes issued before the change stop working. With the `manual` policy the client also goes back to draft until an admin approves it again.
 
-Documents are cached for 5 to 60 minutes, based on the `Cache-Control` header of the response. When a refresh fails for a temporary reason, the plugin keeps using the stored client. When it fails for a permanent reason, such as a 404 or an invalid document, the stored client is no longer used until a refresh succeeds.
+Documents are cached for 5 to 60 minutes, based on the `Cache-Control` header of the response. When a refresh fails for a temporary reason, the plugin keeps using the stored client. When it fails for a permanent reason, such as a 404 or an invalid document, the stored client is marked as failed. New authorizations and the fallback to the stored client are blocked until a refresh succeeds. Codes that were already issued (they last up to 10 minutes) and existing tokens keep working until a later successful refresh changes the generation, or an admin deletes the client.
 
 ## Filters
 
@@ -129,69 +129,49 @@ If it does not, the locks are rows in the options table of the main site, and th
 
 Each document fetch makes your server send a request to another site. The limits above are a backstop. Limit requests at the web server first. This stops a flood before PHP runs and before any database write.
 
-Limit only the authorize page and the token endpoint, so the rest of the site is not affected.
+Limit the login script and the OAuth REST routes only, so the rest of the site is not affected. Match on the path, not on the query string or the request body. The `action` argument can be repeated, written in another case, encoded, or sent in a POST body, so a rule that depends on it is easy to get around. This means the limit covers all of `wp-login.php`, not only the authorize screen, so set the rate to a generous value.
 
 ### nginx
 
-Use a `map` so that the limit applies to these requests only. Requests that map to an empty key are not limited. The key joins the path and the `action` query argument, so only the authorize page of `wp-login.php` is matched.
+Use a `map` on `$uri` so that the limit applies to these paths only. `$uri` is decoded and normalised by nginx, and `~*` makes the match case-insensitive. Requests that map to an empty key are not limited.
 
 ```nginx
 # In the http block.
-map "$uri:$arg_action" $oauth2_limit_key {
-    default                                   "";
-    "/wp-login.php:oauth2_authorize"          $binary_remote_addr;
-    ~^/wp-json/oauth2/access_token:           $binary_remote_addr;
+map $uri $oauth2_limit_key {
+    default                     "";
+    ~*^/wp-login\.php$          $binary_remote_addr;
+    ~*^/wp-json/oauth2/         $binary_remote_addr;
 }
 
-limit_req_zone $oauth2_limit_key zone=oauth2:10m rate=30r/m;
+limit_req_zone $oauth2_limit_key zone=oauth2:10m rate=60r/m;
 limit_req_status 429;
 
-# In the server block.
-location = /wp-login.php {
-    limit_req zone=oauth2 burst=10 nodelay;
-    # ... your usual PHP handling.
-}
-
-location /wp-json/oauth2/access_token {
-    limit_req zone=oauth2 burst=10 nodelay;
-    # ... your usual PHP handling.
-}
+# In the server block, or inside your existing PHP location.
+limit_req zone=oauth2 burst=20 nodelay;
 ```
 
-If your site does not use pretty permalinks, the token endpoint is `/index.php?rest_route=/oauth2/access_token`. Add a matching `location` and map entry for it.
+Put `limit_req` in the server block, or inside the location that already passes PHP requests to FastCGI. Do not add a new `location = /wp-login.php`, because it would replace your PHP handling for that file.
+
+Use pretty permalinks. With plain permalinks the token endpoint is `/index.php?rest_route=/oauth2/access_token`, and a path-based limit would have to cover all of `index.php`.
 
 ### Apache
 
-With `mod_evasive`, set limits for the whole site. It counts requests per client and per URL, so it works well for the authorize page.
-
-```apache
-<IfModule mod_evasive20.c>
-    DOSHashTableSize    3097
-    DOSPageCount        5
-    DOSPageInterval     10
-    DOSSiteCount        60
-    DOSSiteInterval     10
-    DOSBlockingPeriod   60
-</IfModule>
-```
-
-With `mod_security`, count the requests to these two URLs for each client address, and deny the client when the count is too high. The rules below are a starting point. Adjust the limits to your traffic.
+`mod_evasive` counts requests for the whole site and cannot be limited to a few paths, so it is not a good fit here. Use `mod_security` instead. The rule below counts requests to these paths for each client address and denies the client when the count is too high. It matches on `REQUEST_FILENAME`, which is the path without the query string. The transformations remove path tricks and ignore case. It is a starting point, so adjust the limit to your traffic.
 
 ```apache
 <IfModule mod_security2.c>
     SecAction "id:9100100,phase:1,nolog,pass,initcol:ip=%{REMOTE_ADDR}"
 
-    SecRule REQUEST_URI "@beginsWith /wp-json/oauth2/access_token" \
-        "id:9100101,phase:1,nolog,pass,setvar:ip.oauth2_count=+1,expirevar:ip.oauth2_count=60"
+    SecRule REQUEST_FILENAME "@rx ^/(wp-login\.php$|wp-json/oauth2/)" \
+        "id:9100101,phase:1,nolog,pass,t:normalizePath,t:lowercase,setvar:ip.oauth2_count=+1,expirevar:ip.oauth2_count=60"
 
-    SecRule REQUEST_URI "@beginsWith /wp-login.php" \
-        "id:9100102,phase:1,nolog,pass,chain"
-        SecRule ARGS:action "@streq oauth2_authorize" \
-            "setvar:ip.oauth2_count=+1,expirevar:ip.oauth2_count=60"
-
-    SecRule IP:OAUTH2_COUNT "@gt 30" \
-        "id:9100103,phase:1,deny,status:429,msg:'Too many OAuth requests'"
+    SecRule IP:OAUTH2_COUNT "@gt 60" \
+        "id:9100102,phase:1,deny,status:429,msg:'Too many OAuth requests'"
 </IfModule>
 ```
+
+### Behind a proxy or CDN
+
+If your site is behind a proxy, load balancer or CDN, the web server sees the address of the proxy, not the visitor. Every visitor then shares one limit. Set up real client addresses first. In nginx use `set_real_ip_from` and `real_ip_header`. In Apache use `mod_remoteip` with `RemoteIPHeader` and `RemoteIPInternalProxy`. Only trust the headers of proxies you control.
 
 These are the first line of defence. The limits in the plugin are a backstop for the case where the web server is not set up to limit requests.
