@@ -11,7 +11,13 @@ require_once __DIR__ . '/class-test-case.php';
 require_once __DIR__ . '/trait-cimd-helpers.php';
 
 use WP\OAuth2\Client;
+use WP\OAuth2\Endpoints\Authorization;
+use WP\OAuth2\PKCE;
+use WP\OAuth2\Tokens;
+use WP\OAuth2\Types\Authorization_Code;
 use WP_Error;
+use WP_REST_Request;
+use WP_REST_Server;
 
 use function WP\OAuth2\get_client;
 use function WP\OAuth2\CIMD\is_enabled;
@@ -973,6 +979,322 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 		$client = $this->discover();
 
 		$this->assertSame( $stored->get_post_id(), $client->get_post_id() );
+		$this->assertSame( 0, $this->request_count );
+	}
+}
+
+/**
+ * Thrown from a wp_redirect filter to capture the location and stop before exit().
+ */
+class CIMD_Redirect_Interrupt extends \RuntimeException {}
+
+/**
+ * Authorization code type that returns a marker instead of rendering the consent form.
+ */
+class CIMD_Form_Authorization_Code extends Authorization_Code {
+	protected function render_form( Client $client, ?WP_Error $errors = null ) {
+		return 'form:' . $client->get_id();
+	}
+}
+
+/**
+ * Test cases for the authorize step and token exchange of CIMD clients.
+ */
+class Test_CIMD_Flow extends CIMD_Clients_Test_Case {
+
+	const REDIRECT_URI = 'https://client.example.com/callback';
+
+	/**
+	 * @var WP_REST_Server
+	 */
+	protected $server;
+
+	public function set_up() {
+		parent::set_up();
+		global $wp_rest_server;
+		$this->server = $wp_rest_server = new WP_REST_Server();
+		do_action( 'rest_api_init', $this->server );
+	}
+
+	public function tear_down() {
+		global $wp_rest_server;
+		$wp_rest_server = null;
+		$_GET           = [];
+		$_POST          = [];
+
+		parent::tear_down();
+	}
+
+	/**
+	 * Serve the test document.
+	 *
+	 * @param array $overrides Document fields to override.
+	 */
+	protected function serve( array $overrides = [] ) {
+		$this->mock_dns();
+		$this->mock_http( $this->http_response( wp_json_encode( $this->document( $overrides ) ) ) );
+	}
+
+	/**
+	 * Run the authorize step.
+	 *
+	 * @param array $get  Query parameters.
+	 * @param array $post Form fields.
+	 * @return array Result of handle_authorisation() as `result`, and the redirect location as `location`.
+	 */
+	protected function authorize( array $get, array $post = [] ) {
+		$_GET     = $get;
+		$_POST    = $post;
+		$location = null;
+		$filter   = function ( $url ) use ( &$location ) {
+			$location = $url;
+			throw new CIMD_Redirect_Interrupt();
+		};
+		add_filter( 'wp_redirect', $filter );
+
+		$result = null;
+		try {
+			$result = ( new CIMD_Form_Authorization_Code() )->handle_authorisation();
+		} catch ( CIMD_Redirect_Interrupt $e ) {
+			// The location was captured by the filter.
+			unset( $e );
+		} finally {
+			remove_filter( 'wp_redirect', $filter );
+			$_GET  = [];
+			$_POST = [];
+		}
+
+		return compact( 'result', 'location' );
+	}
+
+	/**
+	 * Query parameters of a valid authorize request.
+	 *
+	 * @param array $pair      PKCE pair.
+	 * @param array $overrides Parameters to override.
+	 * @return array
+	 */
+	protected function authorize_params( array $pair, array $overrides = [] ) {
+		return array_merge(
+			[
+				'client_id'             => static::URL,
+				'redirect_uri'          => static::REDIRECT_URI,
+				'code_challenge'        => $pair['code_challenge'],
+				'code_challenge_method' => $pair['code_challenge_method'],
+			],
+			$overrides
+		);
+	}
+
+	/**
+	 * Send a request to the token endpoint.
+	 *
+	 * @param array $params  Body parameters.
+	 * @param array $headers Request headers.
+	 * @return \WP_REST_Response
+	 */
+	protected function token( array $params, array $headers = [] ) {
+		$request = new WP_REST_Request( 'POST', '/oauth2/access_token' );
+		foreach ( $params as $key => $value ) {
+			$request->set_param( $key, $value );
+		}
+		foreach ( $headers as $name => $value ) {
+			$request->add_header( $name, $value );
+		}
+
+		return $this->server->dispatch( $request );
+	}
+
+	/**
+	 * Mint an authorization code for the stored shadow client.
+	 *
+	 * @param Client $client Shadow client.
+	 * @param array  $pair   PKCE pair.
+	 * @return string
+	 */
+	protected function mint_code( Client $client, array $pair ) {
+		$code = $client->generate_authorization_code(
+			$this->factory->user->create_and_get(),
+			[
+				'code_challenge'        => $pair['code_challenge'],
+				'code_challenge_method' => $pair['code_challenge_method'],
+			]
+		);
+		$this->assertNotWPError( $code );
+
+		return $code->get_code();
+	}
+
+	// Authorize: logged out.
+
+	public function test_a_logged_out_request_for_an_unknown_url_redirects_to_login_without_a_fetch() {
+		$this->serve();
+		$pair = $this->make_pkce_pair();
+
+		$out = $this->authorize( $this->authorize_params( $pair ) );
+
+		$this->assertNull( $out['result'] );
+		$this->assertStringStartsWith( wp_login_url(), $out['location'] );
+		$this->assertSame( 0, $this->request_count );
+		$this->assertSame( 0, $this->count_client_posts() );
+		$this->assertFalse( get_option( 'oauth2_cimd_lock_' . md5( static::URL ) ) );
+	}
+
+	public function test_a_logged_out_request_for_an_unknown_url_redirects_to_login_even_without_other_parameters() {
+		$this->serve();
+
+		$out = $this->authorize( [ 'client_id' => static::URL ] );
+
+		$this->assertStringStartsWith( wp_login_url(), $out['location'] );
+		$this->assertSame( 0, $this->request_count );
+		$this->assertSame( 0, $this->count_client_posts() );
+	}
+
+	public function test_a_logged_out_request_for_a_stale_stored_client_does_not_refetch() {
+		$this->serve();
+		$this->store( 'publish', time() - 10 );
+		$pair = $this->make_pkce_pair();
+
+		$out = $this->authorize( $this->authorize_params( $pair ) );
+
+		$this->assertStringStartsWith( wp_login_url(), $out['location'] );
+		$this->assertSame( 0, $this->request_count );
+	}
+
+	public function test_a_logged_out_request_for_an_unknown_slug_is_still_an_invalid_client() {
+		$out = $this->authorize( [ 'client_id' => 'nonexistent-client-id' ] );
+
+		$this->assertWPError( $out['result'] );
+		$this->assertSame( 'oauth2.types.authorization_code.handle_authorisation.invalid_client_id', $out['result']->get_error_code() );
+	}
+
+	// Authorize: logged in.
+
+	public function test_a_logged_in_request_for_an_unknown_url_creates_a_published_client_and_shows_the_form() {
+		$this->serve();
+		wp_set_current_user( $this->factory->user->create() );
+		$pair = $this->make_pkce_pair();
+
+		$out = $this->authorize( $this->authorize_params( $pair ) );
+
+		$this->assertSame( 'form:' . static::URL, $out['result'] );
+		$this->assertNull( $out['location'] );
+		$this->assertSame( 1, $this->request_count );
+		$this->assertSame( 1, $this->count_client_posts() );
+		$this->assertTrue( Client::get_by_id( static::URL )->is_approved() );
+	}
+
+	public function test_a_logged_in_request_without_pkce_is_reported_to_the_client() {
+		$this->serve();
+		wp_set_current_user( $this->factory->user->create() );
+
+		$out = $this->authorize(
+			[
+				'client_id'    => static::URL,
+				'redirect_uri' => static::REDIRECT_URI,
+			]
+		);
+
+		$this->assertStringStartsWith( static::REDIRECT_URI, $out['location'] );
+		$this->assertStringContainsString( 'error=invalid_request', $out['location'] );
+	}
+
+	public function test_a_logged_in_request_with_an_unregistered_redirect_uri_is_an_error() {
+		$this->serve();
+		wp_set_current_user( $this->factory->user->create() );
+		$pair = $this->make_pkce_pair();
+
+		$out = $this->authorize( $this->authorize_params( $pair, [ 'redirect_uri' => 'https://attacker.example/callback' ] ) );
+
+		$this->assertWPError( $out['result'] );
+		$this->assertSame( 'oauth2.types.authorization_code.handle_authorisation.invalid_redirect_uri', $out['result']->get_error_code() );
+		$this->assertNull( $out['location'] );
+	}
+
+	public function test_a_fetch_error_is_returned_with_its_own_status_and_message() {
+		$this->mock_dns();
+		$this->mock_http( $this->http_response( '', [], 404 ) );
+		wp_set_current_user( $this->factory->user->create() );
+		$pair = $this->make_pkce_pair();
+
+		$out = $this->authorize( $this->authorize_params( $pair ) );
+
+		$this->assertCimdError( 'oauth2.cimd.fetch_failed', 400, $out['result'], false );
+		$this->assertSame( 'The client metadata document request did not return 200.', $out['result']->get_error_message() );
+		$this->assertSame( 400, ( new Authorization() )->get_error_status( $out['result'] ) );
+		$this->assertNull( $out['location'] );
+	}
+
+	public function test_a_transient_fetch_error_keeps_its_status() {
+		$this->mock_dns();
+		$this->mock_http( new WP_Error( 'http_request_failed', 'Timed out' ) );
+		wp_set_current_user( $this->factory->user->create() );
+		$pair = $this->make_pkce_pair();
+
+		$out = $this->authorize( $this->authorize_params( $pair ) );
+
+		$this->assertCimdError( 'oauth2.cimd.fetch_failed', 503, $out['result'], true );
+		$this->assertSame( 503, ( new Authorization() )->get_error_status( $out['result'] ) );
+		$this->assertNull( $out['location'] );
+	}
+
+	public function test_the_manual_policy_gives_the_unapproved_client_error() {
+		$this->serve();
+		add_filter(
+			'oauth2.cimd.policy',
+			function () {
+				return 'manual';
+			}
+		);
+		wp_set_current_user( $this->factory->user->create() );
+		$pair = $this->make_pkce_pair();
+
+		$out = $this->authorize( $this->authorize_params( $pair ) );
+
+		$this->assertWPError( $out['result'] );
+		$this->assertSame( 'oauth2.types.authorization_code.handle_authorisation.unapproved_client', $out['result']->get_error_code() );
+		$this->assertSame( 403, $out['result']->get_error_data()['status'] );
+		$this->assertSame( 'draft', get_post_status( Client::get_by_id( static::URL, true )->get_post_id() ) );
+	}
+
+	public function test_the_deny_policy_returns_a_forbidden_error() {
+		$this->serve();
+		add_filter(
+			'oauth2.cimd.policy',
+			function () {
+				return 'deny';
+			}
+		);
+		wp_set_current_user( $this->factory->user->create() );
+		$pair = $this->make_pkce_pair();
+
+		$out = $this->authorize( $this->authorize_params( $pair ) );
+
+		$this->assertCimdError( 'oauth2.cimd.not_allowed', 403, $out['result'] );
+		$this->assertSame( 0, $this->count_client_posts() );
+	}
+
+	public function test_the_personal_client_id_is_still_an_invalid_client_at_authorize() {
+		$this->serve();
+		wp_set_current_user( $this->factory->user->create() );
+
+		$out = $this->authorize( [ 'client_id' => \WP\OAuth2\PersonalClient::ID ] );
+
+		$this->assertWPError( $out['result'] );
+		$this->assertSame( 'oauth2.types.authorization_code.handle_authorisation.invalid_client_id', $out['result']->get_error_code() );
+		$this->assertSame( 0, $this->request_count );
+	}
+
+	public function test_a_disabled_feature_leaves_an_unknown_url_an_invalid_client() {
+		$this->serve();
+		add_filter( 'oauth2.cimd.enabled', '__return_false' );
+		wp_set_current_user( $this->factory->user->create() );
+		$pair = $this->make_pkce_pair();
+
+		$out = $this->authorize( $this->authorize_params( $pair ) );
+
+		$this->assertWPError( $out['result'] );
+		$this->assertSame( 'oauth2.types.authorization_code.handle_authorisation.invalid_client_id', $out['result']->get_error_code() );
 		$this->assertSame( 0, $this->request_count );
 	}
 }

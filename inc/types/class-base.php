@@ -9,7 +9,10 @@ namespace WP\OAuth2\Types;
 
 use WP_Error;
 use WP_Http;
+use WP\OAuth2;
 use WP\OAuth2\Client;
+
+use function WP\OAuth2\CIMD\is_cimd_client_id;
 
 abstract class Base implements Type {
 	/**
@@ -49,8 +52,23 @@ abstract class Base implements Type {
 		// State is opaque to the server and must be returned to the client unchanged.
 		$state = isset( $_GET['state'] ) && is_string( $_GET['state'] ) ? wp_unslash( $_GET['state'] ) : null; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 
-		$client = Client::get_by_id( $client_id, true );
-		if ( empty( $client ) ) {
+		$client = OAuth2\get_client(
+			$client_id,
+			[
+				'include_unapproved' => true,
+				'discover'           => is_user_logged_in(),
+			]
+		);
+		if ( is_wp_error( $client ) ) {
+			return $client;
+		}
+
+		// A logged-out request never fetches a metadata document, so an unknown one is resolved after login.
+		if ( ! $client instanceof Client && is_cimd_client_id( $client_id ) && ! is_user_logged_in() ) {
+			$this->redirect_to_login();
+		}
+
+		if ( ! $client instanceof Client ) {
 			return new WP_Error(
 				'oauth2.types.authorization_code.handle_authorisation.invalid_client_id',
 				/* translators: %s: client ID */
@@ -94,13 +112,7 @@ abstract class Base implements Type {
 
 		// Valid parameters, ensure the user is logged in.
 		if ( ! is_user_logged_in() ) {
-			$redirect = '';
-			if ( isset( $_SERVER['REQUEST_URI'] ) ) {
-				$redirect = $_SERVER['REQUEST_URI']; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
-			}
-			$url = wp_login_url( $redirect );
-			wp_safe_redirect( $url );
-			exit;
+			$this->redirect_to_login();
 		}
 
 		if ( empty( $_POST['_wpnonce'] ) ) {
@@ -134,6 +146,19 @@ abstract class Base implements Type {
 
 		$data = array_merge( compact( 'redirect_uri', 'scope', 'state' ), $extra_params );
 		return $this->handle_authorization_submission( $submit, $client, $data );
+	}
+
+	/**
+	 * Redirect to the login page, returning to the current request afterwards, and exit.
+	 */
+	protected function redirect_to_login() {
+		$redirect = '';
+		if ( isset( $_SERVER['REQUEST_URI'] ) ) {
+			$redirect = $_SERVER['REQUEST_URI']; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
+		}
+		$url = wp_login_url( $redirect );
+		wp_safe_redirect( $url );
+		exit;
 	}
 
 	/**
