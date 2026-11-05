@@ -665,6 +665,13 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 	const OTHER_URL = 'https://other.example.com/oauth/client.json';
 
 	/**
+	 * Whether discover() expires the client it returns.
+	 *
+	 * @var bool
+	 */
+	protected $expire_discovered = false;
+
+	/**
 	 * Serve a metadata document for the test URL.
 	 *
 	 * @param array $overrides Document fields to override.
@@ -700,7 +707,7 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 	 * Make clients found through discover() expire immediately.
 	 */
 	protected function expire_immediately() {
-		add_filter( 'oauth2.cimd.cache_ttl', '__return_zero' );
+		$this->expire_discovered = true;
 	}
 
 	/**
@@ -710,7 +717,12 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 	 * @return mixed
 	 */
 	protected function discover( array $args = [] ) {
-		return get_client( static::URL, array_merge( [ 'discover' => true ], $args ) );
+		$client = get_client( static::URL, array_merge( [ 'discover' => true ], $args ) );
+		if ( $this->expire_discovered && $client instanceof Client ) {
+			$this->change_cimd_state( $client->get_post_id(), [ 'expires' => time() - 1 ] );
+		}
+
+		return $client;
 	}
 
 	// Without discovery.
@@ -943,6 +955,7 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 		$this->store( 'publish', time() - 10 );
 
 		$this->assertNull( $this->discover() );
+		$this->assertNull( get_client( static::URL ) );
 		$this->assertSame( 0, $this->request_count );
 	}
 
@@ -955,7 +968,6 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 	 */
 	protected function fail_terminally() {
 		$stored = $this->store( 'publish', time() - 10 );
-		$this->assertNull( get_client( static::URL ) );
 		$this->mock_dns();
 		$this->mock_http( $this->http_response( '', [], 404 ) );
 		$this->assertWPError( $this->discover() );
@@ -2010,18 +2022,6 @@ class Test_CIMD_Flow extends CIMD_Clients_Test_Case {
 		$this->assertSame( 0, $this->count_client_posts() );
 	}
 
-	public function test_the_personal_client_id_is_still_an_invalid_client_at_authorize() {
-		$this->serve();
-		wp_set_current_user( $this->factory->user->create() );
-
-		$out = $this->authorize( [ 'client_id' => \WP\OAuth2\PersonalClient::ID ] );
-
-		$this->assertWPError( $out['result'] );
-		$this->assertSame( 'oauth2.types.authorization_code.handle_authorisation.invalid_client_id', $out['result']->get_error_code() );
-		$this->assertSame( 0, $this->request_count );
-	}
-
-	public function test_a_disabled_feature_leaves_an_unknown_url_an_invalid_client() {
 	public function test_the_admit_filter_refuses_a_stored_client_at_authorize() {
 		$this->serve();
 		$this->store();
@@ -2037,6 +2037,18 @@ class Test_CIMD_Flow extends CIMD_Clients_Test_Case {
 		$this->assertSame( 0, $this->request_count );
 	}
 
+	public function test_the_personal_client_id_is_still_an_invalid_client_at_authorize() {
+		$this->serve();
+		wp_set_current_user( $this->factory->user->create() );
+
+		$out = $this->authorize( [ 'client_id' => \WP\OAuth2\PersonalClient::ID ] );
+
+		$this->assertWPError( $out['result'] );
+		$this->assertSame( 'oauth2.types.authorization_code.handle_authorisation.invalid_client_id', $out['result']->get_error_code() );
+		$this->assertSame( 0, $this->request_count );
+	}
+
+	public function test_a_disabled_feature_leaves_an_unknown_url_an_invalid_client() {
 		$this->serve();
 		add_filter( 'oauth2.cimd.enabled', '__return_false' );
 		wp_set_current_user( $this->factory->user->create() );

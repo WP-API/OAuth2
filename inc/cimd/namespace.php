@@ -231,15 +231,6 @@ function is_public_ip( $ip ) {
 
 	$is_v4 = 4 === strlen( $packed );
 
-	/**
-	 * Filters whether loopback addresses count as public. For local development only.
-	 *
-	 * @param bool $allow Whether to allow loopback addresses. Default false.
-	 */
-	if ( apply_filters( 'oauth2.cimd.allow_loopback', false ) && ip_in_cidr( $packed, $is_v4 ? '127.0.0.0/8' : '::1/128' ) ) {
-		return true;
-	}
-
 	if ( false === filter_var( $ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE ) ) {
 		return false;
 	}
@@ -254,21 +245,36 @@ function is_public_ip( $ip ) {
 }
 
 /**
+ * Replace host resolution with a callback, or restore it with null.
+ *
+ * Exists for tests, so they can fake DNS.
+ *
+ * @internal
+ *
+ * @param callable|null $resolver Receives the host name and returns an array of IP addresses.
+ */
+function set_host_resolver( ?callable $resolver ) {
+	resolve_host( '', true, $resolver );
+}
+
+/**
  * Resolve a host name to all of its IP addresses.
  *
- * @param string $host Host name or IP literal.
+ * @param string        $host      Host name or IP literal.
+ * @param bool          $configure Whether to store `$resolver` as the override instead of resolving. Used by set_host_resolver().
+ * @param callable|null $resolver  Override to store when `$configure` is true.
  * @return string[] IP addresses, empty if the lookup failed.
  */
-function resolve_host( $host ) {
-	/**
-	 * Short-circuits host resolution.
-	 *
-	 * @param string[]|null $ips  IP addresses to use instead of a DNS lookup. Default null.
-	 * @param string        $host Host name.
-	 */
-	$pre = apply_filters( 'oauth2.cimd.pre_resolve_host', null, $host );
-	if ( is_array( $pre ) ) {
-		return $pre;
+function resolve_host( $host, $configure = false, $resolver = null ) {
+	static $override = null;
+
+	if ( $configure ) {
+		$override = $resolver;
+		return [];
+	}
+
+	if ( null !== $override ) {
+		return (array) call_user_func( $override, $host );
 	}
 
 	$literal = trim( $host, '[]' );
@@ -317,10 +323,9 @@ function is_curl_transport_in_use() {
  * Work out how many seconds a fetched document may be cached for.
  *
  * @param string $cache_control Cache-Control header value.
- * @param array  $response      HTTP response.
  * @return int
  */
-function get_cache_ttl( $cache_control, $response ) {
+function get_cache_ttl( $cache_control ) {
 	$ttl     = MIN_CACHE_TTL;
 	$no_hint = false;
 	$max_age = null;
@@ -338,15 +343,69 @@ function get_cache_ttl( $cache_control, $response ) {
 		$ttl = $max_age;
 	}
 
-	$ttl = max( MIN_CACHE_TTL, min( MAX_CACHE_TTL, $ttl ) );
+	return max( MIN_CACHE_TTL, min( MAX_CACHE_TTL, $ttl ) );
+}
 
-	/**
-	 * Filters the cache lifetime of a client metadata document.
-	 *
-	 * @param int   $ttl      Lifetime in seconds, already clamped to the default bounds.
-	 * @param array $response HTTP response.
-	 */
-	return max( 0, (int) apply_filters( 'oauth2.cimd.cache_ttl', $ttl, $response ) );
+/**
+ * Build the callbacks that pin a curl request to a vetted address.
+ *
+ * The first runs on `http_api_curl` and checks the request is for the URL and runs only once.
+ * The second runs on `requests-curl.before_send`, the last hook before curl_exec, and sets the
+ * resolve entry and the options that stop curl using a proxy or following redirects.
+ *
+ * @internal Used by fetch_document() and by tests that run the callbacks on their own handle.
+ *
+ * @param string $url    Request URL.
+ * @param string $host   Host of the URL.
+ * @param int    $port   Port of the URL.
+ * @param string $ip     Vetted address, in brackets if it is IPv6.
+ * @param bool   $failed Set to true when a callback refuses the request.
+ * @param bool   $pinned Set to true once the pin is applied.
+ * @return callable[] The `http_api_curl` and `requests-curl.before_send` callbacks.
+ */
+function create_pin_callbacks( $url, $host, $port, $ip, &$failed, &$pinned ) {
+	$options = [
+		CURLOPT_PROXY          => '',
+		CURLOPT_NOPROXY        => '*',
+		CURLOPT_FOLLOWLOCATION => false,
+		CURLOPT_PROTOCOLS      => CURLPROTO_HTTPS,
+	];
+	if ( defined( 'CURLOPT_REDIR_PROTOCOLS' ) ) {
+		$options[ CURLOPT_REDIR_PROTOCOLS ] = CURLPROTO_HTTPS;
+	}
+
+	$called  = false;
+	$applied = false;
+
+	$check = static function ( $handle, $args, $request_url ) use ( $url, &$called, &$failed ) {
+		if ( $called || $request_url !== $url ) {
+			$failed = true;
+			throw new RequestsException( 'The connection could not be pinned to the vetted address.', 'oauth2.cimd.unsafe_transport' );
+		}
+		$called = true;
+	};
+
+	$apply = static function ( $handle ) use ( $host, $port, $ip, $options, &$called, &$applied, &$failed, &$pinned ) {
+		if ( ! $called || $applied ) {
+			$failed = true;
+			throw new RequestsException( 'The connection could not be pinned to the vetted address.', 'oauth2.cimd.unsafe_transport' );
+		}
+		$applied = true;
+
+		// The resolve entry goes last so that every other option is already in place.
+		$options[ CURLOPT_RESOLVE ] = [ "{$host}:{$port}:{$ip}" ];
+		foreach ( $options as $option => $value ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.curl_curl_setopt -- Fixes the connection to the vetted address.
+			if ( ! curl_setopt( $handle, $option, $value ) ) {
+				$failed = true;
+				throw new RequestsException( 'The connection could not be pinned to the vetted address.', 'oauth2.cimd.unsafe_transport' );
+			}
+		}
+
+		$pinned = true;
+	};
+
+	return [ $check, $apply ];
 }
 
 /**
@@ -389,51 +448,11 @@ function fetch_document( $url ) {
 		return make_error( 'unsafe_transport', __( 'The request would be sent through a proxy, which cannot be pinned to the vetted address.', 'oauth2' ), 500, false );
 	}
 
-	$options = [
-		CURLOPT_PROXY          => '',
-		CURLOPT_NOPROXY        => '*',
-		CURLOPT_FOLLOWLOCATION => false,
-		CURLOPT_PROTOCOLS      => CURLPROTO_HTTPS,
-	];
-	if ( defined( 'CURLOPT_REDIR_PROTOCOLS' ) ) {
-		$options[ CURLOPT_REDIR_PROTOCOLS ] = CURLPROTO_HTTPS;
-	}
+	$ip     = false !== strpos( $ips[0], ':' ) ? '[' . $ips[0] . ']' : $ips[0];
+	$failed = false;
+	$pinned = false;
 
-	$ip      = false !== strpos( $ips[0], ':' ) ? '[' . $ips[0] . ']' : $ips[0];
-	$called  = false;
-	$applied = false;
-	$failed  = false;
-	$pinned  = false;
-
-	// Runs on http_api_curl: checks the request is for this URL and runs only once.
-	$check = static function ( $handle, $args, $request_url ) use ( $url, &$called, &$failed ) {
-		if ( $called || $request_url !== $url ) {
-			$failed = true;
-			throw new RequestsException( 'The connection could not be pinned to the vetted address.', 'oauth2.cimd.unsafe_transport' );
-		}
-		$called = true;
-	};
-
-	// Runs on requests-curl.before_send, the last hook before curl_exec: sets the pin and its options.
-	$apply = static function ( $handle ) use ( $host, $port, $ip, $options, &$called, &$applied, &$failed, &$pinned ) {
-		if ( ! $called || $applied ) {
-			$failed = true;
-			throw new RequestsException( 'The connection could not be pinned to the vetted address.', 'oauth2.cimd.unsafe_transport' );
-		}
-		$applied = true;
-
-		// The resolve entry goes last so that every other option is already in place.
-		$options[ CURLOPT_RESOLVE ] = [ "{$host}:{$port}:{$ip}" ];
-		foreach ( $options as $option => $value ) {
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.curl_curl_setopt -- Fixes the connection to the vetted address.
-			if ( ! curl_setopt( $handle, $option, $value ) ) {
-				$failed = true;
-				throw new RequestsException( 'The connection could not be pinned to the vetted address.', 'oauth2.cimd.unsafe_transport' );
-			}
-		}
-
-		$pinned = true;
-	};
+	list( $check, $apply ) = create_pin_callbacks( $url, $host, $port, $ip, $failed, $pinned );
 
 	add_action( 'http_api_curl', $check, PHP_INT_MAX, 3 );
 	add_action( 'requests-curl.before_send', $apply, PHP_INT_MAX, 1 );
@@ -492,7 +511,7 @@ function fetch_document( $url ) {
 
 	return [
 		'document' => $document,
-		'expires'  => time() + get_cache_ttl( $cache_control, $response ),
+		'expires'  => time() + get_cache_ttl( $cache_control ),
 	];
 }
 

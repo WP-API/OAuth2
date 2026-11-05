@@ -9,6 +9,8 @@ namespace WP\OAuth2\Tests;
 
 use WP_Error;
 
+use function WP\OAuth2\CIMD\set_host_resolver;
+
 /**
  * Mocks DNS and HTTP for fetches of a client ID metadata document.
  *
@@ -35,10 +37,10 @@ trait CIMD_Test_Helpers {
 	 */
 	protected function reset_cimd_mocks() {
 		remove_all_filters( 'pre_http_request' );
-		remove_all_filters( 'oauth2.cimd.pre_resolve_host' );
 		remove_all_filters( 'oauth2.cimd.admit_url' );
-		remove_all_filters( 'oauth2.cimd.allow_loopback' );
-		remove_all_filters( 'oauth2.cimd.cache_ttl' );
+		remove_all_filters( 'oauth2.cimd.auto_approve' );
+		remove_all_filters( 'oauth2.cimd.rate_limit' );
+		set_host_resolver( null );
 		remove_all_actions( 'http_api_curl' );
 		remove_all_actions( 'requests-curl.before_send' );
 		$this->request_args  = null;
@@ -51,8 +53,7 @@ trait CIMD_Test_Helpers {
 	 * @param string[] $ips Addresses to return.
 	 */
 	protected function mock_dns( array $ips = [ '93.184.216.34' ] ) {
-		add_filter(
-			'oauth2.cimd.pre_resolve_host',
+		set_host_resolver(
 			function () use ( $ips ) {
 				return $ips;
 			}

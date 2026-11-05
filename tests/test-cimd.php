@@ -16,11 +16,13 @@ use WpOrg\Requests\Exception as RequestsException;
 use WpOrg\Requests\Requests;
 use WpOrg\Requests\Transport\Fsockopen;
 
+use function WP\OAuth2\CIMD\create_pin_callbacks;
 use function WP\OAuth2\CIMD\fetch_document;
-use function WP\OAuth2\CIMD\is_cimd_client_id;
 use function WP\OAuth2\CIMD\get_rate_limit;
+use function WP\OAuth2\CIMD\is_cimd_client_id;
 use function WP\OAuth2\CIMD\is_public_ip;
 use function WP\OAuth2\CIMD\resolve_host;
+use function WP\OAuth2\CIMD\set_host_resolver;
 use function WP\OAuth2\CIMD\validate_client_id_url;
 use function WP\OAuth2\CIMD\validate_document;
 
@@ -280,26 +282,36 @@ class Test_CIMD extends Test_Case {
 		$this->assertFalse( is_public_ip( [ '8.8.8.8' ] ) );
 	}
 
-	public function test_is_public_ip_allow_loopback_filter() {
-		add_filter( 'oauth2.cimd.allow_loopback', '__return_true' );
-
-		$this->assertTrue( is_public_ip( '127.0.0.1' ) );
-		$this->assertTrue( is_public_ip( '127.8.9.10' ) );
-		$this->assertTrue( is_public_ip( '::1' ) );
-		$this->assertFalse( is_public_ip( '10.0.0.1' ) );
-		$this->assertFalse( is_public_ip( '192.168.1.1' ) );
-		$this->assertFalse( is_public_ip( '::' ) );
-		$this->assertFalse( is_public_ip( 'fd00::1' ) );
-	}
-
 	// resolve_host().
 
-	public function test_resolve_host_uses_pre_filter() {
-		add_filter(
-			'oauth2.cimd.pre_resolve_host',
-			function ( $pre, $host ) {
+	public function test_resolve_host_uses_the_override() {
+		set_host_resolver(
+			function ( $host ) {
 				return [ $host . '-ip' ];
-			},
+			}
+		);
+
+		$this->assertSame( [ 'client.example.com-ip' ], resolve_host( 'client.example.com' ) );
+	}
+
+	public function test_resolve_host_override_can_return_an_empty_array() {
+		set_host_resolver( '__return_empty_array' );
+
+		$this->assertSame( [], resolve_host( 'client.example.com' ) );
+	}
+
+	public function test_resolve_host_override_is_removed_by_null() {
+		set_host_resolver( '__return_empty_array' );
+		set_host_resolver( null );
+
+		$this->assertSame( [ '93.184.216.34' ], resolve_host( '93.184.216.34' ) );
+	}
+
+	public function test_resolve_host_returns_ip_literals() {
+		$this->assertSame( [ '93.184.216.34' ], resolve_host( '93.184.216.34' ) );
+		$this->assertSame( [ '2606:2800:220:1::1' ], resolve_host( '[2606:2800:220:1::1]' ) );
+	}
+
 	// get_rate_limit().
 
 	public function test_get_rate_limit_defaults() {
@@ -431,24 +443,6 @@ class Test_CIMD extends Test_Case {
 				],
 			],
 		];
-	}
-
-			10,
-			2
-		);
-
-		$this->assertSame( [ 'client.example.com-ip' ], resolve_host( 'client.example.com' ) );
-	}
-
-	public function test_resolve_host_pre_filter_can_return_empty_array() {
-		add_filter( 'oauth2.cimd.pre_resolve_host', '__return_empty_array' );
-
-		$this->assertSame( [], resolve_host( 'client.example.com' ) );
-	}
-
-	public function test_resolve_host_returns_ip_literals() {
-		$this->assertSame( [ '93.184.216.34' ], resolve_host( '93.184.216.34' ) );
-		$this->assertSame( [ '2606:2800:220:1::1' ], resolve_host( '[2606:2800:220:1::1]' ) );
 	}
 
 	// fetch_document().
@@ -662,42 +656,6 @@ class Test_CIMD extends Test_Case {
 
 		$this->assertGreaterThanOrEqual( $before + 300, $result['expires'] );
 		$this->assertLessThanOrEqual( time() + 300, $result['expires'] );
-	}
-
-	public function test_fetch_document_cache_ttl_filter() {
-		$seen = [];
-		add_filter(
-			'oauth2.cimd.cache_ttl',
-			function ( $ttl, $response ) use ( &$seen ) {
-				$seen = [ $ttl, $response ];
-				return 60;
-			},
-			10,
-			2
-		);
-
-		$before = time();
-		$result = $this->fetch_with_headers( [ 'cache-control' => 'max-age=1200' ] );
-
-		$this->assertSame( 1200, $seen[0] );
-		$this->assertSame( 200, $seen[1]['response']['code'] );
-		$this->assertGreaterThanOrEqual( $before + 60, $result['expires'] );
-		$this->assertLessThanOrEqual( time() + 60, $result['expires'] );
-	}
-
-	public function test_fetch_document_cache_ttl_filter_result_is_not_negative() {
-		add_filter(
-			'oauth2.cimd.cache_ttl',
-			function () {
-				return -100;
-			}
-		);
-
-		$before = time();
-		$result = $this->fetch_with_headers();
-
-		$this->assertGreaterThanOrEqual( $before, $result['expires'] );
-		$this->assertLessThanOrEqual( time(), $result['expires'] );
 	}
 
 	public function test_fetch_document_request_arguments() {
@@ -1418,10 +1376,15 @@ class Test_CIMD extends Test_Case {
 		$this->assertSame( 0, $this->request_count );
 	}
 
-	public function test_fetch_document_ignores_proxy_environment_variables() {
-		if ( ! function_exists( 'curl_init' ) || ! \WP\OAuth2\CIMD\is_curl_transport_in_use() ) {
-			$this->markTestSkipped( 'The curl transport is not available.' );
+	public function test_the_pin_callbacks_stop_curl_using_proxy_environment_variables() {
+		if ( ! function_exists( 'curl_init' ) ) {
+			$this->markTestSkipped( 'curl is not available.' );
 		}
+
+		$url    = 'https://pin-test.invalid:1/x';
+		$failed = false;
+		$pinned = false;
+		list( $check, $apply ) = create_pin_callbacks( $url, 'pin-test.invalid', 1, '127.0.0.1', $failed, $pinned );
 
 		$saved = [
 			'https_proxy' => getenv( 'https_proxy' ),
@@ -1430,45 +1393,26 @@ class Test_CIMD extends Test_Case {
 		putenv( 'https_proxy=http://127.0.0.1:9' );
 		putenv( 'HTTPS_PROXY=http://127.0.0.1:9' );
 
-		$url = 'https://pin-test.invalid:1/x';
-		add_filter(
-			'oauth2.cimd.pre_resolve_host',
-			function () {
-				return [ '127.0.0.1' ];
-			}
-		);
-		add_filter( 'oauth2.cimd.allow_loopback', '__return_true' );
-		add_filter(
-			'http_allowed_safe_ports',
-			function ( $ports ) {
-				$ports[] = 1;
-				return $ports;
-			}
-		);
-
-		$transport_error = null;
-		add_action(
-			'http_api_debug',
-			function ( $response ) use ( &$transport_error ) {
-				$transport_error = $response;
-			}
-		);
-
 		try {
-			$result = fetch_document( $url );
+			$handle = curl_init( $url );
+			curl_setopt( $handle, CURLOPT_TIMEOUT, 5 );
+			curl_setopt( $handle, CURLOPT_RETURNTRANSFER, true );
+			$check( $handle, [], $url );
+			$apply( $handle );
+			curl_exec( $handle );
+			$errno = curl_errno( $handle );
+			$error = curl_error( $handle );
 		} finally {
 			foreach ( $saved as $name => $value ) {
 				putenv( false === $value ? $name : "{$name}={$value}" );
 			}
-			remove_all_actions( 'http_api_debug' );
-			remove_all_filters( 'http_allowed_safe_ports' );
 		}
 
-		$this->assertCimdError( 'oauth2.cimd.fetch_failed', 503, $result, true );
-		$this->assertStringNotContainsString( 'proxy', $result->get_error_message() );
-		$this->assertWPError( $transport_error );
-		$this->assertStringContainsString( 'pin-test.invalid', $transport_error->get_error_message() );
-		$this->assertStringNotContainsString( 'proxy', $transport_error->get_error_message() );
+		$this->assertTrue( $pinned );
+		$this->assertFalse( $failed );
+		$this->assertNotSame( 0, $errno );
+		$this->assertStringContainsString( 'pin-test.invalid', $error );
+		$this->assertStringNotContainsStringIgnoringCase( 'proxy', $error );
 	}
 
 	/**

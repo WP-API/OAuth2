@@ -67,11 +67,11 @@ add_filter(
 
 ### oauth2.cimd.rate_limit
 
-The plugin checks the result. It must be an array with a whole number `limit` of 0 or more and a whole number `window` of 1 or more. Numeric strings are cast to integers. Anything else is ignored and the default for the scope is used.
-
 Sets how many documents may be fetched in a time window. It runs once for each scope. The scope is `user` for one user, or `global` for all users of a site. On a network each site has its own counters. The defaults are 10 fetches per 600 seconds per user, and 60 fetches per 600 seconds per site.
 
 The filter gets the default `limit` and `window` for the scope. Change either or both and return the array.
+
+The plugin checks the result. It must be an array with a whole number `limit` of 0 or more and a whole number `window` of 1 or more. Numeric strings are cast to integers. Anything else is ignored and the default for the scope is used.
 
 ```php
 add_filter(
@@ -93,27 +93,6 @@ add_filter(
 	10,
 	3
 );
-```
-
-### oauth2.cimd.cache_ttl
-
-Sets how many seconds a fetched document is cached. The value is already limited to 300 to 3600 seconds.
-
-```php
-add_filter(
-	'oauth2.cimd.cache_ttl',
-	function ( $ttl ) {
-		return 900;
-	}
-);
-```
-
-### oauth2.cimd.allow_loopback
-
-Lets the plugin fetch documents from loopback addresses. Use it for local development only, with a host name that resolves to `127.0.0.1`.
-
-```php
-add_filter( 'oauth2.cimd.allow_loopback', '__return_true' );
 ```
 
 ## Issuer and the iss parameter
