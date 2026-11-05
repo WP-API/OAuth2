@@ -193,6 +193,10 @@ function get_authorization_server_metadata() {
 		'code_challenge_methods_supported'      => OAuth2\PKCE::supported_methods(),
 	];
 
+	if ( OAuth2\CIMD\is_enabled() ) {
+		$metadata['client_id_metadata_document_supported'] = true;
+	}
+
 	/**
 	 * Filter the OAuth2 authorization server metadata for a site.
 	 *

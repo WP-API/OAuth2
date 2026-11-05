@@ -143,6 +143,20 @@ class Test_Well_Known extends Test_Case {
 		$this->assertEquals( 'https://example.org/docs', $metadata['service_documentation'] );
 	}
 
+	public function test_metadata_advertises_client_id_metadata_documents() {
+		$metadata = get_authorization_server_metadata();
+
+		$this->assertTrue( $metadata['client_id_metadata_document_supported'] );
+	}
+
+	public function test_metadata_omits_client_id_metadata_documents_when_disabled() {
+		add_filter( 'oauth2.cimd.enabled', '__return_false' );
+
+		$metadata = get_authorization_server_metadata();
+
+		$this->assertArrayNotHasKey( 'client_id_metadata_document_supported', $metadata );
+	}
+
 	// -------------------------------------------------------------------------
 	// get_metadata_for_site
 	// -------------------------------------------------------------------------
