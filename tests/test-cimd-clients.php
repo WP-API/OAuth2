@@ -97,19 +97,11 @@ abstract class CIMD_Clients_Test_Case extends Test_Case {
 	 * @param string $url Client ID URL.
 	 */
 	protected function hold_lock( $age = 0, $url = self::URL ) {
-		$key = 'oauth2_cimd_lock_' . md5( $url );
-		if ( wp_using_ext_object_cache() ) {
-			wp_cache_add_global_groups( 'oauth2_cimd' );
-			wp_cache_add( $key, 'someone-else', 'oauth2_cimd', 30 );
-
-			return;
-		}
-
 		global $wpdb;
 		$wpdb->insert(
 			$wpdb->base_prefix . 'options',
 			[
-				'option_name'  => $key,
+				'option_name'  => 'oauth2_cimd_lock_' . md5( $url ),
 				'option_value' => 'someone-else|' . ( time() - $age ),
 				'autoload'     => 'no',
 			]
@@ -123,13 +115,8 @@ abstract class CIMD_Clients_Test_Case extends Test_Case {
 	 * @return string|false The stored value, false if the lock is free.
 	 */
 	protected function lock_value( $url = self::URL ) {
-		$key = 'oauth2_cimd_lock_' . md5( $url );
-		if ( wp_using_ext_object_cache() ) {
-			return wp_cache_get( $key, 'oauth2_cimd' );
-		}
-
 		global $wpdb;
-		$value = $wpdb->get_var( $wpdb->prepare( "SELECT option_value FROM {$wpdb->base_prefix}options WHERE option_name = %s", $key ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Trusted table name.
+		$value = $wpdb->get_var( $wpdb->prepare( "SELECT option_value FROM {$wpdb->base_prefix}options WHERE option_name = %s", 'oauth2_cimd_lock_' . md5( $url ) ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Trusted table name.
 
 		return null === $value ? false : $value;
 	}
@@ -1358,73 +1345,6 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 		$this->assertFalse( $this->lock_value() );
 	}
 
-	public function test_the_lock_uses_the_object_cache_when_there_is_an_external_one() {
-		wp_using_ext_object_cache( true );
-
-		$handle = \WP\OAuth2\CIMD\acquire_lock( static::URL );
-
-		$this->assertMatchesRegularExpression( '/^[A-Za-z0-9]{32}\|\d+$/', $handle );
-		$this->assertSame( $handle, wp_cache_get( 'oauth2_cimd_lock_' . md5( static::URL ), 'oauth2_cimd' ) );
-		$this->assertFalse( \WP\OAuth2\CIMD\acquire_lock( static::URL ) );
-		$this->assertFalse( get_option( 'oauth2_cimd_lock_' . md5( static::URL ) ) );
-
-		\WP\OAuth2\CIMD\release_lock( static::URL, $handle );
-
-		$this->assertFalse( wp_cache_get( 'oauth2_cimd_lock_' . md5( static::URL ), 'oauth2_cimd' ) );
-	}
-
-	public function test_the_object_cache_lock_is_not_released_if_it_is_no_longer_ours() {
-		wp_using_ext_object_cache( true );
-		$handle = \WP\OAuth2\CIMD\acquire_lock( static::URL );
-		wp_cache_set( 'oauth2_cimd_lock_' . md5( static::URL ), 'another', 'oauth2_cimd', 30 );
-
-		\WP\OAuth2\CIMD\release_lock( static::URL, $handle );
-
-		$this->assertSame( 'another', $this->lock_value() );
-	}
-
-	public function test_the_object_cache_lock_is_released_while_it_is_young() {
-		wp_using_ext_object_cache( true );
-		$handle = 'token|' . ( time() - 10 );
-		wp_cache_add_global_groups( 'oauth2_cimd' );
-		wp_cache_set( 'oauth2_cimd_lock_' . md5( static::URL ), $handle, 'oauth2_cimd', 30 );
-
-		\WP\OAuth2\CIMD\release_lock( static::URL, $handle );
-
-		$this->assertFalse( $this->lock_value() );
-	}
-
-	public function test_an_object_cache_lock_that_may_have_expired_is_left_to_expire() {
-		wp_using_ext_object_cache( true );
-		$handle = 'token|' . ( time() - 26 );
-		wp_cache_add_global_groups( 'oauth2_cimd' );
-		wp_cache_set( 'oauth2_cimd_lock_' . md5( static::URL ), $handle, 'oauth2_cimd', 30 );
-
-		\WP\OAuth2\CIMD\release_lock( static::URL, $handle );
-
-		$this->assertSame( $handle, $this->lock_value() );
-	}
-
-	public function test_a_held_object_cache_lock_returns_the_stored_client_without_a_fetch() {
-		wp_using_ext_object_cache( true );
-		$this->serve();
-		$stored = $this->store( 'publish', time() - 10 );
-		$this->hold_lock();
-
-		$this->assertSame( $stored->get_post_id(), $this->discover()->get_post_id() );
-		$this->assertSame( 0, $this->request_count );
-		$this->assertSame( 'someone-else', $this->lock_value() );
-	}
-
-	public function test_a_discovery_with_an_object_cache_lock_releases_it() {
-		wp_using_ext_object_cache( true );
-		$this->serve();
-
-		$this->assertInstanceOf( Client::class, $this->discover() );
-
-		$this->assertFalse( $this->lock_value() );
-	}
-
 	public function test_locks_are_shared_across_a_network() {
 		if ( ! is_multisite() ) {
 			$this->markTestSkipped( 'Requires a multisite install.' );
@@ -1442,25 +1362,6 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 
 		$this->assertCimdError( 'oauth2.cimd.busy', 503, $result, true );
 		$this->assertSame( 0, $this->request_count );
-	}
-
-	public function test_object_cache_locks_are_shared_across_a_network() {
-		if ( ! is_multisite() ) {
-			$this->markTestSkipped( 'Requires a multisite install.' );
-		}
-
-		wp_using_ext_object_cache( true );
-		$this->serve();
-		$this->hold_lock();
-
-		switch_to_blog( $this->factory->blog->create() );
-		try {
-			$result = get_client( static::URL, [ 'discover' => true ] );
-		} finally {
-			restore_current_blog();
-		}
-
-		$this->assertCimdError( 'oauth2.cimd.busy', 503, $result, true );
 	}
 
 	public function test_the_lock_is_released_after_a_fetch() {

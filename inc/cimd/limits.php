@@ -13,10 +13,10 @@ const LOCK_GROUP = 'oauth2_cimd';
 /**
  * Take the fetch lock for a client ID URL.
  *
- * With an external object cache the lock is a cache entry that expires on its
- * own. The handle holds a random token and the time the lock was taken. Without one it is a row in the main site's options table, which every
- * site of a network shares, and an expired lock is taken over only if no other
- * request changed it first.
+ * The lock is a row in the main site's options table, which every site of a
+ * network shares. The handle holds a random token and the time the lock was
+ * taken. An expired lock is taken over only if no other request changed it
+ * first.
  *
  * @param string $url Client ID URL.
  * @return string|false Handle to pass to release_lock(), or false if another request holds the lock.
@@ -24,12 +24,6 @@ const LOCK_GROUP = 'oauth2_cimd';
 function acquire_lock( $url ) {
 	$key    = 'oauth2_cimd_lock_' . md5( $url );
 	$handle = wp_generate_password( 32, false ) . '|' . time();
-
-	if ( wp_using_ext_object_cache() ) {
-		wp_cache_add_global_groups( LOCK_GROUP );
-
-		return wp_cache_add( $key, $handle, LOCK_GROUP, LOCK_TIMEOUT ) ? $handle : false;
-	}
 
 	global $wpdb;
 	$table = $wpdb->base_prefix . 'options';
@@ -67,18 +61,6 @@ function acquire_lock( $url ) {
  */
 function release_lock( $url, $handle ) {
 	$key = 'oauth2_cimd_lock_' . md5( $url );
-
-	if ( wp_using_ext_object_cache() ) {
-		wp_cache_add_global_groups( LOCK_GROUP );
-
-		// Past this age the entry may have expired and been taken by another request, which a delete would remove.
-		$taken_at = (int) ( explode( '|', $handle, 2 )[1] ?? 0 );
-		if ( time() - $taken_at < LOCK_TIMEOUT - 5 && wp_cache_get( $key, LOCK_GROUP ) === $handle ) {
-			wp_cache_delete( $key, LOCK_GROUP );
-		}
-
-		return;
-	}
 
 	global $wpdb;
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Only deletes the row if it still holds our handle.

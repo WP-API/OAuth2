@@ -119,11 +119,11 @@ Block the client with a filter instead. Return `false` from `oauth2.cimd.admit_u
 
 Fetches are limited per user (10 per 600 seconds) and across the network (60 per 600 seconds). Only a real fetch counts. A request that is served from the cache, or that finds another request already fetching the same URL, does not count.
 
-Only one request fetches a given URL at a time. A lock lasts at most 30 seconds.
+Only one request fetches a given URL at a time. The lock is a row in the options table of the main site, shared by the whole network. A database insert takes it, and only the request that holds it can release it. A lock lasts at most 30 seconds, after which another request can take it over.
 
-If your site uses an external object cache, the locks and counters live in the object cache, in a global group shared by all sites of a network. The counters are atomic.
+If your site uses an external object cache, the counters live in the object cache, in a global group shared by all sites of a network. The counters are atomic.
 
-If it does not, the locks are rows in the options table of the main site, and the counters are site transients. These are shared by the whole network. The counters are read and then written, so under heavy parallel load the limit is soft and may be passed by a few requests.
+If it does not, the counters are site transients. These are shared by the whole network. The counters are read and then written, so under heavy parallel load the limit is soft and may be passed by a few requests.
 
 ## Rate limiting at the web server
 
