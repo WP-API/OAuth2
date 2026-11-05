@@ -855,7 +855,7 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 
 		$this->assertNull( $result );
 		$this->assertSame( 0, $this->request_count );
-		$this->assertFalse( get_site_transient( 'oauth2_cimd_rl_' . get_current_user_id() ) );
+		$this->assertFalse( get_user_option( 'oauth2_cimd_rl_' . get_current_user_id(), get_current_user_id() ) );
 	}
 
 	public function test_an_unapproved_client_is_hidden_unless_requested() {
@@ -1207,8 +1207,8 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 		$this->discover();
 
 		$this->assertSame( 10, $this->request_count );
-		$this->assertSame( 10, get_site_transient( 'oauth2_cimd_rl_' . $user_id )['count'] );
-		$this->assertSame( 10, get_site_transient( 'oauth2_cimd_rl_global' )['count'] );
+		$this->assertSame( 10, get_user_option( 'oauth2_cimd_rl_' . $user_id, $user_id )['count'] );
+		$this->assertSame( 10, get_transient( 'oauth2_cimd_rl_global' )['count'] );
 	}
 
 	public function test_the_global_cap_applies_across_users() {
@@ -1223,7 +1223,7 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 
 		$this->assertCimdError( 'oauth2.cimd.rate_limited', 429, $result, true );
 		$this->assertSame( 1, $this->request_count );
-		$this->assertSame( 0, get_site_transient( 'oauth2_cimd_rl_' . get_current_user_id() )['count'], 'A refused fetch must not use up a user slot.' );
+		$this->assertSame( 0, get_user_option( 'oauth2_cimd_rl_' . get_current_user_id(), get_current_user_id() )['count'], 'A refused fetch must not use up a user slot.' );
 	}
 
 	public function test_the_global_cap_serves_a_stale_stored_client() {
@@ -1245,13 +1245,13 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 
 		$this->assertInstanceOf( Client::class, $this->discover() );
 		$this->assertInstanceOf( Client::class, $this->discover() );
-		$this->assertSame( 2, wp_cache_get( 'oauth2_cimd_rl_' . $user_id, 'oauth2_cimd' ) );
-		$this->assertSame( 2, wp_cache_get( 'oauth2_cimd_rl_global', 'oauth2_cimd' ) );
+		$this->assertSame( 2, wp_cache_get( get_current_blog_id() . '_oauth2_cimd_rl_' . $user_id, 'oauth2_cimd' ) );
+		$this->assertSame( 2, wp_cache_get( get_current_blog_id() . '_oauth2_cimd_rl_global', 'oauth2_cimd' ) );
 
 		$this->assertInstanceOf( Client::class, $this->discover() );
 		$this->assertSame( 2, $this->request_count );
-		$this->assertSame( 2, wp_cache_get( 'oauth2_cimd_rl_' . $user_id, 'oauth2_cimd' ), 'A refused fetch must not raise the count.' );
-		$this->assertFalse( get_site_transient( 'oauth2_cimd_rl_' . $user_id ) );
+		$this->assertSame( 2, wp_cache_get( get_current_blog_id() . '_oauth2_cimd_rl_' . $user_id, 'oauth2_cimd' ), 'A refused fetch must not raise the count.' );
+		$this->assertFalse( get_user_option( 'oauth2_cimd_rl_' . $user_id, $user_id ) );
 	}
 
 	public function test_a_refused_global_slot_gives_back_the_user_slot_with_an_external_object_cache() {
@@ -1263,28 +1263,88 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 
 		$this->assertWPError( $this->discover() );
 
-		$this->assertSame( 0, wp_cache_get( 'oauth2_cimd_rl_' . $user_id, 'oauth2_cimd' ) );
+		$this->assertSame( 0, wp_cache_get( get_current_blog_id() . '_oauth2_cimd_rl_' . $user_id, 'oauth2_cimd' ) );
 	}
 
-	public function test_rate_limits_are_shared_across_a_network() {
+	/**
+	 * Use up a limit scope on this site, then discover another client on a new site.
+	 *
+	 * @param string $scope Either `user` or `global`.
+	 * @return array Discovery result on this site for a second URL, and the result on the other site.
+	 */
+	protected function exhaust_scope_then_discover_on_another_site( $scope ) {
+		$this->serve();
+		$this->limit_scope( $scope, 1 );
+		wp_set_current_user( $this->factory->user->create() );
+		$this->assertInstanceOf( Client::class, $this->discover() );
+
+		$this->mock_http( $this->http_response( wp_json_encode( $this->document( [ 'client_id' => static::OTHER_URL ] ) ) ) );
+		$same_site = get_client( static::OTHER_URL, [ 'discover' => true ] );
+
+		switch_to_blog( $this->factory->blog->create() );
+		try {
+			$other_site = get_client( static::OTHER_URL, [ 'discover' => true ] );
+		} finally {
+			restore_current_blog();
+		}
+
+		return [ $same_site, $other_site ];
+	}
+
+	/**
+	 * @dataProvider rate_limit_scope_provider
+	 */
+	public function test_rate_limits_are_kept_per_site_on_a_network( $scope ) {
+		if ( ! is_multisite() ) {
+			$this->markTestSkipped( 'Requires a multisite install.' );
+		}
+
+		list( $same_site, $other_site ) = $this->exhaust_scope_then_discover_on_another_site( $scope );
+
+		$this->assertCimdError( 'oauth2.cimd.rate_limited', 429, $same_site, true );
+		$this->assertInstanceOf( Client::class, $other_site );
+	}
+
+	/**
+	 * @dataProvider rate_limit_scope_provider
+	 */
+	public function test_rate_limits_are_kept_per_site_on_a_network_with_an_external_object_cache( $scope ) {
+		if ( ! is_multisite() ) {
+			$this->markTestSkipped( 'Requires a multisite install.' );
+		}
+
+		wp_using_ext_object_cache( true );
+		list( $same_site, $other_site ) = $this->exhaust_scope_then_discover_on_another_site( $scope );
+
+		$this->assertCimdError( 'oauth2.cimd.rate_limited', 429, $same_site, true );
+		$this->assertInstanceOf( Client::class, $other_site );
+	}
+
+	public function rate_limit_scope_provider() {
+		return [
+			'per user'  => [ 'user' ],
+			'site wide' => [ 'global' ],
+		];
+	}
+
+	public function test_the_fetch_lock_is_shared_across_a_network() {
 		if ( ! is_multisite() ) {
 			$this->markTestSkipped( 'Requires a multisite install.' );
 		}
 
 		$this->serve();
-		$this->limit_scope( 'global', 1 );
 		wp_set_current_user( $this->factory->user->create() );
-		$this->assertInstanceOf( Client::class, $this->discover() );
+		$this->hold_lock();
 
 		switch_to_blog( $this->factory->blog->create() );
 		try {
-			$this->mock_http( $this->http_response( wp_json_encode( $this->document( [ 'client_id' => static::OTHER_URL ] ) ) ) );
-			$result = get_client( static::OTHER_URL, [ 'discover' => true ] );
+			$result = $this->discover();
 		} finally {
 			restore_current_blog();
 		}
 
-		$this->assertCimdError( 'oauth2.cimd.rate_limited', 429, $result, true );
+		$this->assertCimdError( 'oauth2.cimd.busy', 503, $result, true );
+		$this->assertSame( 0, $this->request_count );
 	}
 
 	public function test_only_real_fetches_count_against_the_rate_limit() {
@@ -1304,7 +1364,7 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 		for ( $i = 0; $i < 3; $i++ ) {
 			$this->assertInstanceOf( Client::class, $this->discover() );
 		}
-		$this->assertFalse( get_site_transient( 'oauth2_cimd_rl_' . get_current_user_id() ) );
+		$this->assertFalse( get_user_option( 'oauth2_cimd_rl_' . get_current_user_id(), get_current_user_id() ) );
 
 		$this->mock_http( $this->http_response( wp_json_encode( $this->document( [ 'client_id' => static::OTHER_URL ] ) ) ) );
 		$this->assertInstanceOf( Client::class, get_client( static::OTHER_URL, [ 'discover' => true ] ) );
@@ -1318,7 +1378,7 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 
 		$this->assertWPError( $this->discover() );
 
-		$this->assertFalse( get_site_transient( 'oauth2_cimd_rl_' . get_current_user_id() ) );
+		$this->assertFalse( get_user_option( 'oauth2_cimd_rl_' . get_current_user_id(), get_current_user_id() ) );
 	}
 
 	// Lock.
