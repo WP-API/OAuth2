@@ -254,25 +254,35 @@ function is_public_ip( $ip ) {
  * @param callable|null $resolver Receives the host name and returns an array of IP addresses.
  */
 function set_host_resolver( ?callable $resolver ) {
-	resolve_host( '', true, $resolver );
+	host_resolver_override( $resolver );
+}
+
+/**
+ * Hold the host resolver override. With an argument it sets the override, without one it returns it.
+ *
+ * @internal Used by set_host_resolver() and resolve_host().
+ *
+ * @param callable|null ...$args Override to store, or nothing to read it.
+ * @return callable|null The stored override.
+ */
+function host_resolver_override( ...$args ) {
+	static $override = null;
+
+	if ( $args ) {
+		$override = $args[0];
+	}
+
+	return $override;
 }
 
 /**
  * Resolve a host name to all of its IP addresses.
  *
- * @param string        $host      Host name or IP literal.
- * @param bool          $configure Whether to store `$resolver` as the override instead of resolving. Used by set_host_resolver().
- * @param callable|null $resolver  Override to store when `$configure` is true.
+ * @param string $host Host name or IP literal.
  * @return string[] IP addresses, empty if the lookup failed.
  */
-function resolve_host( $host, $configure = false, $resolver = null ) {
-	static $override = null;
-
-	if ( $configure ) {
-		$override = $resolver;
-		return [];
-	}
-
+function resolve_host( $host ) {
+	$override = host_resolver_override();
 	if ( null !== $override ) {
 		return (array) call_user_func( $override, $host );
 	}
@@ -793,6 +803,7 @@ function discover_client( $url, $stored = null ) {
 		 *
 		 * When true, a new client is published. When false, a new client is saved as a
 		 * draft, and a published client whose security metadata changes goes back to draft.
+		 * Only a return value of true publishes. Any other value counts as false.
 		 *
 		 * @param bool   $auto_approve Whether to approve automatically. Default true.
 		 * @param array  $metadata     Normalised client metadata.
