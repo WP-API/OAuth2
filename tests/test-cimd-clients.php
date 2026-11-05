@@ -74,6 +74,22 @@ abstract class CIMD_Clients_Test_Case extends Test_Case {
 	}
 
 	/**
+	 * Make writes of one meta key fail.
+	 *
+	 * @param string $blocked_key Meta key.
+	 */
+	protected function block_meta_write( $blocked_key ) {
+		add_filter(
+			'update_post_metadata',
+			function ( $check, $post_id, $key ) use ( $blocked_key ) {
+				return $key === $blocked_key ? false : $check;
+			},
+			10,
+			3
+		);
+	}
+
+	/**
 	 * Hold the fetch lock for a URL as another request would.
 	 *
 	 * @param int    $age Seconds ago the lock was taken.
@@ -1024,6 +1040,16 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 		$stored->mark_cimd_failed();
 
 		$this->assertCimdError( 'oauth2.cimd.client_failed', 400, \WP\OAuth2\CIMD\stored_or_error( $stored ), false );
+	}
+
+	public function test_a_failed_marker_write_still_returns_the_error() {
+		$this->store( 'publish', time() - 10 );
+		$this->mock_dns();
+		$this->mock_http( $this->http_response( '', [], 404 ) );
+		$this->block_meta_write( '_oauth2_cimd_failed' );
+
+		$this->assertCimdError( 'oauth2.cimd.fetch_failed', 400, $this->discover(), false );
+		$this->assertFalse( Client::get_by_id( static::URL )->is_cimd_failed() );
 	}
 
 	public function test_a_successful_refresh_clears_the_failure() {
@@ -2242,6 +2268,56 @@ class Test_CIMD_Generation extends CIMD_Clients_Test_Case {
 		$this->assertFalse( $this->authenticates( $token->get_key() ) );
 		$this->assertWPError( Client::get_by_id( static::URL )->get_authorization_code( $code->get_code() ) );
 		$this->assertTrue( $refreshed->is_approved() );
+	}
+
+	public function test_a_failed_generation_write_returns_an_error_and_leaves_the_hash() {
+		$client = $this->store();
+		$before = $client->get_cimd_generation();
+		$hash   = get_post_meta( $client->get_post_id(), '_oauth2_cimd_security_hash', true );
+		$this->block_meta_write( '_oauth2_cimd_generation' );
+
+		$result = Client::save_cimd( static::URL, $this->metadata( [ 'redirect_uris' => [ 'https://client.example.com/new' ] ] ), time() + 300, 'publish' );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'oauth2.cimd.save_failed', $result->get_error_code() );
+		$this->assertSame( 500, $result->get_error_data()['status'] );
+		$this->assertSame( $hash, get_post_meta( $client->get_post_id(), '_oauth2_cimd_security_hash', true ) );
+		$this->assertSame( $before, Client::get_by_id( static::URL )->get_cimd_generation() );
+		$this->assertSame( [ 'https://client.example.com/callback' ], Client::get_by_id( static::URL )->get_redirect_uris() );
+
+		remove_all_filters( 'update_post_metadata' );
+		$retry = Client::save_cimd( static::URL, $this->metadata( [ 'redirect_uris' => [ 'https://client.example.com/new' ] ] ), time() + 300, 'publish' );
+
+		$this->assertNotSame( $before, $retry->get_cimd_generation() );
+		$this->assertSame( [ 'https://client.example.com/new' ], $retry->get_redirect_uris() );
+	}
+
+	public function test_a_failed_generation_write_does_not_demote_the_record() {
+		$client = $this->store();
+		$this->block_meta_write( '_oauth2_cimd_generation' );
+
+		Client::save_cimd( static::URL, $this->metadata( [ 'redirect_uris' => [ 'https://client.example.com/new' ] ] ), time() + 300, 'draft' );
+
+		$this->assertSame( 'publish', get_post_status( $client->get_post_id() ) );
+	}
+
+	public function test_a_failed_generation_write_for_a_new_client_leaves_no_record() {
+		$this->block_meta_write( '_oauth2_cimd_generation' );
+
+		$result = Client::save_cimd( static::URL, $this->metadata(), time() + 300, 'publish' );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'oauth2.cimd.save_failed', $result->get_error_code() );
+		$this->assertSame( 0, $this->count_client_posts() );
+	}
+
+	public function test_reordering_the_security_fields_does_not_rotate_the_generation() {
+		$client = $this->store( 'publish', null, [ 'redirect_uris' => [ 'https://client.example.com/a', 'https://client.example.com/b' ] ] );
+		$before = $client->get_cimd_generation();
+
+		$refreshed = Client::save_cimd( static::URL, $this->metadata( [ 'redirect_uris' => [ 'https://client.example.com/b', 'https://client.example.com/a' ] ] ), time() + 900, 'publish' );
+
+		$this->assertSame( $before, $refreshed->get_cimd_generation() );
 	}
 
 	public function test_a_refresh_that_changes_nothing_security_relevant_keeps_tokens_and_codes() {

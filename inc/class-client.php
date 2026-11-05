@@ -133,9 +133,26 @@ class Client implements ClientInterface {
 
 	/**
 	 * Record that the last refresh of a CIMD client failed for good.
+	 *
+	 * @return bool True if the marker was stored.
 	 */
 	public function mark_cimd_failed() {
-		update_post_meta( $this->get_post_id(), static::CIMD_FAILED_KEY, time() );
+		return static::set_cimd_meta( $this->get_post_id(), static::CIMD_FAILED_KEY, time() );
+	}
+
+	/**
+	 * Write a meta value and read it back to check that it was stored.
+	 *
+	 * @param int    $post_id Post ID.
+	 * @param string $key     Meta key.
+	 * @param mixed  $value   Unslashed value.
+	 *
+	 * @return bool True if the stored value equals the one written.
+	 */
+	protected static function set_cimd_meta( $post_id, $key, $value ) {
+		update_post_meta( $post_id, $key, wp_slash( $value ) );
+
+		return (string) get_post_meta( $post_id, $key, true ) === (string) $value;
 	}
 
 	/**
@@ -686,7 +703,11 @@ class Client implements ClientInterface {
 	protected static function get_cimd_security_hash( array $metadata ) {
 		$fields = [];
 		foreach ( [ 'redirect_uris', 'grant_types', 'response_types', 'token_endpoint_auth_method' ] as $field ) {
-			$fields[ $field ] = $metadata[ $field ] ?? null;
+			$value = $metadata[ $field ] ?? null;
+			if ( is_array( $value ) && 'token_endpoint_auth_method' !== $field ) {
+				sort( $value );
+			}
+			$fields[ $field ] = $value;
 		}
 
 		return hash( 'sha256', wp_json_encode( $fields ) );
@@ -783,16 +804,17 @@ class Client implements ClientInterface {
 			}
 		}
 
-		$meta = [
-			static::KIND_KEY           => static::KIND_CIMD,
-			static::TYPE_KEY           => 'public',
-			static::CIMD_CLIENT_ID_KEY => $url,
-			static::CIMD_METADATA_KEY  => $metadata,
-			static::CIMD_EXPIRES_KEY   => (int) $expires,
-		];
-		if ( $is_new || $old_hash !== $hash ) {
-			$meta[ static::CIMD_GENERATION_KEY ]    = wp_generate_password( 32, false );
-			$meta[ static::CIMD_SECURITY_HASH_KEY ] = $hash;
+		// The new generation is stored and checked before anything else changes, and the hash that
+		// records the change is stored last, so a failed write is retried by the next refresh.
+		$changed = $is_new || $old_hash !== $hash;
+		if ( $changed ) {
+			if ( ! static::set_cimd_meta( $post_id, static::CIMD_GENERATION_KEY, wp_generate_password( 32, false ) ) ) {
+				if ( $is_new ) {
+					wp_delete_post( $post_id, true );
+				}
+
+				return new WP_Error( 'oauth2.cimd.save_failed', __( 'The client could not be saved.', 'oauth2' ), [ 'status' => 500 ] );
+			}
 
 			if ( ! $is_new && 'publish' !== $status && 'publish' === $posts[0]->post_status ) {
 				$result = wp_update_post(
@@ -807,8 +829,19 @@ class Client implements ClientInterface {
 				}
 			}
 		}
+
+		$meta = [
+			static::KIND_KEY           => static::KIND_CIMD,
+			static::TYPE_KEY           => 'public',
+			static::CIMD_CLIENT_ID_KEY => $url,
+			static::CIMD_METADATA_KEY  => $metadata,
+			static::CIMD_EXPIRES_KEY   => (int) $expires,
+		];
 		foreach ( $meta as $key => $value ) {
 			update_post_meta( $post_id, $key, wp_slash( $value ) );
+		}
+		if ( $changed ) {
+			update_post_meta( $post_id, static::CIMD_SECURITY_HASH_KEY, $hash );
 		}
 		if ( get_post_meta( $post_id, static::CIMD_FAILED_KEY, true ) ) {
 			delete_post_meta( $post_id, static::CIMD_FAILED_KEY );
