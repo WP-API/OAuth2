@@ -178,20 +178,15 @@ function get_metadata_for_site( $site_id ) {
 }
 
 /**
- * Gets the issuer identifier of the current site.
+ * Gets the issuer identifier of the current site, which is the site URL.
  *
- * It is the `issuer` of the authorization server metadata and the
- * `authorization_servers` entry of the protected resource metadata.
+ * It is the `issuer` of the authorization server metadata before the
+ * `oauth2.well_known_authorization_server_metadata` filter runs.
  *
  * @return string Issuer identifier.
  */
 function get_issuer() {
-	/**
-	 * Filter the issuer identifier of the authorization server.
-	 *
-	 * @param string $issuer Issuer identifier, the site URL by default.
-	 */
-	return apply_filters( 'oauth2.issuer', home_url() );
+	return home_url();
 }
 
 /**

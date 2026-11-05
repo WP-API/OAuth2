@@ -614,9 +614,10 @@ class Test_Types_Authorization_Code extends Test_Case {
 		$this->assertSame( 'https://metadata-issuer.example.com', $args['iss'] );
 	}
 
-	public function test_the_issuer_filter_changes_the_metadata_the_protected_resource_and_the_response() {
-		add_filter( 'oauth2.issuer', function () {
-			return 'https://issuer.example.com/custom';
+	public function test_the_metadata_filter_changes_the_metadata_the_protected_resource_and_the_response() {
+		add_filter( 'oauth2.well_known_authorization_server_metadata', function ( $metadata ) {
+			$metadata['issuer'] = 'https://issuer.example.com/custom';
+			return $metadata;
 		} );
 
 		parse_str( wp_parse_url( $this->submit_consent( $this->client, 'cancel' ), PHP_URL_QUERY ), $args );

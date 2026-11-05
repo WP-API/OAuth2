@@ -124,15 +124,15 @@ add_filter( 'oauth2.cimd.allow_loopback', '__return_true' );
 
 Every authorization response redirect carries an `iss` parameter (RFC 9207), for all clients and not only CIMD ones. It holds the issuer of the authorization server. The `iss` value always matches the `issuer` in the metadata at `/.well-known/oauth-authorization-server`, which also sets `authorization_response_iss_parameter_supported` to `true`. The issuer is also the `authorization_servers` entry of the protected resource metadata.
 
-The issuer is the site URL by default. Change it with the `oauth2.issuer` filter. This is the supported way. The metadata, the protected resource metadata and `iss` all follow the filter, and so does the check that refuses the issuer as a client ID.
-
-The `oauth2.well_known_authorization_server_metadata` filter can also change the `issuer` field. `iss`, the protected resource metadata and the client ID check carry that value through as well, but use `oauth2.issuer` rather than this filter to set the issuer.
+The issuer is the site URL by default. Change it with the `oauth2.well_known_authorization_server_metadata` filter, by setting the `issuer` field. The `iss` parameter, the protected resource metadata and the check that refuses the issuer as a client ID all use that value.
 
 ```php
 add_filter(
-	'oauth2.issuer',
-	function ( $issuer ) {
-		return 'https://auth.example.com';
+	'oauth2.well_known_authorization_server_metadata',
+	function ( $metadata ) {
+		$metadata['issuer'] = 'https://auth.example.com';
+
+		return $metadata;
 	}
 );
 ```

@@ -161,7 +161,7 @@ function validate_client_id_url( $url ) {
 		}
 	}
 
-	$issuers = [ home_url(), Well_Known\get_issuer(), Well_Known\get_published_issuer() ];
+	$issuers = [ home_url(), Well_Known\get_published_issuer() ];
 	foreach ( $issuers as $issuer ) {
 		if ( $url === $issuer || trailingslashit( $issuer ) === $url ) {
 			return make_error( 'invalid_client_id', __( 'The client ID URL must not be this site\'s issuer.', 'oauth2' ), 400 );
