@@ -227,6 +227,15 @@ class Token {
 			);
 		}
 
+		// A client ID metadata document client uses the none authentication
+		// method, so a secret from the request cannot authenticate it.
+		if ( $client instanceof OAuth2\Client && $client->is_cimd() ) {
+			$supplied_secret = ! $this->is_param_empty( $request, 'client_secret' ) || ( null !== $basic && '' !== $basic[1] );
+			if ( $supplied_secret ) {
+				return $this->client_authentication_failed();
+			}
+		}
+
 		// RFC 6749 section 4.1.3: the server must authenticate the client when
 		// the client is confidential. Public clients have no secret to check.
 		if ( $client->requires_secret() ) {

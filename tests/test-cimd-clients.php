@@ -1297,4 +1297,179 @@ class Test_CIMD_Flow extends CIMD_Clients_Test_Case {
 		$this->assertSame( 'oauth2.types.authorization_code.handle_authorisation.invalid_client_id', $out['result']->get_error_code() );
 		$this->assertSame( 0, $this->request_count );
 	}
+
+	// End to end.
+
+	public function test_authorize_then_exchange_the_code_with_a_verifier() {
+		$this->serve();
+		$user = $this->factory->user->create_and_get();
+		wp_set_current_user( $user->ID );
+		$pair = $this->make_pkce_pair();
+
+		$out = $this->authorize(
+			$this->authorize_params( $pair, [ 'state' => 'xyz' ] ),
+			[
+				'_wpnonce'  => wp_create_nonce( 'oauth2_authorize:' . static::URL ),
+				'wp-submit' => 'authorize',
+			]
+		);
+
+		$this->assertStringStartsWith( static::REDIRECT_URI, $out['location'] );
+		parse_str( wp_parse_url( $out['location'], PHP_URL_QUERY ), $args );
+		$this->assertSame( 'xyz', $args['state'] );
+		$this->assertNotEmpty( $args['code'] );
+
+		wp_set_current_user( 0 );
+		$requests = $this->request_count;
+
+		$response = $this->token(
+			[
+				'grant_type'    => 'authorization_code',
+				'client_id'     => static::URL,
+				'code'          => $args['code'],
+				'code_verifier' => $pair['code_verifier'],
+				'redirect_uri'  => static::REDIRECT_URI,
+			]
+		);
+
+		$this->assertSame( 200, $response->get_status() );
+		$data = $response->get_data();
+		$this->assertSame( 'bearer', $data['token_type'] );
+		$token = Tokens\get_by_id( $data['access_token'] );
+		$this->assertSame( static::URL, $token->get_client()->get_id() );
+		$this->assertSame( $user->ID, $token->get_user()->ID );
+		$this->assertSame( $requests, $this->request_count );
+	}
+
+	public function test_the_token_endpoint_rejects_a_wrong_verifier() {
+		$this->serve();
+		$client = $this->store();
+		$pair   = $this->make_pkce_pair();
+
+		$response = $this->token(
+			[
+				'grant_type'    => 'authorization_code',
+				'client_id'     => static::URL,
+				'code'          => $this->mint_code( $client, $pair ),
+				'code_verifier' => PKCE::generate_verifier(),
+			]
+		);
+
+		$this->assertSame( 400, $response->get_status() );
+		$this->assertSame( 'invalid_grant', $response->get_data()['error'] );
+	}
+
+	public function test_the_token_endpoint_rejects_a_client_secret() {
+		$this->serve();
+		$client = $this->store();
+		$pair   = $this->make_pkce_pair();
+		$code   = $this->mint_code( $client, $pair );
+
+		$response = $this->token(
+			[
+				'grant_type'    => 'authorization_code',
+				'client_id'     => static::URL,
+				'client_secret' => 'a-secret',
+				'code'          => $code,
+				'code_verifier' => $pair['code_verifier'],
+			]
+		);
+
+		$this->assertSame( 401, $response->get_status() );
+		$this->assertSame( 'invalid_client', $response->get_data()['error'] );
+		$this->assertSame( 0, $this->request_count );
+
+		$retry = $this->token(
+			[
+				'grant_type'    => 'authorization_code',
+				'client_id'     => static::URL,
+				'code'          => $code,
+				'code_verifier' => $pair['code_verifier'],
+			]
+		);
+		$this->assertSame( 200, $retry->get_status() );
+	}
+
+	public function test_the_token_endpoint_rejects_a_basic_auth_secret() {
+		$client = $this->store();
+		$pair   = $this->make_pkce_pair();
+
+		$response = $this->token(
+			[
+				'grant_type'    => 'authorization_code',
+				'code'          => $this->mint_code( $client, $pair ),
+				'code_verifier' => $pair['code_verifier'],
+			],
+			[ 'Authorization' => 'Basic ' . base64_encode( urlencode( static::URL ) . ':' . urlencode( 'a-secret' ) ) ]
+		);
+
+		$this->assertSame( 401, $response->get_status() );
+		$this->assertSame( 'invalid_client', $response->get_data()['error'] );
+	}
+
+	public function test_the_token_endpoint_accepts_basic_auth_with_an_empty_secret() {
+		$client = $this->store();
+		$pair   = $this->make_pkce_pair();
+
+		$response = $this->token(
+			[
+				'grant_type'    => 'authorization_code',
+				'code'          => $this->mint_code( $client, $pair ),
+				'code_verifier' => $pair['code_verifier'],
+			],
+			[ 'Authorization' => 'Basic ' . base64_encode( urlencode( static::URL ) . ':' ) ]
+		);
+
+		$this->assertSame( 200, $response->get_status() );
+	}
+
+	public function test_the_token_endpoint_does_not_fetch_an_unknown_url() {
+		$this->serve();
+
+		$response = $this->token(
+			[
+				'grant_type'    => 'authorization_code',
+				'client_id'     => static::URL,
+				'code'          => 'somecode',
+				'code_verifier' => $this->make_pkce_pair()['code_verifier'],
+			]
+		);
+
+		$this->assertSame( 400, $response->get_status() );
+		$this->assertSame( 'invalid_client', $response->get_data()['error'] );
+		$this->assertSame( 0, $this->request_count );
+		$this->assertSame( 0, $this->count_client_posts() );
+	}
+
+	public function test_the_token_endpoint_does_not_serve_an_unapproved_client() {
+		$client = $this->store( 'draft' );
+		$pair   = $this->make_pkce_pair();
+
+		$response = $this->token(
+			[
+				'grant_type'    => 'authorization_code',
+				'client_id'     => static::URL,
+				'code'          => $this->mint_code( $client, $pair ),
+				'code_verifier' => $pair['code_verifier'],
+			]
+		);
+
+		$this->assertSame( 400, $response->get_status() );
+		$this->assertSame( 'invalid_client', $response->get_data()['error'] );
+	}
+
+	public function test_the_client_credentials_grant_is_refused_for_a_cimd_client() {
+		$this->store();
+
+		$response = $this->token(
+			[
+				'grant_type'    => 'client_credentials',
+				'client_id'     => static::URL,
+				'client_secret' => 'a-secret',
+			]
+		);
+
+		$this->assertSame( 401, $response->get_status() );
+		$this->assertSame( 'invalid_client', $response->get_data()['error'] );
+	}
 }
