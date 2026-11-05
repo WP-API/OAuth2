@@ -12,3 +12,4 @@
 * [Advanced](/docs/advanced/README.md)
     * [Desktop/Mobile Clients](/docs/advanced/Desktop.md)
     * [Web Clients](/docs/advanced/Web.md)
+    * [Client ID Metadata Documents](/docs/cimd.md)
