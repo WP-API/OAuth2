@@ -766,6 +766,50 @@ class Test_CIMD_Resolver extends CIMD_Clients_Test_Case {
 		$this->assertSame( 0, $this->request_count );
 	}
 
+	/**
+	 * Run a callback with pretty permalinks on and `$wp_rewrite` unset, as on `plugins_loaded`.
+	 *
+	 * @param callable $callback Callback to run.
+	 */
+	protected function without_rewrite( callable $callback ) {
+		$this->set_permalink_structure( '/%postname%/' );
+
+		$rewrite               = $GLOBALS['wp_rewrite'];
+		$GLOBALS['wp_rewrite'] = null;
+		try {
+			$callback();
+		} finally {
+			$GLOBALS['wp_rewrite'] = $rewrite;
+		}
+	}
+
+	public function test_get_client_without_discovery_works_before_wp_rewrite_is_set() {
+		$stored = $this->store();
+
+		$this->without_rewrite(
+			function () use ( $stored ) {
+				$client = get_client( static::URL );
+
+				$this->assertInstanceOf( Client::class, $client );
+				$this->assertSame( $stored->get_post_id(), $client->get_post_id() );
+			}
+		);
+	}
+
+	public function test_an_access_token_resolves_its_cimd_client_before_wp_rewrite_is_set() {
+		$stored = $this->store();
+		$token  = $stored->issue_token( $this->factory->user->create_and_get() );
+
+		$this->without_rewrite(
+			function () use ( $stored, $token ) {
+				$client = Tokens\get_by_id( $token->get_key() )->get_client();
+
+				$this->assertInstanceOf( Client::class, $client );
+				$this->assertSame( $stored->get_post_id(), $client->get_post_id() );
+			}
+		);
+	}
+
 	public function test_get_client_returns_the_personal_client() {
 		$this->assertInstanceOf( \WP\OAuth2\PersonalClient::class, get_client( \WP\OAuth2\PersonalClient::ID, [ 'discover' => true ] ) );
 	}

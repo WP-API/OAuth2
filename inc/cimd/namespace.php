@@ -110,10 +110,11 @@ function is_cimd_client_id( $id ) {
 /**
  * Validate a client ID URL.
  *
- * @param mixed $url Candidate client ID URL.
+ * @param mixed $url          Candidate client ID URL.
+ * @param bool  $check_issuer Whether to reject this site's issuer as a client ID. Default true.
  * @return true|WP_Error True if the URL is acceptable.
  */
-function validate_client_id_url( $url ) {
+function validate_client_id_url( $url, $check_issuer = true ) {
 	if ( ! is_string( $url ) || strlen( $url ) > MAX_URL_LENGTH ) {
 		return make_error( 'invalid_client_id', __( 'The client ID must be a URL of at most 2048 bytes.', 'oauth2' ), 400 );
 	}
@@ -161,10 +162,12 @@ function validate_client_id_url( $url ) {
 		}
 	}
 
-	$issuers = [ home_url(), Well_Known\get_published_issuer() ];
-	foreach ( $issuers as $issuer ) {
-		if ( $url === $issuer || trailingslashit( $issuer ) === $url ) {
-			return make_error( 'invalid_client_id', __( 'The client ID URL must not be this site\'s issuer.', 'oauth2' ), 400 );
+	if ( $check_issuer ) {
+		$issuers = [ home_url(), Well_Known\get_published_issuer() ];
+		foreach ( $issuers as $issuer ) {
+			if ( $url === $issuer || trailingslashit( $issuer ) === $url ) {
+				return make_error( 'invalid_client_id', __( 'The client ID URL must not be this site\'s issuer.', 'oauth2' ), 400 );
+			}
 		}
 	}
 
