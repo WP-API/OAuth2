@@ -58,6 +58,12 @@ jobs:
       matrix:
         php: ['7.4', '8.0', '8.1', '8.2', '8.3', '8.4', '8.5']
         wp: ${{ fromJSON(needs.wp-versions.outputs.branches) }}
+        # WordPress supports PHP 8.5 from 6.9.
+        exclude:
+          - php: '8.5'
+            wp: '6.7'
+          - php: '8.5'
+            wp: '6.8'
 
     steps:
       - uses: actions/checkout@v7
