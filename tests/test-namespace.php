@@ -131,17 +131,14 @@ class Test_Namespace extends Test_Case {
 		);
 	}
 
-	public function test_register_in_index_tracks_pkce_methods_filter() {
-		$filter = function () {
-			return [ PKCE::METHOD_S256 ];
-		};
-		add_filter( 'oauth2.pkce.supported_methods', $filter );
+	public function test_register_in_index_tracks_allow_plain_filter() {
+		add_filter( 'oauth2.pkce.allow_plain', '__return_false' );
 
 		$response = new WP_REST_Response( [] );
 		$response = register_in_index( $response );
 		$data     = $response->get_data();
 
-		remove_filter( 'oauth2.pkce.supported_methods', $filter );
+		remove_filter( 'oauth2.pkce.allow_plain', '__return_false' );
 
 		$this->assertSame( [ PKCE::METHOD_S256 ], $data['authentication']['oauth2']['code_challenge_methods_supported'] );
 	}

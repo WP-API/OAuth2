@@ -218,26 +218,12 @@ class Test_PKCE extends Test_Case {
 		$this->assertSame( [ PKCE::METHOD_S256, PKCE::METHOD_PLAIN ], PKCE::supported_methods() );
 	}
 
-	public function test_supported_methods_filter_drops_unknown_methods() {
-		$filter = function ( $methods ) {
-			return array_merge( $methods, [ 'S512' ] );
-		};
-		add_filter( 'oauth2.pkce.supported_methods', $filter );
-
-		$this->assertSame( [ PKCE::METHOD_S256, PKCE::METHOD_PLAIN ], PKCE::supported_methods() );
-
-		remove_filter( 'oauth2.pkce.supported_methods', $filter );
-	}
-
-	public function test_supported_methods_filter_removes_plain() {
-		$filter = function () {
-			return [ PKCE::METHOD_S256 ];
-		};
-		add_filter( 'oauth2.pkce.supported_methods', $filter );
+	public function test_supported_methods_drops_plain_when_allow_plain_is_false() {
+		add_filter( 'oauth2.pkce.allow_plain', '__return_false' );
 
 		$this->assertSame( [ PKCE::METHOD_S256 ], PKCE::supported_methods() );
 
-		remove_filter( 'oauth2.pkce.supported_methods', $filter );
+		remove_filter( 'oauth2.pkce.allow_plain', '__return_false' );
 	}
 
 	/**

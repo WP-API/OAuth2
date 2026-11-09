@@ -114,23 +114,10 @@ class Authorization_Code extends Base {
 			);
 		}
 
-		/**
-		 * Filter the code_challenge_method values that satisfy a client's PKCE requirement.
-		 *
-		 * Defaults to S256 only. `plain` offers no protection against a
-		 * malicious app on the same device reading the authorization
-		 * request, which is exactly the threat PKCE exists to mitigate
-		 * for public clients (RFC 9700 section 2.1.1), so it does not
-		 * satisfy a requirement even though it remains an accepted method.
-		 *
-		 * @param string[] $methods Methods that satisfy "PKCE required".
-		 */
-		$required_methods = apply_filters( 'oauth2.pkce.required_methods', [ PKCE::METHOD_S256 ] );
-		if ( ! in_array( $code_challenge_method, $required_methods, true ) ) {
+		if ( PKCE::METHOD_S256 !== $code_challenge_method ) {
 			return new WP_Error(
 				'oauth2.types.authorization_code.check_pkce_requirement.weak_method',
-				/* translators: %s: comma-separated list of code_challenge_method values */
-				sprintf( __( 'This client requires PKCE with one of these code_challenge_method values: %s.', 'oauth2' ), implode( ', ', $required_methods ) ),
+				__( 'This client requires PKCE with the S256 code_challenge_method.', 'oauth2' ),
 				[ 'error' => 'invalid_request' ]
 			);
 		}

@@ -55,7 +55,7 @@ class Command extends WP_CLI_Command {
 	 *     wp oauth2 generate-code-challenge
 	 *     wp oauth2 generate-code-challenge --method=plain
 	 *
-	 * @alias generate-code-challenge
+	 * @subcommand generate-code-challenge
 	 *
 	 * @param array $args Positional arguments.
 	 * @param array $assoc_args Associative arguments.

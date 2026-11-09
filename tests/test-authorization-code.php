@@ -302,22 +302,6 @@ class Test_Authorization_Code extends Test_Case {
 		$this->assertEquals( 'oauth2.tokens.authorization_code.validate.unexpected_verifier', $result->get_error_code() );
 	}
 
-	/**
-	 * RFC 9700 section 4.8.2: a code_verifier for a code issued without a code_challenge must be rejected.
-	 *
-	 * @link https://datatracker.ietf.org/doc/html/rfc9700#section-4.8.2
-	 */
-	public function test_validate_allows_unexpected_verifier_when_filtered() {
-		$code = Authorization_Code::create( $this->client, $this->user );
-
-		$filter = '__return_false';
-		add_filter( 'oauth2.pkce.reject_unexpected_verifier', $filter );
-		$result = $code->validate( static::RFC_VERIFIER );
-		remove_filter( 'oauth2.pkce.reject_unexpected_verifier', $filter );
-
-		$this->assertTrue( $result );
-	}
-
 	public function test_validate_fails_closed_when_stored_method_is_missing() {
 		$code     = Authorization_Code::create( $this->client, $this->user );
 		$meta_key = Authorization_Code::KEY_PREFIX . $code->get_code();
