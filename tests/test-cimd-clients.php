@@ -2769,7 +2769,7 @@ class Test_CIMD_Consent extends CIMD_Clients_Test_Case {
 
 		$html = $this->notice( $client, 'https://client.example.com/callback' );
 
-		$this->assertStringContainsString( 'This app is published at <strong>client.example.com</strong>.', $html );
+		$this->assertStringContainsString( 'This application is published at <strong>client.example.com</strong>.', $html );
 		$this->assertStringContainsString( 'you will be sent to <strong>client.example.com</strong>.', $html );
 		$this->assertStringNotContainsString( 'run on this device', $html );
 	}
@@ -2799,7 +2799,7 @@ class Test_CIMD_Consent extends CIMD_Clients_Test_Case {
 
 		$html = $this->notice( $client, $redirect_uri );
 
-		$this->assertStringContainsString( 'This app will run on this device. Only continue if you started it yourself.', $html );
+		$this->assertStringContainsString( 'This application is running on the device you are using now, not on a website. Only continue if you started it yourself.', $html );
 	}
 
 	public function loopback_redirect_provider() {
@@ -2858,7 +2858,7 @@ class Test_CIMD_Consent extends CIMD_Clients_Test_Case {
 
 		$html = $this->render_form( $client, 'https://client.example.com/callback' );
 
-		$this->assertSame( 1, substr_count( $html, 'This app is published at' ) );
+		$this->assertSame( 1, substr_count( $html, 'This application is published at' ) );
 		$this->assertSame( 1, substr_count( $html, 'you will be sent to' ) );
 		$this->assertStringContainsString( 'oauth2_authorize_form', $html );
 		$this->assertFalse( has_action( 'oauth2_authorize_form' ) );
@@ -2875,7 +2875,7 @@ class Test_CIMD_Consent extends CIMD_Clients_Test_Case {
 
 		$html = $this->render_form( $client, 'https://client.example.com/callback' );
 
-		$this->assertLessThan( strpos( $html, 'EXTRA-FIELD' ), strpos( $html, 'This app is published at' ) );
+		$this->assertLessThan( strpos( $html, 'EXTRA-FIELD' ), strpos( $html, 'This application is published at' ) );
 	}
 
 	public function test_the_bundled_template_warns_about_a_loopback_redirect() {
@@ -2883,7 +2883,7 @@ class Test_CIMD_Consent extends CIMD_Clients_Test_Case {
 
 		$html = $this->render_form( $client, 'http://localhost:9999/cb' );
 
-		$this->assertSame( 1, substr_count( $html, 'run on this device' ) );
+		$this->assertSame( 1, substr_count( $html, 'running on the device you are using now' ) );
 	}
 
 	public function test_the_bundled_template_prints_nothing_extra_for_a_registered_client() {

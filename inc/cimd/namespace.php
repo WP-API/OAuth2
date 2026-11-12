@@ -824,7 +824,7 @@ function discover_client( $url, $stored = null ) {
  * Print where a CIMD client comes from, for the consent screen.
  *
  * Shows the host of the client ID and of the redirect URI, and warns when the
- * redirect URI is on this device.
+ * redirect URI is a loopback address on the user's own device.
  *
  * @param Client      $client       Client being authorised.
  * @param string|null $redirect_uri Redirect URI of the request.
@@ -841,7 +841,7 @@ function render_origin_notice( Client $client, $redirect_uri = null ) {
 			wp_kses(
 				sprintf(
 					/* translators: %s: host name of the client ID URL */
-					__( 'This app is published at %s.', 'oauth2' ),
+					__( 'This application is published at %s.', 'oauth2' ),
 					'<strong>' . esc_html( $client_host ) . '</strong>'
 				),
 				[ 'strong' => [] ]
@@ -869,7 +869,7 @@ function render_origin_notice( Client $client, $redirect_uri = null ) {
 	if ( is_loopback_host( $redirect_host ) ) {
 		printf(
 			'<p class="login-origin login-origin-warning" style="margin-bottom: 16px;"><strong>%s</strong></p>',
-			esc_html__( 'This app will run on this device. Only continue if you started it yourself.', 'oauth2' )
+			esc_html__( 'This application is running on the device you are using now, not on a website. Only continue if you started it yourself.', 'oauth2' )
 		);
 	}
 }
