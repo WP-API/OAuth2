@@ -14,6 +14,10 @@ use WP\OAuth2\PKCE;
 use WP\OAuth2\Types\Authorization_Code;
 use WP\OAuth2\Types\Implicit;
 
+use function WP\OAuth2\Well_Known\get_authorization_server_metadata;
+use function WP\OAuth2\Well_Known\get_metadata_for_site;
+use function WP\OAuth2\Well_Known\get_protected_resource_metadata;
+
 /**
  * Thrown from a 'wp_redirect' filter to capture the final redirect location
  * and escape before the real exit(), without swallowing any other exception
@@ -456,6 +460,177 @@ class Test_Types_Authorization_Code extends Test_Case {
 		$this->assertSame( $pair['code_challenge'], $code->get_code_challenge() );
 		$this->assertSame( 'S256', $code->get_code_challenge_method() );
 	}
+
+	/**
+	 * Submit the consent form and capture the redirect back to the client.
+	 *
+	 * @param Client $client Client being authorised.
+	 * @param string $submit Button pressed, `authorize` or `cancel`.
+	 * @return string Redirect location.
+	 */
+	protected function submit_consent( Client $client, $submit ) {
+		wp_set_current_user( $this->factory->user->create() );
+
+		$_GET  = [
+			'client_id' => $client->get_id(),
+			'state'     => 'xyz',
+		];
+		$_POST = [
+			'_wpnonce'  => wp_create_nonce( sprintf( 'oauth2_authorize:%s', $client->get_id() ) ),
+			'wp-submit' => $submit,
+		];
+
+		$location = null;
+		add_filter( 'wp_redirect', function ( $url ) use ( &$location ) {
+			$location = $url;
+			throw new Redirect_Interrupt();
+		} );
+
+		try {
+			( new Authorization_Code() )->handle_authorisation();
+			$this->fail( 'Expected a redirect back to the client.' );
+		} catch ( Redirect_Interrupt $e ) {
+			// Expected.
+		} finally {
+			$_GET  = [];
+			$_POST = [];
+		}
+
+		return $location;
+	}
+
+	/**
+	 * RFC 9207 section 2: a successful authorization response carries the issuer.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc9207#section-2
+	 */
+	public function test_authorization_response_carries_the_issuer() {
+		parse_str( wp_parse_url( $this->submit_consent( $this->client, 'authorize' ), PHP_URL_QUERY ), $args );
+
+		$this->assertArrayHasKey( 'code', $args );
+		$this->assertSame( 'xyz', $args['state'] );
+		$this->assertSame( get_authorization_server_metadata()['issuer'], $args['iss'] );
+	}
+
+	/**
+	 * RFC 9207 section 2: an error authorization response carries the issuer, including a cancelled request.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc9207#section-2
+	 */
+	public function test_cancelled_response_carries_the_issuer() {
+		parse_str( wp_parse_url( $this->submit_consent( $this->client, 'cancel' ), PHP_URL_QUERY ), $args );
+
+		$this->assertSame( 'access_denied', $args['error'] );
+		$this->assertSame( get_authorization_server_metadata()['issuer'], $args['iss'] );
+	}
+
+	/**
+	 * RFC 9207 section 2: an error authorization response carries the issuer.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc9207#section-2
+	 */
+	public function test_error_redirect_url_carries_the_issuer() {
+		$url = $this->type->get_error_redirect_url_public( 'https://example.com/callback', 'invalid_request', 'Bad request.', 'xyz' );
+
+		parse_str( wp_parse_url( $url, PHP_URL_QUERY ), $args );
+
+		$this->assertSame( get_authorization_server_metadata()['issuer'], $args['iss'] );
+		$this->assertSame( 'xyz', $args['state'] );
+	}
+
+	public function test_authorize_time_error_redirect_carries_the_issuer() {
+		$client             = $this->create_client( [ 'pkce_required' => true ] );
+		$_GET['client_id']  = $client->get_id();
+		$captured_location = null;
+
+		add_filter(
+			'wp_redirect',
+			function ( $location ) use ( &$captured_location ) {
+				$captured_location = $location;
+				throw new Redirect_Interrupt();
+			}
+		);
+
+		try {
+			( new Authorization_Code() )->handle_authorisation();
+			$this->fail( 'Expected handle_authorisation() to redirect on a PKCE error.' );
+		} catch ( Redirect_Interrupt $e ) {
+			// Expected.
+		} finally {
+			$_GET = [];
+		}
+
+		parse_str( wp_parse_url( $captured_location, PHP_URL_QUERY ), $args );
+		$this->assertSame( get_authorization_server_metadata()['issuer'], $args['iss'] );
+	}
+
+	public function test_redirect_args_filters_can_adjust_the_issuer() {
+		add_filter( 'oauth2.redirect_args.authorized', function ( $args ) {
+			$args['iss'] = 'https://issuer.example.com';
+			return $args;
+		} );
+
+		parse_str( wp_parse_url( $this->submit_consent( $this->client, 'authorize' ), PHP_URL_QUERY ), $args );
+
+		$this->assertSame( 'https://issuer.example.com', $args['iss'] );
+	}
+
+	public function test_the_metadata_filter_changes_the_issuer_of_the_response() {
+		add_filter( 'oauth2.well_known_authorization_server_metadata', function ( $metadata ) {
+			$metadata['issuer'] = 'https://metadata-issuer.example.com';
+			return $metadata;
+		} );
+
+		parse_str( wp_parse_url( $this->submit_consent( $this->client, 'cancel' ), PHP_URL_QUERY ), $args );
+
+		$this->assertSame( 'https://metadata-issuer.example.com', $args['iss'] );
+	}
+
+	public function test_the_metadata_filter_changes_the_metadata_the_protected_resource_and_the_response() {
+		add_filter( 'oauth2.well_known_authorization_server_metadata', function ( $metadata ) {
+			$metadata['issuer'] = 'https://issuer.example.com/custom';
+			return $metadata;
+		} );
+
+		parse_str( wp_parse_url( $this->submit_consent( $this->client, 'cancel' ), PHP_URL_QUERY ), $args );
+
+		$this->assertSame( 'https://issuer.example.com/custom', get_authorization_server_metadata()['issuer'] );
+		$this->assertSame( [ 'https://issuer.example.com/custom' ], get_protected_resource_metadata()['authorization_servers'] );
+		$this->assertSame( 'https://issuer.example.com/custom', $args['iss'] );
+	}
+
+	public function test_a_subsite_response_carries_the_issuer_of_that_subsite() {
+		if ( ! is_multisite() ) {
+			$this->markTestSkipped( 'Requires a multisite install.' );
+		}
+
+		$site_id = $this->factory->blog->create( [ 'path' => '/blog/' ] );
+		switch_to_blog( $site_id );
+		try {
+			$client   = $this->create_client();
+			$location = $this->submit_consent( $client, 'authorize' );
+		} finally {
+			restore_current_blog();
+		}
+
+		parse_str( wp_parse_url( $location, PHP_URL_QUERY ), $args );
+
+		$this->assertSame( get_metadata_for_site( $site_id )['issuer'], $args['iss'] );
+		$this->assertSame( get_home_url( $site_id ), $args['iss'] );
+		$this->assertNotSame( home_url(), $args['iss'] );
+	}
+
+	public function test_redirect_args_filter_sees_the_issuer() {
+		$seen = null;
+		add_filter( 'oauth2.redirect_args.cancelled', function ( $args ) use ( &$seen ) {
+			$seen = $args['iss'] ?? null;
+			return $args;
+		} );
+
+		$this->submit_consent( $this->client, 'cancel' );
+
+		$this->assertSame( get_authorization_server_metadata()['issuer'], $seen );
+	}
 }
 
 /**
@@ -528,5 +703,57 @@ class Test_Types_Implicit extends Test_Case {
 	public function test_error_redirect_url_keeps_zero_state() {
 		$url = $this->type->get_error_redirect_url_public( 'https://example.com/callback', 'unauthorized_client', 'Nope.', '0' );
 		$this->assertStringContainsString( 'state=0', $url );
+	}
+
+	/**
+	 * RFC 9207 section 2: the issuer goes in the same fragment as the other response parameters.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc9207#section-2
+	 */
+	public function test_error_redirect_url_carries_the_issuer_in_the_fragment() {
+		$url = $this->type->get_error_redirect_url_public( 'https://example.com/callback', 'unauthorized_client', 'Nope.', 'xyz' );
+
+		$this->assertStringNotContainsString( '?', $url );
+		parse_str( wp_parse_url( $url, PHP_URL_FRAGMENT ), $args );
+		$this->assertSame( get_authorization_server_metadata()['issuer'], $args['iss'] );
+	}
+
+	/**
+	 * RFC 9207 section 2: the issuer goes in the same fragment as the other response parameters.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc9207#section-2
+	 */
+	public function test_token_response_carries_the_issuer_in_the_fragment() {
+		$client = $this->create_client( [ 'callback' => home_url( '/callback' ) ] );
+		wp_set_current_user( $this->factory->user->create() );
+		$_GET  = [
+			'client_id' => $client->get_id(),
+			'state'     => 'xyz',
+		];
+		$_POST = [
+			'_wpnonce'  => wp_create_nonce( sprintf( 'oauth2_authorize:%s', $client->get_id() ) ),
+			'wp-submit' => 'authorize',
+		];
+
+		$location = null;
+		add_filter( 'wp_redirect', function ( $url ) use ( &$location ) {
+			$location = $url;
+			throw new Redirect_Interrupt();
+		} );
+
+		try {
+			( new Implicit() )->handle_authorisation();
+			$this->fail( 'Expected a redirect back to the client.' );
+		} catch ( Redirect_Interrupt $e ) {
+			// Expected.
+		} finally {
+			$_GET  = [];
+			$_POST = [];
+		}
+
+		$this->assertStringNotContainsString( '?', $location );
+		parse_str( wp_parse_url( $location, PHP_URL_FRAGMENT ), $args );
+		$this->assertArrayHasKey( 'access_token', $args );
+		$this->assertSame( get_authorization_server_metadata()['issuer'], $args['iss'] );
 	}
 }

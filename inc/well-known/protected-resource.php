@@ -206,7 +206,7 @@ function get_protected_resource_metadata_for_site( $site_id, $sub_path = '' ) {
 function get_protected_resource_metadata( $sub_path = '' ) {
 	$metadata = [
 		'resource'                 => untrailingslashit( home_url( $sub_path ) ),
-		'authorization_servers'    => [ home_url() ],
+		'authorization_servers'    => [ get_published_issuer() ],
 		'bearer_methods_supported' => get_bearer_methods_supported(),
 	];
 

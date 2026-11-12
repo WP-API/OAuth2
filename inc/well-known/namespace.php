@@ -178,20 +178,51 @@ function get_metadata_for_site( $site_id ) {
 }
 
 /**
+ * Gets the issuer identifier of the current site, which is the site URL.
+ *
+ * It is the `issuer` of the authorization server metadata before the
+ * `oauth2.well_known_authorization_server_metadata` filter runs.
+ *
+ * @return string Issuer identifier.
+ */
+function get_issuer() {
+	return home_url();
+}
+
+/**
+ * Gets the issuer as published in the authorization server metadata.
+ *
+ * This is the value for the `iss` parameter of authorization responses
+ * (RFC 9207), which must match the metadata `issuer`.
+ *
+ * @return string Issuer identifier.
+ */
+function get_published_issuer() {
+	$metadata = get_authorization_server_metadata();
+
+	return is_array( $metadata ) && isset( $metadata['issuer'] ) ? (string) $metadata['issuer'] : get_issuer();
+}
+
+/**
  * Builds the RFC 8414 authorization server metadata document.
  *
  * @return array Metadata describing the current site.
  */
 function get_authorization_server_metadata() {
 	$metadata = [
-		'issuer'                                => home_url(),
-		'authorization_endpoint'                => OAuth2\get_authorization_url(),
-		'token_endpoint'                        => OAuth2\get_token_url(),
-		'grant_types_supported'                 => get_grant_types_supported(),
-		'response_types_supported'              => get_response_types_supported(),
-		'token_endpoint_auth_methods_supported' => [ 'none', 'client_secret_post', 'client_secret_basic' ],
-		'code_challenge_methods_supported'      => OAuth2\PKCE::supported_methods(),
+		'issuer'                                         => get_issuer(),
+		'authorization_endpoint'                         => OAuth2\get_authorization_url(),
+		'token_endpoint'                                 => OAuth2\get_token_url(),
+		'grant_types_supported'                          => get_grant_types_supported(),
+		'response_types_supported'                       => get_response_types_supported(),
+		'token_endpoint_auth_methods_supported'          => [ 'none', 'client_secret_post', 'client_secret_basic' ],
+		'code_challenge_methods_supported'               => OAuth2\PKCE::supported_methods(),
+		'authorization_response_iss_parameter_supported' => true,
 	];
+
+	if ( OAuth2\CIMD\is_enabled() ) {
+		$metadata['client_id_metadata_document_supported'] = true;
+	}
 
 	/**
 	 * Filter the OAuth2 authorization server metadata for a site.

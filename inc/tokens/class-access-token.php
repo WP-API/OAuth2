@@ -35,7 +35,16 @@ class Access_Token extends Token {
 	 * @return ClientInterface|null
 	 */
 	public function get_client() {
-		return OAuth2\get_client( $this->value['client'] );
+		$client = OAuth2\get_client( $this->value['client'] );
+
+		if ( $client instanceof Client && $client->is_cimd() ) {
+			$generation = $this->value['client_generation'] ?? '';
+			if ( ! is_string( $generation ) || '' === $generation || ! hash_equals( $client->get_cimd_generation(), $generation ) ) {
+				return null;
+			}
+		}
+
+		return $client;
 	}
 
 	/**
@@ -228,12 +237,14 @@ class Access_Token extends Token {
 	/**
 	 * Creates a new token for the given client and user.
 	 *
-	 * @param Client  $client
-	 * @param WP_User $user
+	 * @param Client      $client
+	 * @param WP_User     $user
+	 * @param array       $meta              Meta to store on the token.
+	 * @param string|null $client_generation Generation to stamp a CIMD token with, the client's current one if null.
 	 *
 	 * @return Access_Token|WP_Error Token instance, or error on failure.
 	 */
-	public static function create( ClientInterface $client, WP_User $user, $meta = [] ) {
+	public static function create( ClientInterface $client, WP_User $user, $meta = [], $client_generation = null ) {
 		if ( ! $user->exists() ) {
 			return new WP_Error(
 				'oauth2.tokens.access_token.create.no_user',
@@ -241,11 +252,14 @@ class Access_Token extends Token {
 			);
 		}
 
-		$data     = [
+		$data = [
 			'client'  => $client->get_id(),
 			'created' => time(),
 			'meta'    => $meta,
 		];
+		if ( $client instanceof Client && $client->is_cimd() ) {
+			$data['client_generation'] = is_string( $client_generation ) ? $client_generation : $client->get_cimd_generation();
+		}
 		$key      = wp_generate_password( static::KEY_LENGTH, false );
 		$meta_key = static::META_PREFIX . $key;
 

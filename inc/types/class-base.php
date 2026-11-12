@@ -9,7 +9,12 @@ namespace WP\OAuth2\Types;
 
 use WP_Error;
 use WP_Http;
+use WP\OAuth2;
+use WP\OAuth2\CIMD;
 use WP\OAuth2\Client;
+
+use function WP\OAuth2\CIMD\is_cimd_client_id;
+use function WP\OAuth2\Well_Known\get_published_issuer;
 
 abstract class Base implements Type {
 	/**
@@ -43,14 +48,32 @@ abstract class Base implements Type {
 		}
 
 		// Gather parameters.
-		$client_id    = sanitize_text_field( wp_unslash( $_GET['client_id'] ) );
-		$redirect_uri = isset( $_GET['redirect_uri'] ) ? sanitize_text_field( wp_unslash( $_GET['redirect_uri'] ) ) : null;
-		$scope        = isset( $_GET['scope'] ) ? sanitize_text_field( wp_unslash( $_GET['scope'] ) ) : null;
+		// A client ID URL is matched byte for byte, and sanitising would strip its percent-encoded octets.
+		$raw_client_id = wp_unslash( $_GET['client_id'] ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		$client_id     = is_string( $raw_client_id ) && is_cimd_client_id( $raw_client_id ) ? $raw_client_id : sanitize_text_field( $raw_client_id );
+		$raw_redirect  = isset( $_GET['redirect_uri'] ) && is_string( $_GET['redirect_uri'] ) ? wp_unslash( $_GET['redirect_uri'] ) : null; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		$redirect_uri  = isset( $_GET['redirect_uri'] ) ? sanitize_text_field( wp_unslash( $_GET['redirect_uri'] ) ) : null;
+		$scope         = isset( $_GET['scope'] ) ? sanitize_text_field( wp_unslash( $_GET['scope'] ) ) : null;
 		// State is opaque to the server and must be returned to the client unchanged.
 		$state = isset( $_GET['state'] ) && is_string( $_GET['state'] ) ? wp_unslash( $_GET['state'] ) : null; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 
-		$client = Client::get_by_id( $client_id, true );
-		if ( empty( $client ) ) {
+		$client = OAuth2\get_client(
+			$client_id,
+			[
+				'include_unapproved' => true,
+				'discover'           => is_user_logged_in(),
+			]
+		);
+		if ( is_wp_error( $client ) ) {
+			return $client;
+		}
+
+		// A logged-out request never fetches a metadata document, so an unknown one is resolved after login.
+		if ( ! $client instanceof Client && is_cimd_client_id( $client_id ) && ! is_user_logged_in() ) {
+			$this->redirect_to_login();
+		}
+
+		if ( ! $client instanceof Client ) {
 			return new WP_Error(
 				'oauth2.types.authorization_code.handle_authorisation.invalid_client_id',
 				/* translators: %s: client ID */
@@ -71,6 +94,11 @@ abstract class Base implements Type {
 					'client_id' => $client_id,
 				]
 			);
+		}
+
+		// A CIMD client's redirect URIs are matched exactly, so compare the request value as it was sent.
+		if ( $client->is_cimd() && null !== $raw_redirect ) {
+			$redirect_uri = $raw_redirect;
 		}
 
 		// Validate the redirection URI.
@@ -94,17 +122,11 @@ abstract class Base implements Type {
 
 		// Valid parameters, ensure the user is logged in.
 		if ( ! is_user_logged_in() ) {
-			$redirect = '';
-			if ( isset( $_SERVER['REQUEST_URI'] ) ) {
-				$redirect = $_SERVER['REQUEST_URI']; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
-			}
-			$url = wp_login_url( $redirect );
-			wp_safe_redirect( $url );
-			exit;
+			$this->redirect_to_login();
 		}
 
 		if ( empty( $_POST['_wpnonce'] ) ) {
-			return $this->render_form( $client );
+			return $this->render_form( $client, null, $redirect_uri );
 		}
 
 		// Check nonce.
@@ -127,13 +149,26 @@ abstract class Base implements Type {
 					__( 'Cancel', 'oauth2' )
 				)
 			);
-			return $this->render_form( $client, $error );
+			return $this->render_form( $client, $error, $redirect_uri );
 		}
 
 		$submit = sanitize_text_field( wp_unslash( $_POST['wp-submit'] ) );
 
 		$data = array_merge( compact( 'redirect_uri', 'scope', 'state' ), $extra_params );
 		return $this->handle_authorization_submission( $submit, $client, $data );
+	}
+
+	/**
+	 * Redirect to the login page, returning to the current request afterwards, and exit.
+	 */
+	protected function redirect_to_login() {
+		$redirect = '';
+		if ( isset( $_SERVER['REQUEST_URI'] ) ) {
+			$redirect = $_SERVER['REQUEST_URI']; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
+		}
+		$url = wp_login_url( $redirect );
+		wp_safe_redirect( $url );
+		exit;
 	}
 
 	/**
@@ -171,6 +206,7 @@ abstract class Base implements Type {
 		if ( null !== $state ) {
 			$args['state'] = $state;
 		}
+		$args['iss'] = get_published_issuer();
 
 		return add_query_arg( urlencode_deep( $args ), $redirect_uri );
 	}
@@ -207,16 +243,27 @@ abstract class Base implements Type {
 	/**
 	 * Render the authorisation form.
 	 *
-	 * @param Client   $client Client being authorised.
-	 * @param WP_Error $errors Errors to display, if any.
+	 * @param Client      $client       Client being authorised.
+	 * @param WP_Error    $errors       Errors to display, if any.
+	 * @param string|null $redirect_uri Validated redirect URI of the request.
 	 */
-	protected function render_form( Client $client, ?WP_Error $errors = null ) {
+	protected function render_form( Client $client, ?WP_Error $errors = null, $redirect_uri = null ) {
 		$file = locate_template( 'oauth2-authorize.php' );
 		if ( empty( $file ) ) {
 			$file = dirname( dirname( __DIR__ ) ) . '/theme/oauth2-authorize.php';
 		}
 
-		include $file;
+		// The notice about where a CIMD client comes from is printed by the form action, so a
+		// theme template that fires the action shows it without any other change.
+		$notice = static function ( $form_client ) use ( $redirect_uri ) {
+			CIMD\render_origin_notice( $form_client, $redirect_uri );
+		};
+		add_action( 'oauth2_authorize_form', $notice, 0 );
+		try {
+			include $file;
+		} finally {
+			remove_action( 'oauth2_authorize_form', $notice, 0 );
+		}
 	}
 
 	/**
@@ -230,7 +277,7 @@ abstract class Base implements Type {
 	}
 
 	/**
-	 * Filter the redirection args.
+	 * Add the issuer to the redirection args and filter them.
 	 *
 	 * @param array   $redirect_args Redirect args.
 	 * @param boolean $authorized True if authorized, false otherwise.
@@ -241,6 +288,9 @@ abstract class Base implements Type {
 	 *                      which is only ever supplied at the token endpoint.
 	 */
 	protected function filter_redirect_args( $redirect_args, $authorized, Client $client, $data ) {
+		// RFC 9207: identify the issuer in every authorization response.
+		$redirect_args['iss'] = get_published_issuer();
+
 		if ( ! $authorized ) {
 			/**
 			 * Filter the redirect args when the user has cancelled.

@@ -10,6 +10,8 @@ namespace WP\OAuth2\Types;
 use WP_Error;
 use WP\OAuth2\Client;
 
+use function WP\OAuth2\Well_Known\get_published_issuer;
+
 class Implicit extends Base {
 	/**
 	 * Get response_type code for authorisation page.
@@ -123,6 +125,7 @@ class Implicit extends Base {
 		if ( null !== $state ) {
 			$args['state'] = $state;
 		}
+		$args['iss'] = get_published_issuer();
 
 		return $redirect_uri . '#' . build_query( urlencode_deep( $args ) );
 	}

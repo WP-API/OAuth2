@@ -102,6 +102,17 @@ class Test_Well_Known extends Test_Case {
 		$this->assertEquals( home_url(), $metadata['issuer'] );
 	}
 
+	/**
+	 * RFC 9207 section 3: the metadata says authorization responses carry iss.
+	 *
+	 * @link https://datatracker.ietf.org/doc/html/rfc9207#section-3
+	 */
+	public function test_metadata_advertises_the_issuer_response_parameter() {
+		$metadata = get_authorization_server_metadata();
+
+		$this->assertTrue( $metadata['authorization_response_iss_parameter_supported'] );
+	}
+
 	public function test_metadata_advertises_the_token_endpoint() {
 		$metadata = get_authorization_server_metadata();
 		$this->assertStringContainsString( 'oauth2/access_token', $metadata['token_endpoint'] );
@@ -139,6 +150,20 @@ class Test_Well_Known extends Test_Case {
 		$metadata = get_authorization_server_metadata();
 
 		$this->assertEquals( 'https://example.org/docs', $metadata['service_documentation'] );
+	}
+
+	public function test_metadata_advertises_client_id_metadata_documents() {
+		$metadata = get_authorization_server_metadata();
+
+		$this->assertTrue( $metadata['client_id_metadata_document_supported'] );
+	}
+
+	public function test_metadata_omits_client_id_metadata_documents_when_disabled() {
+		add_filter( 'oauth2.cimd.enabled', '__return_false' );
+
+		$metadata = get_authorization_server_metadata();
+
+		$this->assertArrayNotHasKey( 'client_id_metadata_document_supported', $metadata );
 	}
 
 	// -------------------------------------------------------------------------

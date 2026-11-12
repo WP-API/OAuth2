@@ -55,6 +55,28 @@ class Test_Access_Token extends Test_Case {
 		$this->assertEquals( 'oauth2.tokens.access_token.create.no_user', $result->get_error_code() );
 	}
 
+	public function test_create_keeps_a_caller_supplied_client_generation_in_the_meta() {
+		$token = Access_Token::create( $this->client, $this->user, [ 'client_generation' => 'caller-value' ] );
+
+		$found = Access_Token::get_by_id( $token->get_key() );
+		$this->assertSame( 'caller-value', $found->get_meta( 'client_generation' ) );
+		$this->assertNotNull( $found->get_client() );
+	}
+
+	public function test_issue_token_keeps_a_caller_supplied_client_generation_in_the_meta() {
+		$token = $this->client->issue_token( $this->user, [ 'client_generation' => [ 'any', 'shape' ] ] );
+
+		$this->assertSame( [ 'any', 'shape' ], Access_Token::get_by_id( $token->get_key() )->get_meta( 'client_generation' ) );
+	}
+
+	public function test_a_personal_client_keeps_a_caller_supplied_client_generation_in_the_meta() {
+		$token = PersonalClient::get_instance()->issue_token( $this->user, [ 'client_generation' => 'caller-value' ] );
+
+		$found = Access_Token::get_by_id( $token->get_key() );
+		$this->assertSame( 'caller-value', $found->get_meta( 'client_generation' ) );
+		$this->assertNotNull( $found->get_client() );
+	}
+
 	public function test_create_for_client_returns_token() {
 		$client = $this->create_client( [ 'client_credentials_enabled' => true ] );
 		$token  = Access_Token::create_for_client( $client );

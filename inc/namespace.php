@@ -9,12 +9,14 @@ namespace WP\OAuth2;
 
 use WP\OAuth2\Types\Type;
 use WP_CLI;
+use WP_Error;
 use WP_REST_Response;
 
 function bootstrap() {
 	// Core authentication hooks.
 	add_action( 'init', __NAMESPACE__ . '\\Client::register_type' );
 	add_filter( 'determine_current_user', __NAMESPACE__ . '\\Authentication\\attempt_authentication', 11 );
+	add_filter( 'application_password_is_api_request', __NAMESPACE__ . '\\Authentication\\exclude_token_endpoint_from_application_passwords', 100 );
 
 	// REST API integration.
 	add_filter( 'rest_authentication_errors', __NAMESPACE__ . '\\Authentication\\maybe_report_errors' );
@@ -155,14 +157,50 @@ function get_token_url() {
 /**
  * Get a client by ID.
  *
- * @param string $id ID for the client.
+ * @param string $id   ID for the client.
+ * @param array  $args {
+ *     Optional arguments.
  *
- * @return ClientInterface Client instance.
+ *     @type bool $include_unapproved Whether to also return draft and pending clients. Default false.
+ *     @type bool $discover           Whether to fetch or refresh the metadata document of a CIMD client ID. Default false.
+ * }
+ *
+ * @return ClientInterface|WP_Error|null Client instance, null if not found, or an error if discovery failed.
  */
-function get_client( $id ) {
+function get_client( $id, array $args = [] ) {
 	if ( PersonalClient::ID === $id ) {
 		return PersonalClient::get_instance();
 	}
 
-	return Client::get_by_id( $id );
+	$args = array_merge(
+		[
+			'include_unapproved' => false,
+			'discover'           => false,
+		],
+		$args
+	);
+
+	if ( ! CIMD\is_cimd_client_id( $id ) ) {
+		return Client::get_by_id( $id, $args['include_unapproved'] );
+	}
+
+	$discover = $args['discover'];
+
+	// Switches that block a client apply to every lookup, with or without discovery.
+	if ( ! CIMD\is_enabled() || is_wp_error( CIMD\validate_client_id_url( $id, $discover ) ) ) {
+		return null;
+	}
+
+	$stored = Client::get_by_id( $id, $args['include_unapproved'] || $discover );
+
+	if ( ! $discover ) {
+		return $stored;
+	}
+
+	$client = CIMD\discover_client( $id, $stored );
+	if ( $client instanceof Client && ! $args['include_unapproved'] && ! $client->is_approved() ) {
+		return null;
+	}
+
+	return $client;
 }

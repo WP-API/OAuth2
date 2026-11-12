@@ -115,15 +115,36 @@ class ListTable extends WP_List_Table {
 
 		$action_html = $this->row_actions( $actions );
 
+		$client  = Client::get_by_post_id( $item->ID );
+		$is_cimd = $client && $client->is_cimd();
+
 		// Get suffixes for draft, etc
+		$add_state = function ( $states ) {
+			$states['oauth2_cimd'] = __( 'Metadata document', 'oauth2' );
+
+			return $states;
+		};
+		if ( $is_cimd ) {
+			add_filter( 'display_post_states', $add_state );
+		}
 		ob_start();
 		_post_states( $item );
+		$states = ob_get_clean();
+		remove_filter( 'display_post_states', $add_state );
+
 		$title = sprintf(
 			'<strong><a href="%s">%s</a>%s</strong>',
 			esc_url( $edit_link ),
 			$title,
-			ob_get_clean()
+			$states
 		);
+
+		if ( $is_cimd ) {
+			$host = (string) wp_parse_url( $client->get_id(), PHP_URL_HOST );
+			if ( '' !== $host ) {
+				$title .= '<br /><code>' . esc_html( $host ) . '</code>';
+			}
+		}
 
 		return $title . ' ' . $action_html;
 	}
@@ -146,6 +167,15 @@ class ListTable extends WP_List_Table {
 	 * @return string Content of the column.
 	 */
 	protected function column_description( $item ) {
-		return $item->post_content;
+		$client = Client::get_by_post_id( $item->ID );
+		if ( $client && $client->is_cimd() ) {
+			return sprintf(
+				/* translators: %s: client ID URL of a client metadata document */
+				esc_html__( 'Published at %s', 'oauth2' ),
+				esc_html( $client->get_id() )
+			);
+		}
+
+		return wp_kses_post( $item->post_content );
 	}
 }
